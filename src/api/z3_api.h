@@ -1176,6 +1176,7 @@ typedef enum {
     // strings
     Z3_OP_STR_TO_INT,
     Z3_OP_INT_TO_STR,
+    Z3_OP_STR_COUNT,
 
     // regular expressions
     Z3_OP_RE_PLUS,
@@ -3402,6 +3403,15 @@ extern "C" {
        def_API('Z3_mk_int_to_str' ,AST ,(_in(CONTEXT), _in(AST)))
      */
     Z3_ast Z3_API Z3_mk_int_to_str(Z3_context c, Z3_ast s);
+
+    /**
+       \brief count number of occurences of \c container contains \c containee.
+
+       \pre \c container and \c containee are the same sequence sorts.
+
+       def_API('Z3_mk_str_count' ,AST ,(_in(CONTEXT), _in(AST), _in(AST)))
+     */
+    Z3_ast Z3_API Z3_mk_str_count(Z3_context c, Z3_ast containee, Z3_ast container);
 
     /**
        \brief Create a regular expression that accepts the sequence \c seq.

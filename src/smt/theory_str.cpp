@@ -706,6 +706,10 @@ namespace smt {
         }
     }
 
+    app * theory_str::mk_strcount(expr * x, expr * y) {
+        return u.str.mk_count(x,y);
+    }
+
     /*
      * Returns the simplified concatenation of two expressions,
      * where either both expressions are constant strings
@@ -1156,6 +1160,81 @@ namespace smt {
         TRACE("str", tout << "string-eq length-eq axiom: "
               << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
         assert_implication(premise, conclusion);
+    }
+
+    /*
+     * For every literal string s appearing in the equation
+     * add an axiom of the form:
+     * (lhs == rhs) -> ( Count(s, lhs) == Count(s, rhs) )
+     */
+    void theory_str::instantiate_str_eq_count_axiom(enode * lhs, enode * rhs) {
+        context & ctx = get_context();
+        ast_manager & m = get_manager();
+
+        app * a_lhs = lhs->get_owner();
+        app * a_rhs = rhs->get_owner();
+
+        // build premise: (lhs == rhs)
+        expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
+
+        // for each string s that appears in the equality:
+        set<zstring> stringSet = get_eq_strings(premise) 
+        for(auto s : stringSet)
+        {
+            // build conclusion: ( Count(s, lhs) == Count(s, rhs) )
+            expr_ref count_lhs(mk_strcount(s, a_lhs), m);
+            SASSERT(count_lhs);
+            expr_ref count_rhs(mk_strcount(s, a_rhs), m);
+            SASSERT(count_rhs);
+            expr_ref conclusion(ctx.mk_eq_atom(count_lhs, count_rhs), m);
+
+            TRACE("str", tout << "string-eq count-eq axiom: "
+                << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
+            assert_implication(premise, conclusion);
+        }
+    }
+
+    void theory_str::get_eq_strings(expr * ex) {
+        ast_manager & m = get_manager();
+        context & ctx = get_context();
+
+        sort * ex_sort = m.get_sort(ex);
+        sort * str_sort = u.str.mk_string_sort();
+        sort * bool_sort = m.mk_bool_sort();
+
+        set<zstring> stringSet;
+
+        if (ex_sort == str_sort) {
+            enode * n = ctx.get_enode(ex);
+            SASSERT(n);
+
+            if (is_app(ex)) {
+                app * ap = to_app(ex);
+                if (u.str.is_concat(ap)) {
+                    // if ex is a concat
+                } else if (u.str.is_at(ap) || u.str.is_extract(ap) || u.str.is_replace(ap)) {
+                    // TODO
+                } else if (u.str.is_itos(ap)) {
+                    //TODO
+                } else if (ap->get_num_args() == 0 && !u.str.is_string(ap)) {
+                    // if ex is a variable
+                }
+            }
+        } else if (ex_sort == bool_sort && !is_quantifier(ex)) {
+            //must be equality
+        } else {
+            //other. Something went wrong?
+        }
+
+        // if expr is an application, recursively inspect all arguments
+        if (is_app(ex)) {
+            app * term = to_app(ex);
+            unsigned num_args = term->get_num_args();
+            for (unsigned i = 0; i < num_args; i++) {
+                set<zstring> tmp = get_eq_strings(term->get_arg(i));
+                stringSet.insert(tmp.begin(), tmp.end());
+            }
+        }
     }
 
     void theory_str::instantiate_axiom_CharAt(enode * e) {
@@ -8114,6 +8193,9 @@ namespace smt {
 
         check_eqc_empty_string(lhs, rhs);
         instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
+
+        //TODO Federico Add axioms for character counts 
+        instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
 
         // group terms by equivalence class (groupNodeInEqc())
 

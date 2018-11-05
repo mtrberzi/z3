@@ -65,6 +65,7 @@ enum seq_op_kind {
     OP_STRING_CONST,
     OP_STRING_ITOS,
     OP_STRING_STOI,
+    OP_STRING_COUNT,
     // internal only operators. Converted to SEQ variants.
     _OP_STRING_STRREPL,
     _OP_STRING_CONCAT,
@@ -113,6 +114,7 @@ public:
     bool prefixof(zstring const& other) const;
     bool contains(zstring const& other) const;
     int  indexof(zstring const& other, int offset) const;
+    int  count(zstring const &other) const;
     zstring extract(int lo, int hi) const;
     zstring operator+(zstring const& other) const;
     bool operator==(const zstring& other) const;
@@ -252,6 +254,7 @@ public:
         app* mk_char(zstring const& s, unsigned idx);
         app* mk_itos(expr* i) { return m.mk_app(m_fid, OP_STRING_ITOS, 1, &i); }
         app* mk_stoi(expr* s) { return m.mk_app(m_fid, OP_STRING_STOI, 1, &s); }
+        app* mk_count(expr* a, expr* b) { expr* es[2] = { a, b }; return m.mk_app(m_fid, OP_STRING_COUNT, 2, es); }
 
         bool is_string(expr const * n) const { return is_app_of(n, m_fid, OP_STRING_CONST); }
 
@@ -275,6 +278,7 @@ public:
         bool is_suffix(expr const* n)   const { return is_app_of(n, m_fid, OP_SEQ_SUFFIX); }
         bool is_itos(expr const* n)     const { return is_app_of(n, m_fid, OP_STRING_ITOS); }
         bool is_stoi(expr const* n)     const { return is_app_of(n, m_fid, OP_STRING_STOI); }
+        bool is_count(expr const* n)    const { return is_app_of(n, m_fid, OP_STRING_COUNT); }
         bool is_in_re(expr const* n)    const { return is_app_of(n, m_fid, OP_SEQ_IN_RE); }
         bool is_unit(expr const* n)     const { return is_app_of(n, m_fid, OP_SEQ_UNIT); }
 
@@ -300,6 +304,7 @@ public:
         MATCH_BINARY(is_suffix);
         MATCH_UNARY(is_itos);
         MATCH_UNARY(is_stoi);
+        MATCH_BINARY(is_count);
         MATCH_BINARY(is_in_re);
         MATCH_UNARY(is_unit);
 

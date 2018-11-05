@@ -272,6 +272,18 @@ int zstring::indexof(zstring const& other, int offset) const {
     return -1;
 }
 
+int zstring::count(zstring const& other) const {
+    SASSERT(other.length() == 1);
+    unsigned count = 0;
+    unsigned len = length();
+    for (unsigned i = 0; i <= len; ++i) {
+        if (m_buffer[i] == other[0]) {
+            count++;
+        }
+    }
+    return count;
+}
+
 zstring zstring::extract(int offset, int len) const {
     zstring result(m_encoding);
     SASSERT(0 <= offset && 0 <= len);
@@ -558,6 +570,7 @@ void seq_decl_plugin::init() {
     m_sigs[_OP_STRING_STRREPL]   = alloc(psig, m, "str.replace", 0, 3, str3T, strT);
     m_sigs[OP_STRING_ITOS]       = alloc(psig, m, "int.to.str", 0, 1, &intT, strT);
     m_sigs[OP_STRING_STOI]       = alloc(psig, m, "str.to.int", 0, 1, &strT, intT);
+    m_sigs[OP_STRING_COUNT]      = alloc(psig, m, "str.count", 0, 2, str2T, intT);
     m_sigs[_OP_STRING_CONCAT]    = alloc(psig, m, "str.++", 1, 2, str2T, strT);
     m_sigs[_OP_STRING_LENGTH]    = alloc(psig, m, "str.len", 0, 1, &strT, intT);
     m_sigs[_OP_STRING_STRCTN]    = alloc(psig, m, "str.contains", 0, 2, str2T, boolT);
@@ -671,6 +684,7 @@ func_decl * seq_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, 
     case OP_STRING_ITOS:
     case OP_STRING_STOI:
     case OP_RE_COMPLEMENT:
+    case OP_STRING_COUNT:
         match(*m_sigs[k], arity, domain, range, rng);
         return m.mk_func_decl(m_sigs[k]->m_name, arity, domain, rng, func_decl_info(m_family_id, k));
 

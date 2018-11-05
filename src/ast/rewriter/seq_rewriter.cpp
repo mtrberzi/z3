@@ -443,6 +443,9 @@ br_status seq_rewriter::mk_app_core(func_decl * f, unsigned num_args, expr * con
     case OP_STRING_STOI: 
         SASSERT(num_args == 1);
         return mk_str_stoi(args[0], result);
+    case OP_STRING_COUNT:
+        SASSERT(num_args == 2);
+        return BR_FAILED;
     case _OP_STRING_CONCAT:
     case _OP_STRING_PREFIX:
     case _OP_STRING_SUFFIX:
