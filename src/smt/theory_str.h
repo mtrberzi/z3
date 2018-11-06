@@ -506,6 +506,10 @@ protected:
     void add_cut_info_merge(expr * destNode, int slevel, expr * srcNode);
     bool has_self_cut(expr * n1, expr * n2);
 
+    // for count abstraction
+    app * mk_strcount(expr * x, expr * y);
+    std::set<expr*> get_eq_strings(expr * ex);
+
     // for ConcatOverlapAvoid
     bool will_result_in_overlap(expr * lhs, expr * rhs);
 
@@ -524,6 +528,7 @@ protected:
     void try_eval_concat(enode * cat);
     void instantiate_basic_string_axioms(enode * str);
     void instantiate_str_eq_length_axiom(enode * lhs, enode * rhs);
+    void instantiate_str_eq_count_axiom(enode * lhs, enode * rhs);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);

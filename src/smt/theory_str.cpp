@@ -1178,7 +1178,7 @@ namespace smt {
         expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
 
         // for each string s that appears in the equality:
-        set<zstring> stringSet = get_eq_strings(premise) 
+        std::set<expr*> stringSet = get_eq_strings(premise);
         for(auto s : stringSet)
         {
             // build conclusion: ( Count(s, lhs) == Count(s, rhs) )
@@ -1194,15 +1194,16 @@ namespace smt {
         }
     }
 
-    void theory_str::get_eq_strings(expr * ex) {
+    std::set<expr*> theory_str::get_eq_strings(expr * ex) {
         ast_manager & m = get_manager();
         context & ctx = get_context();
 
         sort * ex_sort = m.get_sort(ex);
         sort * str_sort = u.str.mk_string_sort();
-        sort * bool_sort = m.mk_bool_sort();
 
-        set<zstring> stringSet;
+        std::set<expr*> stringSet;
+
+        TRACE("str", tout << "Getting literal strings in " << mk_ismt2_pp(ex, m) << std::endl;);
 
         if (ex_sort == str_sort) {
             enode * n = ctx.get_enode(ex);
@@ -1210,20 +1211,12 @@ namespace smt {
 
             if (is_app(ex)) {
                 app * ap = to_app(ex);
-                if (u.str.is_concat(ap)) {
-                    // if ex is a concat
-                } else if (u.str.is_at(ap) || u.str.is_extract(ap) || u.str.is_replace(ap)) {
-                    // TODO
-                } else if (u.str.is_itos(ap)) {
-                    //TODO
-                } else if (ap->get_num_args() == 0 && !u.str.is_string(ap)) {
-                    // if ex is a variable
+                if (ap->get_num_args() == 0 && u.str.is_string(ap)) {
+                    TRACE("str", tout << "adding " << mk_ismt2_pp(ex, m) << " to stringSet" << std::endl;);
+                    stringSet.insert(ex);
+                    return stringSet;
                 }
             }
-        } else if (ex_sort == bool_sort && !is_quantifier(ex)) {
-            //must be equality
-        } else {
-            //other. Something went wrong?
         }
 
         // if expr is an application, recursively inspect all arguments
@@ -1231,10 +1224,11 @@ namespace smt {
             app * term = to_app(ex);
             unsigned num_args = term->get_num_args();
             for (unsigned i = 0; i < num_args; i++) {
-                set<zstring> tmp = get_eq_strings(term->get_arg(i));
+                std::set<expr*> tmp = get_eq_strings(term->get_arg(i));
                 stringSet.insert(tmp.begin(), tmp.end());
             }
         }
+        return stringSet;
     }
 
     void theory_str::instantiate_axiom_CharAt(enode * e) {
