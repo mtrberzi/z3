@@ -1189,8 +1189,9 @@ namespace smt {
             SASSERT(count_rhs);
             
             expr_ref conclusion(ctx.mk_eq_atom(count_lhs, count_rhs), m);
-            // TRACE("str", tout << "Conclusion before rewrite: " << mk_ismt2_pp(conclusion, m) << std::endl;);
-            // ctx.get_rewriter()(conclusion);
+            TRACE("str", tout << "Conclusion before rewrite: " << mk_ismt2_pp(conclusion, m) << std::endl;);
+            th_rewriter rw(m);
+            rw(conclusion);
 
             TRACE("str", tout << "string-eq count-eq axiom: "
                 << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
