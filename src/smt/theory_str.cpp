@@ -1177,8 +1177,11 @@ namespace smt {
         // build premise: (lhs == rhs)
         expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
 
+        // get all vars that appear in the equality:
+        std::set<expr*> varSet = get_eq_chars_vars(premise, false);
+
         // for each character c that appears in the equality:
-        std::set<expr*> characterSet = get_eq_chars(premise);
+        std::set<expr*> characterSet = get_eq_chars_vars(premise, true);
         for(auto c : characterSet)
         {
             // build conclusion: ( Count(c, lhs) == Count(c, rhs) )
@@ -1196,35 +1199,60 @@ namespace smt {
             TRACE("str", tout << "string-eq count-eq axiom: "
                 << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
             assert_implication(premise, conclusion);
+
+            //also assert that for all vars X (count c X) >= 0
+            for(auto v : varSet)
+            {
+                // build LHS
+                expr_ref count_str(m);
+                count_str = mk_strcount(c, v);
+                SASSERT(count_str);
+                // build RHS
+                expr_ref zero(m);
+                zero = m_autil.mk_numeral(rational(0), true);
+                SASSERT(zero);
+                // build LHS >= RHS and assert
+                app * lhs_ge_rhs = m_autil.mk_ge(count_str, zero);
+                SASSERT(lhs_ge_rhs);
+                TRACE("str", tout << "count axiom: " << mk_ismt2_pp(lhs_ge_rhs, m) << std::endl;);
+                assert_axiom(lhs_ge_rhs);
+            }
         }
     }
 
-    std::set<expr*> theory_str::get_eq_chars(expr * ex) {
+    //boolean input tells us if we are getting the chars or the vars
+    // chars is true; vars is false
+    std::set<expr*> theory_str::get_eq_chars_vars(expr * ex, bool choice) {
         ast_manager & m = get_manager();
 
         sort * ex_sort = m.get_sort(ex);
         sort * str_sort = u.str.mk_string_sort();
 
-        std::set<expr*> characterSet;
+        std::set<expr*> collectedSet;
 
-        TRACE("str", tout << "Getting literal characters in " << mk_ismt2_pp(ex, m) << std::endl;);
+        TRACE("str", tout << "Getting vars/literal characters in " << mk_ismt2_pp(ex, m) << std::endl;);
 
         if (ex_sort == str_sort) {
             if (is_app(ex)) {
                 app * ap = to_app(ex);
-                if (ap->get_num_args() == 0 && u.str.is_string(ap)) {
-                    bool str_exists;
-                    expr * str = get_eqc_value(ex, str_exists);
-                    SASSERT(str_exists);
-                    zstring str_const;
-                    u.str.is_string(str, str_const); 
-                    // get characters out of str_const
-                    for(size_t i = 0; i < str_const.length(); i++)
-                    {
-                        TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to characterSet" << std::endl;);
-                        characterSet.insert(mk_string(str_const.extract(i, 1)));
+                if (ap->get_num_args() == 0) { 
+                    if (choice && u.str.is_string(ap)) {
+                        bool str_exists;
+                        expr * str = get_eqc_value(ex, str_exists);
+                        SASSERT(str_exists);
+                        zstring str_const;
+                        u.str.is_string(str, str_const); 
+                        // get characters/vars out of str_const
+                        for(size_t i = 0; i < str_const.length(); i++)
+                        {
+                            TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to characterSet" << std::endl;);
+                            collectedSet.insert(mk_string(str_const.extract(i, 1)));
+                        }
+                        return collectedSet;
+                    }else if(!choice && !u.str.is_string(ap)){
+                        TRACE("str", tout << "adding " << ap << " to varSet" << std::endl;);
+                        collectedSet.insert(ap);
                     }
-                    return characterSet;
                 }
             }
         }
@@ -1234,11 +1262,11 @@ namespace smt {
             app * term = to_app(ex);
             unsigned num_args = term->get_num_args();
             for (unsigned i = 0; i < num_args; i++) {
-                std::set<expr*> tmp = get_eq_chars(term->get_arg(i));
-                characterSet.insert(tmp.begin(), tmp.end());
+                std::set<expr*> tmp = get_eq_chars_vars(term->get_arg(i), choice);
+                collectedSet.insert(tmp.begin(), tmp.end());
             }
         }
-        return characterSet;
+        return collectedSet;
     }
 
     void theory_str::instantiate_axiom_CharAt(enode * e) {
@@ -8198,8 +8226,11 @@ namespace smt {
         check_eqc_empty_string(lhs, rhs);
         instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
 
-        //TODO Federico Add axioms for character counts 
-        instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
+        if (m_params.m_CharacterAbstraction) {
+            instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
+        } else {
+            TRACE("str", tout << "WARNING: character abstraction integration disabled" << std::endl;);
+        }
 
         // group terms by equivalence class (groupNodeInEqc())
 

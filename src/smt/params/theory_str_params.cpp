@@ -37,4 +37,5 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_RegexAutomata_FailedAutomatonThreshold = p.str_regex_automata_failed_automaton_threshold();
     m_RegexAutomata_FailedIntersectionThreshold = p.str_regex_automata_failed_intersection_threshold();
     m_RegexAutomata_LengthAttemptThreshold = p.str_regex_automata_length_attempt_threshold();
+    m_CharacterAbstraction = p.str_character_abstraction();
 }

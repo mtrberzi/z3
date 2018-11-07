@@ -570,7 +570,7 @@ void seq_decl_plugin::init() {
     m_sigs[_OP_STRING_STRREPL]   = alloc(psig, m, "str.replace", 0, 3, str3T, strT);
     m_sigs[OP_STRING_ITOS]       = alloc(psig, m, "int.to.str", 0, 1, &intT, strT);
     m_sigs[OP_STRING_STOI]       = alloc(psig, m, "str.to.int", 0, 1, &strT, intT);
-    m_sigs[OP_STRING_COUNT]      = alloc(psig, m, "str.count", 0, 2, str2T, intT);
+    m_sigs[OP_STRING_COUNT]      = alloc(psig, m, "_str.count", 0, 2, str2T, intT);
     m_sigs[_OP_STRING_CONCAT]    = alloc(psig, m, "str.++", 1, 2, str2T, strT);
     m_sigs[_OP_STRING_LENGTH]    = alloc(psig, m, "str.len", 0, 1, &strT, intT);
     m_sigs[_OP_STRING_STRCTN]    = alloc(psig, m, "str.contains", 0, 2, str2T, boolT);
