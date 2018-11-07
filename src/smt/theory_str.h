@@ -106,6 +106,8 @@ public:
     }
 };
 
+struct c_hash { unsigned operator()(char u) const { return (unsigned)u; } };
+struct c_eq { bool operator()(char u1, char u2) const { return u1 == u2; } };
 
 class nfa {
 protected:
@@ -482,6 +484,12 @@ protected:
     // finite model finding data
     // maps a finite model tester var to a list of variables that will be tested
     obj_map<expr, ptr_vector<expr> > finite_model_test_varlists;
+
+    // fixed length model construction
+    basic_union_find character_eqc;
+    obj_map<expr, svector<unsigned> > var_to_char_eqc_map; // maps a var to a list of its character EQC nodes
+    u_map<expr*> char_to_var_eqc_map; // maps a character EQC node to the variable containing it
+    map<char, unsigned, c_hash, c_eq> char_to_eqc_map;
 protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);
@@ -690,6 +698,10 @@ protected:
 
     bool finalcheck_str2int(app * a);
     bool finalcheck_int2str(app * a);
+
+    lbool fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex);
+    bool fixed_length_reduce_true_eq(expr * lhs, expr * rhs);
+    svector<unsigned> fixed_length_reduce_string_term(expr * term);
 
     // strRegex
 

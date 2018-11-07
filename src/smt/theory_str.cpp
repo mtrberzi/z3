@@ -4837,7 +4837,6 @@ namespace smt {
 
     bool theory_str::get_arith_value(expr* e, rational& val) const {
          context& ctx = get_context();
-         ast_manager & m = get_manager();
          if (!ctx.e_internalized(e)) {
              return false;
          }
@@ -4846,10 +4845,10 @@ namespace smt {
          enode * en_e = ctx.get_enode(e);
          enode * root_e = en_e->get_root();
          if (m_autil.is_numeral(root_e->get_owner(), val) && val.is_int()) {
-             TRACE("str", tout << mk_pp(e, m) << " ~= " << mk_pp(root_e->get_owner(), m) << std::endl;);
+             TRACE("str", tout << mk_pp(e, get_manager()) << " ~= " << mk_pp(root_e->get_owner(), get_manager()) << std::endl;);
              return true;
          } else {
-             TRACE("str", tout << "root of eqc of " << mk_pp(e, m) << " is not a numeral" << std::endl;);
+             TRACE("str", tout << "root of eqc of " << mk_pp(e, get_manager()) << " is not a numeral" << std::endl;);
              return false;
          }
 
@@ -10538,9 +10537,6 @@ namespace smt {
         context & ctx = get_context();
         ast_manager & m = get_manager();
 
-        //expr_ref_vector assignments(m);
-        //ctx.get_assignments(assignments);
-
         if (opt_VerifyFinalCheckProgress) {
             finalCheckProgressIndicator = false;
         }
@@ -10905,43 +10901,68 @@ namespace smt {
             }
         }
 
-        // --------
-        // experimental free variable assignment - begin
-        //   * special handling for variables that are not used in concat
-        // --------
-        bool testAssign = true;
-        if (!testAssign) {
-            for (std::map<expr*, int>::iterator fvIt = freeVar_map.begin(); fvIt != freeVar_map.end(); fvIt++) {
-                expr * freeVar = fvIt->first;
-                /*
+        if (m_params.m_FixedLengthModels) {
+            // TODO if we're using fixed-length testing, do we care about finding free variables any more?
+            // that work might be useless
+            TRACE("str", tout << "using fixed-length model construction" << std::endl;);
+
+            arith_value v(ctx);
+            final_check_status arith_fc_status = v.final_check();
+            if (arith_fc_status != FC_DONE) {
+                TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
+                return FC_CONTINUE;
+            }
+            TRACE("str", tout << "arithmetic solver done in final check" << std::endl;);
+
+            expr_ref_vector assignments(m);
+            ctx.get_assignments(assignments);
+
+            obj_map<expr, zstring> model;
+            expr_ref_vector cex(m);
+            lbool model_status = fixed_length_model_construction(assignments, model, cex);
+
+            NOT_IMPLEMENTED_YET();
+        } else {
+            // Legacy (Z3str2) length+value testing
+
+            // --------
+            // experimental free variable assignment - begin
+            //   * special handling for variables that are not used in concat
+            // --------
+            bool testAssign = true;
+            if (!testAssign) {
+                for (std::map<expr*, int>::iterator fvIt = freeVar_map.begin(); fvIt != freeVar_map.end(); fvIt++) {
+                    expr * freeVar = fvIt->first;
+                    /*
                   std::string vName = std::string(Z3_ast_to_string(ctx, freeVar));
                   if (vName.length() >= 9 && vName.substr(0, 9) == "$$_regVar") {
                   continue;
                   }
-                */
-                expr * toAssert = gen_len_val_options_for_free_var(freeVar, nullptr, "");
-                if (toAssert != nullptr) {
-                    assert_axiom(toAssert);
+                     */
+                    expr * toAssert = gen_len_val_options_for_free_var(freeVar, nullptr, "");
+                    if (toAssert != nullptr) {
+                        assert_axiom(toAssert);
+                    }
                 }
-            }
-        } else {
-            process_free_var(freeVar_map);
-        }
-        // experimental free variable assignment - end
-
-        // now deal with removed free variables that are bounded by an unroll
-        TRACE("str", tout << "fv_unrolls_map (#" << fv_unrolls_map.size() << "):" << std::endl;);
-        for (std::map<expr*, std::set<expr*> >::iterator fvIt1 = fv_unrolls_map.begin();
-             fvIt1 != fv_unrolls_map.end(); fvIt1++) {
-            expr * var = fvIt1->first;
-            fSimpUnroll.clear();
-            get_eqc_simpleUnroll(var, constValue, fSimpUnroll);
-            if (fSimpUnroll.size() == 0) {
-                gen_assign_unroll_reg(fv_unrolls_map[var]);
             } else {
-                expr * toAssert = gen_assign_unroll_Str2Reg(var, fSimpUnroll);
-                if (toAssert != nullptr) {
-                    assert_axiom(toAssert);
+                process_free_var(freeVar_map);
+            }
+            // experimental free variable assignment - end
+
+            // now deal with removed free variables that are bounded by an unroll
+            TRACE("str", tout << "fv_unrolls_map (#" << fv_unrolls_map.size() << "):" << std::endl;);
+            for (std::map<expr*, std::set<expr*> >::iterator fvIt1 = fv_unrolls_map.begin();
+                    fvIt1 != fv_unrolls_map.end(); fvIt1++) {
+                expr * var = fvIt1->first;
+                fSimpUnroll.clear();
+                get_eqc_simpleUnroll(var, constValue, fSimpUnroll);
+                if (fSimpUnroll.size() == 0) {
+                    gen_assign_unroll_reg(fv_unrolls_map[var]);
+                } else {
+                    expr * toAssert = gen_assign_unroll_Str2Reg(var, fSimpUnroll);
+                    if (toAssert != nullptr) {
+                        assert_axiom(toAssert);
+                    }
                 }
             }
         }
@@ -11034,6 +11055,125 @@ namespace smt {
             return false;
         }
     }
+
+    svector<unsigned> theory_str::fixed_length_reduce_string_term(expr * term) {
+        svector<unsigned> eqcChars;
+
+        zstring strConst;
+        if (u.str.is_string(term, strConst)) {
+            for (unsigned i = 0; i < strConst.length(); ++i) {
+                char ch = (char)strConst[i];
+                eqcChars.push_back(char_to_eqc_map[ch]);
+            }
+        } else if (to_app(term)->get_num_args() == 0 && !u.str.is_string(term)) {
+            // this is a variable; get its length and create/reuse character terms
+            if (!var_to_char_eqc_map.contains(term)) {
+                arith_value v(get_context());
+                expr_ref varLen(mk_strlen(term), get_manager());
+                rational varLen_value;
+                bool var_hasLen = v.get_value(varLen, varLen_value);
+                ENSURE(var_hasLen);
+                TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
+                NOT_IMPLEMENTED_YET();
+            }
+            eqcChars = var_to_char_eqc_map[term];
+        } else {
+            TRACE("str", tout << "unknown string term " << mk_pp(term, get_manager()) << std::endl;);
+            NOT_IMPLEMENTED_YET();
+        }
+
+        return eqcChars;
+    }
+
+    bool theory_str::fixed_length_reduce_true_eq(expr * lhs, expr * rhs) {
+        svector<unsigned> lhs_chars = fixed_length_reduce_string_term(lhs);
+        svector<unsigned> rhs_chars = fixed_length_reduce_string_term(rhs);
+
+        ENSURE(lhs_chars.size() == rhs_chars.size());
+        for (unsigned i = 0; i < lhs_chars.size(); ++i) {
+            unsigned cLHS = lhs_chars[i];
+            unsigned cRHS = rhs_chars[i];
+            character_eqc.merge(cLHS, cRHS);
+        }
+
+        // check consistency
+        NOT_IMPLEMENTED_YET();
+    }
+
+    lbool theory_str::fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex) {
+        context & ctx = get_context();
+        ast_manager & m = get_manager();
+
+        if (is_trace_enabled("str")) {
+        TRACE_CODE(
+            ast_manager & m = get_manager();
+            context & ctx = get_context();
+            tout << "dumping all formulas:" << std::endl;
+            for (expr_ref_vector::iterator i = formulas.begin(); i != formulas.end(); ++i) {
+                expr * ex = *i;
+                tout << mk_ismt2_pp(ex, m) << (ctx.is_relevant(ex) ? "" : " (NOT REL)") << std::endl;
+            }
+                   );
+        }
+
+        character_eqc.reset();
+        char_to_eqc_map.reset();
+        var_to_char_eqc_map.reset();
+        char_to_var_eqc_map.reset();
+
+        // put all characters in their own eqc
+        for (char c : char_set) {
+            unsigned cVar = character_eqc.mk_var();
+            char_to_eqc_map.insert(c, cVar);
+        }
+
+        expr_ref_vector used_formulas(m);
+        // TODO which length assignments should count as "used"?
+
+        sort * str_sort = u.str.mk_string_sort();
+        sort * bool_sort = m.mk_bool_sort();
+
+        for (expr * f : formulas) {
+            // reduce string formulas only. ignore others
+            sort * fSort = m.get_sort(f);
+            if (fSort == bool_sort && !is_quantifier(f)) {
+                expr * lhs;
+                expr * rhs;
+                if (m.is_eq(f, lhs, rhs)) {
+                    sort * lhs_sort = m.get_sort(lhs);
+                    if (lhs_sort == str_sort) {
+                        TRACE("str", tout << "reduce string equality: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << std::endl;);
+                        // TODO handle disequalities
+                        lbool current_assignment = ctx.get_assignment(f);
+                        if (current_assignment == l_true) {
+                            used_formulas.push_back(f);
+                            bool consistent = fixed_length_reduce_true_eq(lhs, rhs);
+                            if (!consistent) {
+                                TRACE("str", tout << "inconsistency found!" << std::endl;);
+                                NOT_IMPLEMENTED_YET();
+                            }
+                        } else {
+                            NOT_IMPLEMENTED_YET();
+                        }
+                    } else {
+                        TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not an equality over strings" << std::endl;);
+                    }
+                } else {
+                    TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not a boolean formula we handle" << std::endl;);
+                    continue;
+                }
+            } else if (fSort == str_sort) {
+                NOT_IMPLEMENTED_YET();
+            } else {
+                TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not relevant to strings" << std::endl;);
+                continue;
+            }
+        }
+
+        NOT_IMPLEMENTED_YET();
+        return l_undef;
+    }
+
 
     expr* theory_str::gen_val_options(expr * freeVar, expr * len_indicator, expr * val_indicator,
                                        zstring lenStr, int tries) {

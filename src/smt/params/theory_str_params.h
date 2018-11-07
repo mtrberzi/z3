@@ -117,6 +117,12 @@ struct theory_str_params {
      */
     unsigned m_RegexAutomata_LengthAttemptThreshold;
 
+    /*
+     * If FixedLengthModels is true, Z3str3 will use a fixed-length equation solver to construct models in final_check.
+     * If false, Z3str3 will use the legacy length tester and value tester procedure.
+     */
+    bool m_FixedLengthModels;
+
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
@@ -134,7 +140,8 @@ struct theory_str_params {
         m_RegexAutomata_IntersectionDifficultyThreshold(1000),
         m_RegexAutomata_FailedAutomatonThreshold(10),
         m_RegexAutomata_FailedIntersectionThreshold(10),
-        m_RegexAutomata_LengthAttemptThreshold(10)
+        m_RegexAutomata_LengthAttemptThreshold(10),
+        m_FixedLengthModels(false)
     {
         updt_params(p);
     }
