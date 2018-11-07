@@ -445,7 +445,7 @@ br_status seq_rewriter::mk_app_core(func_decl * f, unsigned num_args, expr * con
         return mk_str_stoi(args[0], result);
     case OP_STRING_COUNT:
         SASSERT(num_args == 2);
-        return BR_FAILED;
+        return mk_str_count(args[0], args[1], result);
     case _OP_STRING_CONCAT:
     case _OP_STRING_PREFIX:
     case _OP_STRING_SUFFIX:
@@ -1143,6 +1143,50 @@ br_status seq_rewriter::mk_str_stoi(expr* a, expr_ref& result) {
     if (m_util.str.is_itos(a, b)) {
         result = m().mk_ite(m_autil.mk_ge(b, m_autil.mk_int(0)), b, m_autil.mk_int(-1));
         return BR_DONE;
+    }
+    return BR_FAILED;
+}
+
+br_status seq_rewriter::mk_str_count(expr* a, expr* b, expr_ref& result) {
+    zstring container;
+    zstring containee;
+    m_es.reset();
+    m_util.str.get_concat(b, m_es);
+
+    if (!m_util.str.is_string(a, containee)) {
+        TRACE("str", tout << "Containee must be character string to rewrite" << std::endl;);
+        return BR_FAILED;
+    }
+
+    unsigned count = 0;
+    unsigned j = 0;
+    for (unsigned i = 0; i < m_es.size(); ++i) {
+        if (m_util.str.is_string(m_es[i].get(), container)) {
+            count += container.count(containee);
+        }
+        else {
+            m_es[j] = m_es[i].get();
+            ++j;
+        }
+    }
+    if (j == 0) {
+        result = m_autil.mk_numeral(rational(count, rational::ui64()), true);
+        TRACE("str", tout << "Rewriting (count " << mk_pp(a, m()) << " " 
+            << mk_pp(b, m()) << ")" << " to " << mk_pp(result, m()) << std::endl;);
+        return BR_DONE;
+    }
+    if (j != m_es.size() || j != 1) {
+        expr_ref_vector es(m());        
+        for (unsigned i = 0; i < j; ++i) {
+            es.push_back(m_util.str.mk_count(a, m_es[i].get()));
+        }
+        if (count != 0) {
+            es.push_back(m_autil.mk_numeral(rational(count, rational::ui64()), true));
+        }
+        result = m_autil.mk_add(es.size(), es.c_ptr());
+        TRACE("str", tout << "Rewriting (count " << mk_pp(a, m()) << " " 
+            << mk_pp(b, m()) << ")" << " to " << mk_pp(result, m()) << std::endl;);
+        return BR_REWRITE_FULL;
     }
     return BR_FAILED;
 }

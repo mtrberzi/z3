@@ -1163,9 +1163,9 @@ namespace smt {
     }
 
     /*
-     * For every literal string s appearing in the equation
+     * For every literal character c appearing in the equation
      * add an axiom of the form:
-     * (lhs == rhs) -> ( Count(s, lhs) == Count(s, rhs) )
+     * (lhs == rhs) -> ( Count(c, lhs) == Count(c, rhs) )
      */
     void theory_str::instantiate_str_eq_count_axiom(enode * lhs, enode * rhs) {
         context & ctx = get_context();
@@ -1177,16 +1177,20 @@ namespace smt {
         // build premise: (lhs == rhs)
         expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
 
-        // for each string s that appears in the equality:
-        std::set<expr*> stringSet = get_eq_strings(premise);
-        for(auto s : stringSet)
+        // for each character c that appears in the equality:
+        std::set<expr*> characterSet = get_eq_chars(premise);
+        for(auto c : characterSet)
         {
-            // build conclusion: ( Count(s, lhs) == Count(s, rhs) )
-            expr_ref count_lhs(mk_strcount(s, a_lhs), m);
+            // build conclusion: ( Count(c, lhs) == Count(c, rhs) )
+            expr_ref count_lhs(mk_strcount(c, a_lhs), m);
             SASSERT(count_lhs);
-            expr_ref count_rhs(mk_strcount(s, a_rhs), m);
+
+            expr_ref count_rhs(mk_strcount(c, a_rhs), m);
             SASSERT(count_rhs);
+            
             expr_ref conclusion(ctx.mk_eq_atom(count_lhs, count_rhs), m);
+            // TRACE("str", tout << "Conclusion before rewrite: " << mk_ismt2_pp(conclusion, m) << std::endl;);
+            // ctx.get_rewriter()(conclusion);
 
             TRACE("str", tout << "string-eq count-eq axiom: "
                 << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
@@ -1194,27 +1198,32 @@ namespace smt {
         }
     }
 
-    std::set<expr*> theory_str::get_eq_strings(expr * ex) {
+    std::set<expr*> theory_str::get_eq_chars(expr * ex) {
         ast_manager & m = get_manager();
-        context & ctx = get_context();
 
         sort * ex_sort = m.get_sort(ex);
         sort * str_sort = u.str.mk_string_sort();
 
-        std::set<expr*> stringSet;
+        std::set<expr*> characterSet;
 
-        TRACE("str", tout << "Getting literal strings in " << mk_ismt2_pp(ex, m) << std::endl;);
+        TRACE("str", tout << "Getting literal characters in " << mk_ismt2_pp(ex, m) << std::endl;);
 
         if (ex_sort == str_sort) {
-            enode * n = ctx.get_enode(ex);
-            SASSERT(n);
-
             if (is_app(ex)) {
                 app * ap = to_app(ex);
                 if (ap->get_num_args() == 0 && u.str.is_string(ap)) {
-                    TRACE("str", tout << "adding " << mk_ismt2_pp(ex, m) << " to stringSet" << std::endl;);
-                    stringSet.insert(ex);
-                    return stringSet;
+                    bool str_exists;
+                    expr * str = get_eqc_value(ex, str_exists);
+                    SASSERT(str_exists);
+                    zstring str_const;
+                    u.str.is_string(str, str_const); 
+                    // get characters out of str_const
+                    for(size_t i = 0; i < str_const.length(); i++)
+                    {
+                        TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to characterSet" << std::endl;);
+                        characterSet.insert(mk_string(str_const.extract(i, 1)));
+                    }
+                    return characterSet;
                 }
             }
         }
@@ -1224,11 +1233,11 @@ namespace smt {
             app * term = to_app(ex);
             unsigned num_args = term->get_num_args();
             for (unsigned i = 0; i < num_args; i++) {
-                std::set<expr*> tmp = get_eq_strings(term->get_arg(i));
-                stringSet.insert(tmp.begin(), tmp.end());
+                std::set<expr*> tmp = get_eq_chars(term->get_arg(i));
+                characterSet.insert(tmp.begin(), tmp.end());
             }
         }
-        return stringSet;
+        return characterSet;
     }
 
     void theory_str::instantiate_axiom_CharAt(enode * e) {

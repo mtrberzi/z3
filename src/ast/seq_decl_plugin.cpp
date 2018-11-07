@@ -277,7 +277,7 @@ int zstring::count(zstring const& other) const {
     unsigned count = 0;
     unsigned len = length();
     for (unsigned i = 0; i <= len; ++i) {
-        if (m_buffer[i] == other[0]) {
+        if (extract(i,1) == other[0]) {
             count++;
         }
     }
