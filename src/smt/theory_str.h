@@ -508,7 +508,7 @@ protected:
 
     // for count abstraction
     app * mk_strcount(expr * x, expr * y);
-    std::set<expr*> get_eq_chars_vars(expr * ex, bool choice);
+    void get_eq_chars_vars(expr * ex, std::set<expr*> *characterSet, std::set<expr*> *varSet);
 
     // for ConcatOverlapAvoid
     bool will_result_in_overlap(expr * lhs, expr * rhs);

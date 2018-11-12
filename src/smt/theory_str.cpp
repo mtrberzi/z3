@@ -1178,10 +1178,14 @@ namespace smt {
         expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
 
         // get all vars that appear in the equality:
-        std::set<expr*> varSet = get_eq_chars_vars(premise, false);
-
+        std::set<expr*> varSet;
         // for each character c that appears in the equality:
-        std::set<expr*> characterSet = get_eq_chars_vars(premise, true);
+        std::set<expr*> characterSet;
+        
+        get_eq_chars_vars(premise, &characterSet, &varSet);
+        TRACE("str", tout << "CharacterSet.size(): " << characterSet.size() << std::endl;);
+        TRACE("str", tout << "varSet.size(): " << varSet.size() << std::endl;);
+
         for(auto c : characterSet)
         {
             // build conclusion: ( Count(c, lhs) == Count(c, rhs) )
@@ -1220,15 +1224,11 @@ namespace smt {
         }
     }
 
-    //boolean input tells us if we are getting the chars or the vars
-    // chars is true; vars is false
-    std::set<expr*> theory_str::get_eq_chars_vars(expr * ex, bool choice) {
+    void theory_str::get_eq_chars_vars(expr * ex,  std::set<expr*> *characterSet, std::set<expr*> *varSet) {
         ast_manager & m = get_manager();
 
         sort * ex_sort = m.get_sort(ex);
         sort * str_sort = u.str.mk_string_sort();
-
-        std::set<expr*> collectedSet;
 
         TRACE("str", tout << "Getting vars/literal characters in " << mk_ismt2_pp(ex, m) << std::endl;);
 
@@ -1236,7 +1236,7 @@ namespace smt {
             if (is_app(ex)) {
                 app * ap = to_app(ex);
                 if (ap->get_num_args() == 0) { 
-                    if (choice && u.str.is_string(ap)) {
+                    if (u.str.is_string(ap)) {
                         bool str_exists;
                         expr * str = get_eqc_value(ex, str_exists);
                         SASSERT(str_exists);
@@ -1246,12 +1246,12 @@ namespace smt {
                         for(size_t i = 0; i < str_const.length(); i++)
                         {
                             TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to characterSet" << std::endl;);
-                            collectedSet.insert(mk_string(str_const.extract(i, 1)));
+                            characterSet->insert(mk_string(str_const.extract(i, 1)));
                         }
-                        return collectedSet;
-                    }else if(!choice && !u.str.is_string(ap)){
-                        TRACE("str", tout << "adding " << ap << " to varSet" << std::endl;);
-                        collectedSet.insert(ap);
+                        return;
+                    }else{
+                        TRACE("str", tout << "adding " << mk_ismt2_pp(ap, m) << " to varSet" << std::endl;);
+                        varSet->insert(ap);
                     }
                 }
             }
@@ -1262,11 +1262,10 @@ namespace smt {
             app * term = to_app(ex);
             unsigned num_args = term->get_num_args();
             for (unsigned i = 0; i < num_args; i++) {
-                std::set<expr*> tmp = get_eq_chars_vars(term->get_arg(i), choice);
-                collectedSet.insert(tmp.begin(), tmp.end());
+                get_eq_chars_vars(term->get_arg(i), characterSet, varSet);
             }
         }
-        return collectedSet;
+        return;
     }
 
     void theory_str::instantiate_axiom_CharAt(enode * e) {
