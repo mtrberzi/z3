@@ -10921,7 +10921,21 @@ namespace smt {
             expr_ref_vector cex(m);
             lbool model_status = fixed_length_model_construction(assignments, model, cex);
 
-            NOT_IMPLEMENTED_YET();
+            if (model_status == l_true) {
+                // assert the current assignment into the context, then claim DONE
+                for (auto entry : model) {
+                    expr * var = entry.m_key;
+                    zstring assignment = entry.m_value;
+                    expr_ref varAssign(ctx.mk_eq_atom(var, mk_string(assignment)), m);
+                    assert_axiom(varAssign);
+                }
+                return FC_DONE;
+            } else if (model_status == l_false) {
+                NOT_IMPLEMENTED_YET();
+            } else { // model_status == l_undef
+                TRACE("str", tout << "WARNING: fixed-length model construction was inconclusive" << std::endl;);
+                UNREACHABLE();
+            }
         } else {
             // Legacy (Z3str2) length+value testing
 
@@ -11059,6 +11073,9 @@ namespace smt {
     svector<unsigned> theory_str::fixed_length_reduce_string_term(expr * term) {
         svector<unsigned> eqcChars;
 
+        expr * arg0;
+        expr * arg1;
+
         zstring strConst;
         if (u.str.is_string(term, strConst)) {
             for (unsigned i = 0; i < strConst.length(); ++i) {
@@ -11074,9 +11091,21 @@ namespace smt {
                 bool var_hasLen = v.get_value(varLen, varLen_value);
                 ENSURE(var_hasLen);
                 TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
-                NOT_IMPLEMENTED_YET();
+                // TODO what happens if the variable has length 0?
+                svector<unsigned> newChars;
+                for (unsigned i = 0; i < varLen_value.get_unsigned(); ++i) {
+                    unsigned ch = character_eqc.mk_var();
+                    newChars.push_back(ch);
+                    char_to_var_eqc_map.insert(ch, term);
+                }
+                var_to_char_eqc_map.insert(term, newChars);
             }
             eqcChars = var_to_char_eqc_map[term];
+        } else if (u.str.is_concat(term, arg0, arg1)) {
+            svector<unsigned> chars0 = fixed_length_reduce_string_term(arg0);
+            svector<unsigned> chars1 = fixed_length_reduce_string_term(arg1);
+            eqcChars.append(chars0);
+            eqcChars.append(chars1);
         } else {
             TRACE("str", tout << "unknown string term " << mk_pp(term, get_manager()) << std::endl;);
             NOT_IMPLEMENTED_YET();
@@ -11096,8 +11125,19 @@ namespace smt {
             character_eqc.merge(cLHS, cRHS);
         }
 
-        // check consistency
-        NOT_IMPLEMENTED_YET();
+        // check consistency.
+        // get the root of every character's eqc; if two of them are the same, conflict
+        integer_set eqcRoots;
+        for (auto entry : char_to_eqc_map) {
+            int eqcRoot = (int)character_eqc.find(entry.m_value);
+            if (eqcRoots.contains(eqcRoot)) {
+                return false;
+            }
+            eqcRoots.insert(eqcRoot);
+        }
+
+        // consistent
+        return true;
     }
 
     lbool theory_str::fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex) {
@@ -11121,10 +11161,14 @@ namespace smt {
         var_to_char_eqc_map.reset();
         char_to_var_eqc_map.reset();
 
+        u_map<char> eqc_to_char_map;
+
         // put all characters in their own eqc
         for (char c : char_set) {
             unsigned cVar = character_eqc.mk_var();
+            character_eqc.mark_as_char_const(cVar);
             char_to_eqc_map.insert(c, cVar);
+            eqc_to_char_map.insert(cVar, c);
         }
 
         expr_ref_vector used_formulas(m);
@@ -11170,8 +11214,51 @@ namespace smt {
             }
         }
 
-        NOT_IMPLEMENTED_YET();
-        return l_undef;
+        // make sure every character in every variable is in the same EQC as some constant.
+        // if one is not, go through all possible constants and pick one, taking disequalities into account
+        // (TODO actually take disequalities into account)
+        // if we can't do this, automatic conflict
+        for (auto entry : var_to_char_eqc_map) {
+            expr * var = entry.m_key;
+            svector<unsigned> vChars = entry.m_value;
+            svector<unsigned> currentAssignment;
+            for (unsigned vChar : vChars) {
+                unsigned vRoot = character_eqc.find(vChar);
+                if (character_eqc.is_char_const(vRoot)) {
+                    currentAssignment.push_back((unsigned)eqc_to_char_map[vRoot]);
+                } else {
+                    // try characters until one fits
+                    bool assigned = false;
+                    for (auto entry : char_to_eqc_map) {
+                        char ch = entry.m_key;
+                        unsigned vCh = entry.m_value;
+                        if (true) { // TODO check disequality
+                            currentAssignment.push_back((unsigned)ch);
+                            character_eqc.merge(vChar, vCh);
+                            assigned = true;
+                            break;
+                        }
+                    }
+                    if (!assigned) {
+                        // conflict - ran out of characters to try
+                        NOT_IMPLEMENTED_YET();
+                    }
+                }
+            }
+            // convert currentAssignment to a zstring
+            zstring assignment(currentAssignment.size(), currentAssignment.c_ptr());
+            model.insert(var, assignment);
+        }
+
+        // TODO disequality refinement
+
+        TRACE("str", {tout << "found candidate model:" << std::endl;
+            for (auto entry : model) {
+                tout << mk_pp(entry.m_key, m) << " = \"" << entry.m_value << "\"" << std::endl;
+            }
+        });
+
+        return l_true;
     }
 
 

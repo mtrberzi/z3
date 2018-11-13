@@ -218,6 +218,84 @@ public:
     }
 };
 
+class char_union_find {
+    unsigned_vector   m_find;
+    unsigned_vector   m_size;
+    unsigned_vector   m_next;
+
+    integer_set char_const_set;
+
+    void ensure_size(unsigned v) {
+        while (v >= get_num_vars()) {
+            mk_var();
+        }
+    }
+ public:
+    unsigned mk_var() {
+        unsigned r = m_find.size();
+        m_find.push_back(r);
+        m_size.push_back(1);
+        m_next.push_back(r);
+        return r;
+    }
+    unsigned get_num_vars() const { return m_find.size(); }
+    void mark_as_char_const(unsigned r) {
+        char_const_set.insert((int)r);
+    }
+    bool is_char_const(unsigned r) {
+        return char_const_set.contains((int)r);
+    }
+
+    unsigned find(unsigned v) const {
+        if (v >= get_num_vars()) {
+            return v;
+        }
+        while (true) {
+            unsigned new_v = m_find[v];
+            if (new_v == v)
+                return v;
+            v = new_v;
+        }
+    }
+
+    unsigned next(unsigned v) const {
+        if (v >= get_num_vars()) {
+            return v;
+        }
+        return m_next[v];
+    }
+
+    bool is_root(unsigned v) const {
+        return v >= get_num_vars() || m_find[v] == v;
+    }
+
+    void merge(unsigned v1, unsigned v2) {
+        unsigned r1 = find(v1);
+        unsigned r2 = find(v2);
+        if (r1 == r2)
+            return;
+        ensure_size(v1);
+        ensure_size(v2);
+        // swap r1 and r2 if:
+        // 1. EQC of r1 is bigger than EQC of r2
+        // 2. r1 is a character constant and r2 is not.
+        // this maintains the invariant that if a character constant is in an eqc then it is the root of that eqc
+        if (m_size[r1] > m_size[r2] || (is_char_const(r1) && !is_char_const(r2))) {
+            std::swap(r1, r2);
+        }
+        m_find[r1] = r2;
+        m_size[r2] += m_size[r1];
+        std::swap(m_next[r1], m_next[r2]);
+    }
+
+    void reset() {
+        m_find.reset();
+        m_next.reset();
+        m_size.reset();
+        char_const_set.reset();
+    }
+};
+
 class theory_str : public theory {
     struct T_cut
     {
@@ -486,7 +564,7 @@ protected:
     obj_map<expr, ptr_vector<expr> > finite_model_test_varlists;
 
     // fixed length model construction
-    basic_union_find character_eqc;
+    char_union_find character_eqc;
     obj_map<expr, svector<unsigned> > var_to_char_eqc_map; // maps a var to a list of its character EQC nodes
     u_map<expr*> char_to_var_eqc_map; // maps a character EQC node to the variable containing it
     map<char, unsigned, c_hash, c_eq> char_to_eqc_map;
