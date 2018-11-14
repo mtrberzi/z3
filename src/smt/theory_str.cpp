@@ -10923,6 +10923,7 @@ namespace smt {
 
             if (model_status == l_true) {
                 // assert the current assignment into the context, then claim DONE
+                // TODO there ought to be a precondition for this model, i.e. conjunction of the current assignment or something?
                 for (auto entry : model) {
                     expr * var = entry.m_key;
                     zstring assignment = entry.m_value;
@@ -10933,8 +10934,8 @@ namespace smt {
             } else if (model_status == l_false) {
                 NOT_IMPLEMENTED_YET();
             } else { // model_status == l_undef
-                TRACE("str", tout << "WARNING: fixed-length model construction was inconclusive" << std::endl;);
-                UNREACHABLE();
+                TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
+                return FC_CONTINUE;
             }
         } else {
             // Legacy (Z3str2) length+value testing
@@ -11085,10 +11086,8 @@ namespace smt {
         } else if (to_app(term)->get_num_args() == 0 && !u.str.is_string(term)) {
             // this is a variable; get its length and create/reuse character terms
             if (!var_to_char_eqc_map.contains(term)) {
-                arith_value v(get_context());
-                expr_ref varLen(mk_strlen(term), get_manager());
                 rational varLen_value;
-                bool var_hasLen = v.get_value(varLen, varLen_value);
+                bool var_hasLen = fixed_length_get_len_value(term, varLen_value);
                 ENSURE(var_hasLen);
                 TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
                 // TODO what happens if the variable has length 0?
@@ -11114,15 +11113,35 @@ namespace smt {
         return eqcChars;
     }
 
-    bool theory_str::fixed_length_reduce_true_eq(expr * lhs, expr * rhs) {
+    /*
+     * returns:
+     * l_true if the added equality remains consistent
+     * l_false and sets inconsistentEqcRoot if an EQC became inconsistent after adding this equality
+     * l_undef if a side condition had to be asserted that has nothing to do with character constraints
+     */
+    lbool theory_str::fixed_length_reduce_true_eq(expr * lhs, expr * rhs, expr * justification, unsigned & inconsistentEqcRoot) {
+        context & ctx = get_context();
+        ast_manager & m = get_manager();
+
         svector<unsigned> lhs_chars = fixed_length_reduce_string_term(lhs);
         svector<unsigned> rhs_chars = fixed_length_reduce_string_term(rhs);
 
-        ENSURE(lhs_chars.size() == rhs_chars.size());
+        if(lhs_chars.size() != rhs_chars.size()) {
+            TRACE("str", tout << "length information inconsistent: " << mk_pp(lhs, get_manager()) << " and " << mk_pp(rhs, get_manager()) << " have different # chars" << std::endl;);
+            // TODO this is causing infinite loops
+            expr_ref_vector inconsistentTerms(m);
+            inconsistentTerms.push_back(ctx.mk_eq_atom(mk_strlen(lhs), mk_int(lhs_chars.size())));
+            inconsistentTerms.push_back(ctx.mk_eq_atom(mk_strlen(rhs), mk_int(rhs_chars.size())));
+            inconsistentTerms.push_back(ctx.mk_eq_atom(lhs, rhs));
+            expr_ref and_terms(mk_and(inconsistentTerms), m);
+            expr_ref conflictClause(m.mk_not(and_terms), m);
+            assert_axiom(conflictClause);
+            return l_undef;
+        }
         for (unsigned i = 0; i < lhs_chars.size(); ++i) {
             unsigned cLHS = lhs_chars[i];
             unsigned cRHS = rhs_chars[i];
-            character_eqc.merge(cLHS, cRHS);
+            character_eqc.merge(cLHS, cRHS, justification);
         }
 
         // check consistency.
@@ -11131,13 +11150,57 @@ namespace smt {
         for (auto entry : char_to_eqc_map) {
             int eqcRoot = (int)character_eqc.find(entry.m_value);
             if (eqcRoots.contains(eqcRoot)) {
-                return false;
+                inconsistentEqcRoot = (unsigned)eqcRoot;
+                return l_false;
             }
             eqcRoots.insert(eqcRoot);
         }
 
         // consistent
-        return true;
+        return l_true;
+    }
+
+    /*
+     * Use the current model in the arithmetic solver to get the length of a term.
+     * Returns true if this could be done, placing result in 'termLen', or false otherwise.
+     * Works like get_len_value() except uses arithmetic solver model instead of EQCs.
+     */
+    bool theory_str::fixed_length_get_len_value(expr * e, rational & val) {
+        context& ctx = get_context();
+        ast_manager & m = get_manager();
+
+        rational val1;
+        expr_ref len(m), len_val(m);
+        expr* e1, *e2;
+        ptr_vector<expr> todo;
+        todo.push_back(e);
+        val.reset();
+        while (!todo.empty()) {
+            expr* c = todo.back();
+            todo.pop_back();
+            if (u.str.is_concat(to_app(c))) {
+                e1 = to_app(c)->get_arg(0);
+                e2 = to_app(c)->get_arg(1);
+                todo.push_back(e1);
+                todo.push_back(e2);
+            }
+            else if (u.str.is_string(to_app(c))) {
+                zstring tmp;
+                u.str.is_string(to_app(c), tmp);
+                unsigned int sl = tmp.length();
+                val += rational(sl);
+            }
+            else {
+                len = mk_strlen(c);
+                arith_value v(ctx);
+                if (v.get_value(len, val1)) {
+                    val += val1;
+                } else {
+                    return false;
+                }
+            }
+        }
+        return val.is_int();
     }
 
     lbool theory_str::fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex) {
@@ -11166,13 +11229,11 @@ namespace smt {
         // put all characters in their own eqc
         for (char c : char_set) {
             unsigned cVar = character_eqc.mk_var();
+            TRACE("str", tout << "char " << c << " in eqc " << cVar << std::endl;);
             character_eqc.mark_as_char_const(cVar);
             char_to_eqc_map.insert(c, cVar);
             eqc_to_char_map.insert(cVar, c);
         }
-
-        expr_ref_vector used_formulas(m);
-        // TODO which length assignments should count as "used"?
 
         sort * str_sort = u.str.mk_string_sort();
         sort * bool_sort = m.mk_bool_sort();
@@ -11181,26 +11242,48 @@ namespace smt {
             // reduce string formulas only. ignore others
             sort * fSort = m.get_sort(f);
             if (fSort == bool_sort && !is_quantifier(f)) {
+                // extracted terms
+                expr * subterm;
                 expr * lhs;
                 expr * rhs;
                 if (m.is_eq(f, lhs, rhs)) {
                     sort * lhs_sort = m.get_sort(lhs);
                     if (lhs_sort == str_sort) {
                         TRACE("str", tout << "reduce string equality: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << std::endl;);
-                        // TODO handle disequalities
-                        lbool current_assignment = ctx.get_assignment(f);
-                        if (current_assignment == l_true) {
-                            used_formulas.push_back(f);
-                            bool consistent = fixed_length_reduce_true_eq(lhs, rhs);
-                            if (!consistent) {
-                                TRACE("str", tout << "inconsistency found!" << std::endl;);
-                                NOT_IMPLEMENTED_YET();
-                            }
-                        } else {
+                        unsigned inconsistentEqcRoot;
+                        lbool consistent = fixed_length_reduce_true_eq(lhs, rhs, f, inconsistentEqcRoot);
+                        if (consistent == l_undef) {
+                            return l_undef;
+                        } else if (consistent == l_false) {
+                            TRACE("str", tout << "inconsistency found!" << std::endl;);
+                            svector<expr*> conflictingFormulas = character_eqc.get_justification(inconsistentEqcRoot);
+                            TRACE("str", tout << "conflicting formulas:" << std::endl;
+                            for(expr * e:conflictingFormulas) {
+                                tout << mk_pp(e, m) << std::endl;
+                            });
                             NOT_IMPLEMENTED_YET();
                         }
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not an equality over strings" << std::endl;);
+                    }
+                } else if (m.is_not(f, subterm)) {
+                    // if subterm is a string formula such as an equality, reduce it as a disequality
+                    if (m.is_eq(subterm, lhs, rhs)) {
+                        sort * lhs_sort = m.get_sort(lhs);
+                        if (lhs_sort == str_sort) {
+                            TRACE("str", tout << "reduce string disequality: " << mk_pp(lhs, m) << " != " << mk_pp(rhs, m) << std::endl;);
+                            rational lhsLen, rhsLen;
+                            bool lhsLen_exists = fixed_length_get_len_value(lhs, lhsLen);
+                            bool rhsLen_exists = fixed_length_get_len_value(rhs, rhsLen);
+                            ENSURE(lhsLen_exists && rhsLen_exists);
+                            if (lhsLen == rhsLen) {
+                                NOT_IMPLEMENTED_YET();
+                            } else {
+                                TRACE("str", tout << "len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << " - skip disequality" << std::endl;);
+                            }
+                        }
+                    } else {
+                        TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not a boolean formula we handle" << std::endl;);
                     }
                 } else {
                     TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not a boolean formula we handle" << std::endl;);
@@ -11229,12 +11312,12 @@ namespace smt {
                 } else {
                     // try characters until one fits
                     bool assigned = false;
-                    for (auto entry : char_to_eqc_map) {
-                        char ch = entry.m_key;
-                        unsigned vCh = entry.m_value;
+                    for (char ch : char_set) {
+                        unsigned vCh = char_to_eqc_map[ch];
+                        TRACE("str", tout << "assign char " << ch << " in equivalence class " << vCh << std::endl;);
                         if (true) { // TODO check disequality
                             currentAssignment.push_back((unsigned)ch);
-                            character_eqc.merge(vChar, vCh);
+                            character_eqc.merge(vChar, vCh, nullptr);
                             assigned = true;
                             break;
                         }

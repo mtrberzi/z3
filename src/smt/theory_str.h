@@ -225,6 +225,8 @@ class char_union_find {
 
     integer_set char_const_set;
 
+    u_map<svector<expr*> > m_justification; // representative -> list of formulas justifying EQC
+
     void ensure_size(unsigned v) {
         while (v >= get_num_vars()) {
             mk_var();
@@ -269,7 +271,17 @@ class char_union_find {
         return v >= get_num_vars() || m_find[v] == v;
     }
 
-    void merge(unsigned v1, unsigned v2) {
+    svector<expr*> get_justification(unsigned v) {
+        unsigned r = find(v);
+        svector<expr*> retval;
+        if (m_justification.find(r, retval)) {
+            return retval;
+        } else {
+            return svector<expr*>();
+        }
+    }
+
+    void merge(unsigned v1, unsigned v2, expr * justification) {
         unsigned r1 = find(v1);
         unsigned r2 = find(v2);
         if (r1 == r2)
@@ -286,6 +298,22 @@ class char_union_find {
         m_find[r1] = r2;
         m_size[r2] += m_size[r1];
         std::swap(m_next[r1], m_next[r2]);
+
+        if (m_justification.contains(r1)) {
+            // add r1's justifications to r2
+            if (!m_justification.contains(r2)) {
+                m_justification.insert(r2, m_justification[r1]);
+            } else {
+                m_justification[r2].append(m_justification[r1]);
+            }
+            m_justification.remove(r1);
+        }
+        if (justification != nullptr) {
+            if (!m_justification.contains(r2)) {
+                m_justification.insert(r2, svector<expr*>());
+            }
+            m_justification[r2].push_back(justification);
+        }
     }
 
     void reset() {
@@ -293,6 +321,7 @@ class char_union_find {
         m_next.reset();
         m_size.reset();
         char_const_set.reset();
+        m_justification.reset();
     }
 };
 
@@ -778,8 +807,9 @@ protected:
     bool finalcheck_int2str(app * a);
 
     lbool fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex);
-    bool fixed_length_reduce_true_eq(expr * lhs, expr * rhs);
+    lbool fixed_length_reduce_true_eq(expr * lhs, expr * rhs, expr * justification, unsigned & inconsistentEqcRoot);
     svector<unsigned> fixed_length_reduce_string_term(expr * term);
+    bool fixed_length_get_len_value(expr * e, rational & val);
 
     // strRegex
 

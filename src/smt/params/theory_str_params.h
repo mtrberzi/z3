@@ -141,7 +141,7 @@ struct theory_str_params {
         m_RegexAutomata_FailedAutomatonThreshold(10),
         m_RegexAutomata_FailedIntersectionThreshold(10),
         m_RegexAutomata_LengthAttemptThreshold(10),
-        m_FixedLengthModels(false)
+        m_FixedLengthModels(true)
     {
         updt_params(p);
     }
