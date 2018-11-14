@@ -11229,7 +11229,6 @@ namespace smt {
         // put all characters in their own eqc
         for (char c : char_set) {
             unsigned cVar = character_eqc.mk_var();
-            TRACE("str", tout << "char " << c << " in eqc " << cVar << std::endl;);
             character_eqc.mark_as_char_const(cVar);
             char_to_eqc_map.insert(c, cVar);
             eqc_to_char_map.insert(cVar, c);
@@ -11314,7 +11313,6 @@ namespace smt {
                     bool assigned = false;
                     for (char ch : char_set) {
                         unsigned vCh = char_to_eqc_map[ch];
-                        TRACE("str", tout << "assign char " << ch << " in equivalence class " << vCh << std::endl;);
                         if (true) { // TODO check disequality
                             currentAssignment.push_back((unsigned)ch);
                             character_eqc.merge(vChar, vCh, nullptr);
