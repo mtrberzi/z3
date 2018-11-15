@@ -27,6 +27,7 @@
 #include "ast/ast_util.h"
 #include "ast/rewriter/seq_rewriter.h"
 #include "smt_kernel.h"
+#include "model/model_smt2_pp.h"
 
 namespace smt {
 
@@ -68,6 +69,7 @@ namespace smt {
         totalCacheAccessCount(0),
         cacheHitCount(0),
         cacheMissCount(0),
+        fixed_length_subterm_trail(m),
         m_fresh_id(0),
         m_trail_stack(*this),
         m_find(*this)
@@ -11071,8 +11073,14 @@ namespace smt {
         }
     }
 
-    svector<unsigned> theory_str::fixed_length_reduce_string_term(expr * term) {
-        svector<unsigned> eqcChars;
+    /*
+     * Expressions in the vector returned by this method only exist in the subsolver.
+     */
+    void theory_str::fixed_length_reduce_string_term(expr * term, ptr_vector<expr> & eqcChars) {
+        ast_manager & m = get_manager();
+        bv_util bv(m);
+
+        sort * bv8_sort = bv.mk_sort(8);
 
         expr * arg0;
         expr * arg1;
@@ -11080,84 +11088,59 @@ namespace smt {
         zstring strConst;
         if (u.str.is_string(term, strConst)) {
             for (unsigned i = 0; i < strConst.length(); ++i) {
-                char ch = (char)strConst[i];
-                eqcChars.push_back(char_to_eqc_map[ch]);
+                rational ch(strConst[i]);
+                // TODO we can probably cache these
+                expr_ref chTerm(bv.mk_numeral(ch, bv8_sort), m);
+                eqcChars.push_back(chTerm);
+                fixed_length_subterm_trail.push_back(chTerm);
             }
         } else if (to_app(term)->get_num_args() == 0 && !u.str.is_string(term)) {
             // this is a variable; get its length and create/reuse character terms
-            if (!var_to_char_eqc_map.contains(term)) {
+            if (!var_to_char_subterm_map.contains(term)) {
                 rational varLen_value;
                 bool var_hasLen = fixed_length_get_len_value(term, varLen_value);
                 ENSURE(var_hasLen);
                 TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
                 // TODO what happens if the variable has length 0?
-                svector<unsigned> newChars;
+                ptr_vector<expr> newChars;
                 for (unsigned i = 0; i < varLen_value.get_unsigned(); ++i) {
-                    unsigned ch = character_eqc.mk_var();
+                    // TODO we can probably name these better for the sake of debugging
+                    expr_ref ch(mk_fresh_const("char", bv8_sort), m);
                     newChars.push_back(ch);
-                    char_to_var_eqc_map.insert(ch, term);
+                    fixed_length_subterm_trail.push_back(ch);
                 }
-                var_to_char_eqc_map.insert(term, newChars);
+                var_to_char_subterm_map.insert(term, newChars);
             }
-            eqcChars = var_to_char_eqc_map[term];
+            var_to_char_subterm_map.find(term, eqcChars);
         } else if (u.str.is_concat(term, arg0, arg1)) {
-            svector<unsigned> chars0 = fixed_length_reduce_string_term(arg0);
-            svector<unsigned> chars1 = fixed_length_reduce_string_term(arg1);
+            ptr_vector<expr> chars0, chars1;
+            fixed_length_reduce_string_term(arg0, chars0);
+            fixed_length_reduce_string_term(arg1, chars1);
             eqcChars.append(chars0);
             eqcChars.append(chars1);
         } else {
             TRACE("str", tout << "unknown string term " << mk_pp(term, get_manager()) << std::endl;);
             NOT_IMPLEMENTED_YET();
         }
-
-        return eqcChars;
     }
 
-    /*
-     * returns:
-     * l_true if the added equality remains consistent
-     * l_false and sets inconsistentEqcRoot if an EQC became inconsistent after adding this equality
-     * l_undef if a side condition had to be asserted that has nothing to do with character constraints
-     */
-    lbool theory_str::fixed_length_reduce_true_eq(expr * lhs, expr * rhs, expr * justification, unsigned & inconsistentEqcRoot) {
+    void theory_str::fixed_length_reduce_true_eq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
         context & ctx = get_context();
         ast_manager & m = get_manager();
 
-        svector<unsigned> lhs_chars = fixed_length_reduce_string_term(lhs);
-        svector<unsigned> rhs_chars = fixed_length_reduce_string_term(rhs);
+        ptr_vector<expr> lhs_chars, rhs_chars;
+        fixed_length_reduce_string_term(lhs, lhs_chars);
+        fixed_length_reduce_string_term(rhs, rhs_chars);
 
         if(lhs_chars.size() != rhs_chars.size()) {
             TRACE("str", tout << "length information inconsistent: " << mk_pp(lhs, get_manager()) << " and " << mk_pp(rhs, get_manager()) << " have different # chars" << std::endl;);
-            // TODO this is causing infinite loops
-            expr_ref_vector inconsistentTerms(m);
-            inconsistentTerms.push_back(ctx.mk_eq_atom(mk_strlen(lhs), mk_int(lhs_chars.size())));
-            inconsistentTerms.push_back(ctx.mk_eq_atom(mk_strlen(rhs), mk_int(rhs_chars.size())));
-            inconsistentTerms.push_back(ctx.mk_eq_atom(lhs, rhs));
-            expr_ref and_terms(mk_and(inconsistentTerms), m);
-            expr_ref conflictClause(m.mk_not(and_terms), m);
-            assert_axiom(conflictClause);
-            return l_undef;
+            NOT_IMPLEMENTED_YET();
         }
         for (unsigned i = 0; i < lhs_chars.size(); ++i) {
-            unsigned cLHS = lhs_chars[i];
-            unsigned cRHS = rhs_chars[i];
-            character_eqc.merge(cLHS, cRHS, justification);
+            expr * cLHS = lhs_chars.get(i);
+            expr * cRHS = rhs_chars.get(i);
+            subsolver.assert_expr(subsolver.get_context().mk_eq_atom(cLHS, cRHS));
         }
-
-        // check consistency.
-        // get the root of every character's eqc; if two of them are the same, conflict
-        integer_set eqcRoots;
-        for (auto entry : char_to_eqc_map) {
-            int eqcRoot = (int)character_eqc.find(entry.m_value);
-            if (eqcRoots.contains(eqcRoot)) {
-                inconsistentEqcRoot = (unsigned)eqcRoot;
-                return l_false;
-            }
-            eqcRoots.insert(eqcRoot);
-        }
-
-        // consistent
-        return l_true;
     }
 
     /*
@@ -11219,20 +11202,8 @@ namespace smt {
                    );
         }
 
-        character_eqc.reset();
-        char_to_eqc_map.reset();
-        var_to_char_eqc_map.reset();
-        char_to_var_eqc_map.reset();
-
-        u_map<char> eqc_to_char_map;
-
-        // put all characters in their own eqc
-        for (char c : char_set) {
-            unsigned cVar = character_eqc.mk_var();
-            character_eqc.mark_as_char_const(cVar);
-            char_to_eqc_map.insert(c, cVar);
-            eqc_to_char_map.insert(cVar, c);
-        }
+        smt::kernel subsolver(m, ctx.get_fparams());
+        subsolver.set_logic(symbol("QF_BV"));
 
         sort * str_sort = u.str.mk_string_sort();
         sort * bool_sort = m.mk_bool_sort();
@@ -11249,19 +11220,7 @@ namespace smt {
                     sort * lhs_sort = m.get_sort(lhs);
                     if (lhs_sort == str_sort) {
                         TRACE("str", tout << "reduce string equality: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << std::endl;);
-                        unsigned inconsistentEqcRoot;
-                        lbool consistent = fixed_length_reduce_true_eq(lhs, rhs, f, inconsistentEqcRoot);
-                        if (consistent == l_undef) {
-                            return l_undef;
-                        } else if (consistent == l_false) {
-                            TRACE("str", tout << "inconsistency found!" << std::endl;);
-                            svector<expr*> conflictingFormulas = character_eqc.get_justification(inconsistentEqcRoot);
-                            TRACE("str", tout << "conflicting formulas:" << std::endl;
-                            for(expr * e:conflictingFormulas) {
-                                tout << mk_pp(e, m) << std::endl;
-                            });
-                            NOT_IMPLEMENTED_YET();
-                        }
+                        fixed_length_reduce_true_eq(subsolver, lhs, rhs);
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not an equality over strings" << std::endl;);
                     }
@@ -11296,50 +11255,40 @@ namespace smt {
             }
         }
 
-        // make sure every character in every variable is in the same EQC as some constant.
-        // if one is not, go through all possible constants and pick one, taking disequalities into account
-        // (TODO actually take disequalities into account)
-        // if we can't do this, automatic conflict
-        for (auto entry : var_to_char_eqc_map) {
-            expr * var = entry.m_key;
-            svector<unsigned> vChars = entry.m_value;
-            svector<unsigned> currentAssignment;
-            for (unsigned vChar : vChars) {
-                unsigned vRoot = character_eqc.find(vChar);
-                if (character_eqc.is_char_const(vRoot)) {
-                    currentAssignment.push_back((unsigned)eqc_to_char_map[vRoot]);
-                } else {
-                    // try characters until one fits
-                    bool assigned = false;
-                    for (char ch : char_set) {
-                        unsigned vCh = char_to_eqc_map[ch];
-                        if (true) { // TODO check disequality
-                            currentAssignment.push_back((unsigned)ch);
-                            character_eqc.merge(vChar, vCh, nullptr);
-                            assigned = true;
-                            break;
-                        }
-                    }
-                    if (!assigned) {
-                        // conflict - ran out of characters to try
+        lbool subproblem_status = subsolver.setup_and_check();
+
+        if (subproblem_status == l_true) {
+            bv_util bv(m);
+            TRACE("str", tout << "subsolver found SAT; reconstructing model" << std::endl;);
+            model_ref subModel;
+            subsolver.get_model(subModel);
+            // model_smt2_pp(std::cout, m, *subModel, 2);
+            for (auto entry : var_to_char_subterm_map) {
+                svector<unsigned> assignment;
+                expr * var = entry.m_key;
+                ptr_vector<expr> charSubterms = entry.m_value;
+                for (expr * chExpr : charSubterms) {
+                    expr_ref chAssignment(subModel->get_const_interp(to_app(chExpr)->get_decl()), m);
+                    rational n;
+                    if (chExpr != nullptr && bv.is_numeral(chAssignment, n)) {
+                        assignment.push_back(n.get_unsigned());
+                    } else {
+                        TRACE("str", tout << "WARNING: BV model produced non-constant term " << mk_pp(chAssignment, m) << std::endl;);
                         NOT_IMPLEMENTED_YET();
                     }
                 }
+                zstring strValue(assignment.size(), assignment.c_ptr());
+                model.insert(var, strValue);
             }
-            // convert currentAssignment to a zstring
-            zstring assignment(currentAssignment.size(), currentAssignment.c_ptr());
-            model.insert(var, assignment);
+            return l_true;
+        } else if (subproblem_status == l_false) {
+            TRACE("str", tout << "subsolver found UNSAT; reconstructing unsat core" << std::endl;);
+            NOT_IMPLEMENTED_YET();
+            return l_false;
+        } else { // l_undef
+            TRACE("str", tout << "WARNING: subsolver found UNKNOWN" << std::endl;);
+            return l_undef;
         }
-
-        // TODO disequality refinement
-
-        TRACE("str", {tout << "found candidate model:" << std::endl;
-            for (auto entry : model) {
-                tout << mk_pp(entry.m_key, m) << " = \"" << entry.m_value << "\"" << std::endl;
-            }
-        });
-
-        return l_true;
     }
 
 

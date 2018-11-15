@@ -31,6 +31,7 @@
 #include "smt/proto_model/value_factory.h"
 #include "smt/smt_model_generator.h"
 #include "smt/smt_arith_value.h"
+#include "smt/smt_kernel.h"
 #include<set>
 #include<stack>
 #include<vector>
@@ -593,10 +594,8 @@ protected:
     obj_map<expr, ptr_vector<expr> > finite_model_test_varlists;
 
     // fixed length model construction
-    char_union_find character_eqc;
-    obj_map<expr, svector<unsigned> > var_to_char_eqc_map; // maps a var to a list of its character EQC nodes
-    u_map<expr*> char_to_var_eqc_map; // maps a character EQC node to the variable containing it
-    map<char, unsigned, c_hash, c_eq> char_to_eqc_map;
+    expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
+    obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
 protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);
@@ -807,8 +806,8 @@ protected:
     bool finalcheck_int2str(app * a);
 
     lbool fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex);
-    lbool fixed_length_reduce_true_eq(expr * lhs, expr * rhs, expr * justification, unsigned & inconsistentEqcRoot);
-    svector<unsigned> fixed_length_reduce_string_term(expr * term);
+    void fixed_length_reduce_true_eq(smt::kernel & subsolver, expr * lhs, expr * rhs);
+    void fixed_length_reduce_string_term(expr * term, ptr_vector<expr> & eqcChars);
     bool fixed_length_get_len_value(expr * e, rational & val);
 
     // strRegex
