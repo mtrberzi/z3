@@ -69,10 +69,10 @@ namespace smt {
         totalCacheAccessCount(0),
         cacheHitCount(0),
         cacheMissCount(0),
-        fixed_length_subterm_trail(m),
         m_fresh_id(0),
         m_trail_stack(*this),
-        m_find(*this)
+        m_find(*this),
+        fixed_length_subterm_trail(m)
     {
         initialize_charset();
     }
@@ -11124,10 +11124,7 @@ namespace smt {
         }
     }
 
-    void theory_str::fixed_length_reduce_true_eq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-
+    void theory_str::fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
         ptr_vector<expr> lhs_chars, rhs_chars;
         fixed_length_reduce_string_term(lhs, lhs_chars);
         fixed_length_reduce_string_term(rhs, rhs_chars);
@@ -11141,6 +11138,24 @@ namespace smt {
             expr * cRHS = rhs_chars.get(i);
             subsolver.assert_expr(subsolver.get_context().mk_eq_atom(cLHS, cRHS));
         }
+    }
+
+    void theory_str::fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
+        ast_manager & m = get_manager();
+
+        ptr_vector<expr> lhs_chars, rhs_chars;
+        fixed_length_reduce_string_term(lhs, lhs_chars);
+        fixed_length_reduce_string_term(rhs, rhs_chars);
+
+        SASSERT(lhs_chars.size() == rhs_chars.size());
+        expr_ref_vector diseqs(m);
+        for (unsigned i = 0; i < lhs_chars.size(); ++i) {
+            expr * cLHS = lhs_chars.get(i);
+            expr * cRHS = rhs_chars.get(i);
+            diseqs.push_back(m.mk_not(subsolver.get_context().mk_eq_atom(cLHS, cRHS)));
+        }
+        expr_ref final_diseq(mk_or(diseqs), m);
+        subsolver.assert_expr(final_diseq);
     }
 
     /*
@@ -11220,7 +11235,7 @@ namespace smt {
                     sort * lhs_sort = m.get_sort(lhs);
                     if (lhs_sort == str_sort) {
                         TRACE("str", tout << "reduce string equality: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << std::endl;);
-                        fixed_length_reduce_true_eq(subsolver, lhs, rhs);
+                        fixed_length_reduce_eq(subsolver, lhs, rhs);
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not an equality over strings" << std::endl;);
                     }
@@ -11235,7 +11250,7 @@ namespace smt {
                             bool rhsLen_exists = fixed_length_get_len_value(rhs, rhsLen);
                             ENSURE(lhsLen_exists && rhsLen_exists);
                             if (lhsLen == rhsLen) {
-                                NOT_IMPLEMENTED_YET();
+                                fixed_length_reduce_diseq(subsolver, lhs, rhs);
                             } else {
                                 TRACE("str", tout << "len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << " - skip disequality" << std::endl;);
                             }
