@@ -11217,6 +11217,9 @@ namespace smt {
                    );
         }
 
+        fixed_length_subterm_trail.reset();
+        var_to_char_subterm_map.reset();
+
         smt::kernel subsolver(m, ctx.get_fparams());
         subsolver.set_logic(symbol("QF_BV"));
 
