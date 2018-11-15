@@ -31,6 +31,8 @@ Revision History:
 #include "util/union_find.h"
 #include "util/obj_ref_hashtable.h"
 
+#include<set>
+
 namespace smt {
 
     class theory_seq : public theory {
@@ -289,6 +291,7 @@ namespace smt {
             unsigned m_fixed_length;
             unsigned m_propagate_contains;
             unsigned m_int_string;
+            unsigned m_check_multiset_coherence;
         };
         typedef hashtable<rational, rational::hash_proc, rational::eq_proc> rational_set;
 
@@ -433,6 +436,10 @@ namespace smt {
         bool is_ternary_eq2(expr_ref_vector const& ls, expr_ref_vector const& rs, expr_ref_vector& xs, expr_ref& x, expr_ref& y1, expr_ref_vector& ys, expr_ref& y2, bool flag1);
         bool solve_binary_eq(expr_ref_vector const& l, expr_ref_vector const& r, dependency* dep);
         bool propagate_max_length(expr* l, expr* r, dependency* dep);
+
+        bool check_multiset_coherence();
+        bool coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps, unsigned idx);
+        void get_multisets(expr_ref_vector ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set);
 
         bool get_length(expr* s, expr_ref& len, literal_vector& lits);
         bool reduce_length(expr* l, expr* r, literal_vector& lits);
