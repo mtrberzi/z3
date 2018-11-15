@@ -525,6 +525,9 @@ protected:
     void instantiate_basic_string_axioms(enode * str);
     void instantiate_str_eq_length_axiom(enode * lhs, enode * rhs);
 
+    void multiset_check(expr * lhs, expr * rhs);
+    void get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set);
+
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
     void instantiate_axiom_suffixof(enode * e);

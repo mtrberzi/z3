@@ -117,6 +117,13 @@ struct theory_str_params {
      */
     unsigned m_RegexAutomata_LengthAttemptThreshold;
 
+    /*
+     * If MultisetCheck is true, we use the character multiset abstraction to 
+     * help solve word equations.
+     */
+    bool m_MultisetCheck;
+
+
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
