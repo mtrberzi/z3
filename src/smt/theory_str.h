@@ -595,6 +595,7 @@ protected:
 
     // fixed length model construction
     expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
+    expr_ref_vector fixed_length_used_len_terms; // constraints used in generating fixed length model
     obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
 protected:
     void assert_axiom(expr * e);
@@ -805,7 +806,8 @@ protected:
     bool finalcheck_str2int(app * a);
     bool finalcheck_int2str(app * a);
 
-    lbool fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex);
+    lbool fixed_length_model_construction(expr_ref_vector formulas, expr_ref_vector &precondition,
+            obj_map<expr, zstring> &model, expr_ref_vector &cex);
     void fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs);
     void fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs);
     void fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & eqcChars);

@@ -72,7 +72,8 @@ namespace smt {
         m_fresh_id(0),
         m_trail_stack(*this),
         m_find(*this),
-        fixed_length_subterm_trail(m)
+        fixed_length_subterm_trail(m),
+        fixed_length_used_len_terms(m)
     {
         initialize_charset();
     }
@@ -10919,13 +10920,13 @@ namespace smt {
             expr_ref_vector assignments(m);
             ctx.get_assignments(assignments);
 
+            expr_ref_vector precondition(m);
             obj_map<expr, zstring> model;
             expr_ref_vector cex(m);
-            lbool model_status = fixed_length_model_construction(assignments, model, cex);
+            lbool model_status = fixed_length_model_construction(assignments, precondition, model, cex);
 
             if (model_status == l_true) {
-                // assert the current assignment into the context, then CONTINUE
-                // TODO there ought to be a precondition for this model, i.e. conjunction of the current assignment or something?
+                // assert the current assignment into the context
 
                 expr_ref_vector modelEntries(m);
                 for (auto entry : model) {
@@ -10934,10 +10935,16 @@ namespace smt {
                     expr_ref varAssign(ctx.mk_eq_atom(var, mk_string(assignment)), m);
                     modelEntries.push_back(varAssign);
                 }
-                expr_ref premise(mk_and(assignments), m); // TODO THIS IS VERY EXPENSIVE AND DEFINITELY OVERKILL
+                /*
+                expr_ref premise(mk_and(precondition), m);
                 expr_ref conclusion(mk_and(modelEntries), m);
                 assert_implication(premise, conclusion);
-                return FC_CONTINUE;
+                */
+                expr_ref x1(mk_and(precondition), m);
+                expr_ref x2(mk_and(modelEntries), m);
+                expr_ref x(m.mk_and(x1, x2), m);
+                assert_axiom(x);
+                return FC_DONE;
             } else if (model_status == l_false) {
                 NOT_IMPLEMENTED_YET();
             } else { // model_status == l_undef
@@ -11083,6 +11090,7 @@ namespace smt {
      */
     void theory_str::fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & eqcChars) {
         ast_manager & m = get_manager();
+        context & ctx = get_context();
         bv_util bv(m);
 
         sort * bv8_sort = bv.mk_sort(8);
@@ -11115,6 +11123,7 @@ namespace smt {
                     fixed_length_subterm_trail.push_back(ch);
                 }
                 var_to_char_subterm_map.insert(term, newChars);
+                fixed_length_used_len_terms.push_back(ctx.mk_eq_atom(mk_strlen(term), mk_int(varLen_value)));
             }
             var_to_char_subterm_map.find(term, eqcChars);
         } else if (u.str.is_concat(term, arg0, arg1)) {
@@ -11143,6 +11152,7 @@ namespace smt {
             expr * cRHS = rhs_chars.get(i);
             subsolver.assert_expr(subsolver.get_context().mk_eq_atom(cLHS, cRHS));
         }
+        fixed_length_used_len_terms.push_back(get_context().mk_eq_atom(lhs, rhs));
     }
 
     void theory_str::fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
@@ -11172,6 +11182,7 @@ namespace smt {
         }
         expr_ref final_diseq(mk_or(diseqs), m);
         subsolver.assert_expr(final_diseq);
+        fixed_length_used_len_terms.push_back(m.mk_not(get_context().mk_eq_atom(lhs, rhs)));
     }
 
     /*
@@ -11217,8 +11228,8 @@ namespace smt {
         return val.is_int();
     }
 
-    lbool theory_str::fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex) {
-        context & ctx = get_context();
+    lbool theory_str::fixed_length_model_construction(expr_ref_vector formulas, expr_ref_vector &precondition,
+            obj_map<expr, zstring> &model, expr_ref_vector &cex) {
         ast_manager & m = get_manager();
 
         if (is_trace_enabled("str")) {
@@ -11234,6 +11245,7 @@ namespace smt {
         }
 
         fixed_length_subterm_trail.reset();
+        fixed_length_used_len_terms.reset();
         var_to_char_subterm_map.reset();
 
         smt_params subsolver_params;
@@ -11280,6 +11292,9 @@ namespace smt {
                 TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not relevant to strings" << std::endl;);
                 continue;
             }
+        }
+        for (auto e : fixed_length_used_len_terms) {
+            precondition.push_back(e);
         }
 
         TRACE("str", tout << "calling subsolver" << std::endl;);
