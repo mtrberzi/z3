@@ -10924,15 +10924,20 @@ namespace smt {
             lbool model_status = fixed_length_model_construction(assignments, model, cex);
 
             if (model_status == l_true) {
-                // assert the current assignment into the context, then claim DONE
+                // assert the current assignment into the context, then CONTINUE
                 // TODO there ought to be a precondition for this model, i.e. conjunction of the current assignment or something?
+
+                expr_ref_vector modelEntries(m);
                 for (auto entry : model) {
                     expr * var = entry.m_key;
                     zstring assignment = entry.m_value;
                     expr_ref varAssign(ctx.mk_eq_atom(var, mk_string(assignment)), m);
-                    assert_axiom(varAssign);
+                    modelEntries.push_back(varAssign);
                 }
-                return FC_DONE;
+                expr_ref premise(mk_and(assignments), m); // TODO THIS IS VERY EXPENSIVE AND DEFINITELY OVERKILL
+                expr_ref conclusion(mk_and(modelEntries), m);
+                assert_implication(premise, conclusion);
+                return FC_CONTINUE;
             } else if (model_status == l_false) {
                 NOT_IMPLEMENTED_YET();
             } else { // model_status == l_undef
@@ -11076,7 +11081,7 @@ namespace smt {
     /*
      * Expressions in the vector returned by this method only exist in the subsolver.
      */
-    void theory_str::fixed_length_reduce_string_term(expr * term, ptr_vector<expr> & eqcChars) {
+    void theory_str::fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & eqcChars) {
         ast_manager & m = get_manager();
         bv_util bv(m);
 
@@ -11114,8 +11119,8 @@ namespace smt {
             var_to_char_subterm_map.find(term, eqcChars);
         } else if (u.str.is_concat(term, arg0, arg1)) {
             ptr_vector<expr> chars0, chars1;
-            fixed_length_reduce_string_term(arg0, chars0);
-            fixed_length_reduce_string_term(arg1, chars1);
+            fixed_length_reduce_string_term(subsolver, arg0, chars0);
+            fixed_length_reduce_string_term(subsolver, arg1, chars1);
             eqcChars.append(chars0);
             eqcChars.append(chars1);
         } else {
@@ -11126,8 +11131,8 @@ namespace smt {
 
     void theory_str::fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
         ptr_vector<expr> lhs_chars, rhs_chars;
-        fixed_length_reduce_string_term(lhs, lhs_chars);
-        fixed_length_reduce_string_term(rhs, rhs_chars);
+        fixed_length_reduce_string_term(subsolver, lhs, lhs_chars);
+        fixed_length_reduce_string_term(subsolver, rhs, rhs_chars);
 
         if(lhs_chars.size() != rhs_chars.size()) {
             TRACE("str", tout << "length information inconsistent: " << mk_pp(lhs, get_manager()) << " and " << mk_pp(rhs, get_manager()) << " have different # chars" << std::endl;);
@@ -11144,8 +11149,19 @@ namespace smt {
         ast_manager & m = get_manager();
 
         ptr_vector<expr> lhs_chars, rhs_chars;
-        fixed_length_reduce_string_term(lhs, lhs_chars);
-        fixed_length_reduce_string_term(rhs, rhs_chars);
+        fixed_length_reduce_string_term(subsolver, lhs, lhs_chars);
+        fixed_length_reduce_string_term(subsolver, rhs, rhs_chars);
+
+        // we do generation before this check to make sure that
+        // variables which only appear in disequalities show up in the model
+        rational lhsLen, rhsLen;
+        bool lhsLen_exists = fixed_length_get_len_value(lhs, lhsLen);
+        bool rhsLen_exists = fixed_length_get_len_value(rhs, rhsLen);
+        ENSURE(lhsLen_exists && rhsLen_exists);
+        if (lhsLen != rhsLen) {
+            TRACE("str", tout << "skip disequality: len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << std::endl;);
+            return;
+        }
 
         SASSERT(lhs_chars.size() == rhs_chars.size());
         expr_ref_vector diseqs(m);
@@ -11212,7 +11228,7 @@ namespace smt {
             tout << "dumping all formulas:" << std::endl;
             for (expr_ref_vector::iterator i = formulas.begin(); i != formulas.end(); ++i) {
                 expr * ex = *i;
-                tout << mk_ismt2_pp(ex, m) << (ctx.is_relevant(ex) ? "" : " (NOT REL)") << std::endl;
+                tout << mk_pp(ex, m) << (ctx.is_relevant(ex) ? "" : " (NOT REL)") << std::endl;
             }
                    );
         }
@@ -11220,7 +11236,8 @@ namespace smt {
         fixed_length_subterm_trail.reset();
         var_to_char_subterm_map.reset();
 
-        smt::kernel subsolver(m, ctx.get_fparams());
+        smt_params subsolver_params;
+        smt::kernel subsolver(m, subsolver_params);
         subsolver.set_logic(symbol("QF_BV"));
 
         sort * str_sort = u.str.mk_string_sort();
@@ -11248,15 +11265,7 @@ namespace smt {
                         sort * lhs_sort = m.get_sort(lhs);
                         if (lhs_sort == str_sort) {
                             TRACE("str", tout << "reduce string disequality: " << mk_pp(lhs, m) << " != " << mk_pp(rhs, m) << std::endl;);
-                            rational lhsLen, rhsLen;
-                            bool lhsLen_exists = fixed_length_get_len_value(lhs, lhsLen);
-                            bool rhsLen_exists = fixed_length_get_len_value(rhs, rhsLen);
-                            ENSURE(lhsLen_exists && rhsLen_exists);
-                            if (lhsLen == rhsLen) {
-                                fixed_length_reduce_diseq(subsolver, lhs, rhs);
-                            } else {
-                                TRACE("str", tout << "len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << " - skip disequality" << std::endl;);
-                            }
+                            fixed_length_reduce_diseq(subsolver, lhs, rhs);
                         }
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not a boolean formula we handle" << std::endl;);
@@ -11273,7 +11282,21 @@ namespace smt {
             }
         }
 
+        TRACE("str", tout << "calling subsolver" << std::endl;);
+
         lbool subproblem_status = subsolver.setup_and_check();
+
+        if (is_trace_enabled("str")) {
+        TRACE_CODE(
+            ast_manager & m = get_manager();
+            context & ctx = get_context();
+            tout << "dumping all formulas:" << std::endl;
+            for (expr_ref_vector::iterator i = formulas.begin(); i != formulas.end(); ++i) {
+                expr * ex = *i;
+                tout << mk_pp(ex, m) << (ctx.is_relevant(ex) ? "" : " (NOT REL)") << std::endl;
+            }
+                   );
+        }
 
         if (subproblem_status == l_true) {
             bv_util bv(m);
@@ -11288,11 +11311,11 @@ namespace smt {
                 for (expr * chExpr : charSubterms) {
                     expr_ref chAssignment(subModel->get_const_interp(to_app(chExpr)->get_decl()), m);
                     rational n;
-                    if (chExpr != nullptr && bv.is_numeral(chAssignment, n)) {
+                    if (chAssignment != nullptr && bv.is_numeral(chAssignment, n)) {
                         assignment.push_back(n.get_unsigned());
                     } else {
-                        TRACE("str", tout << "WARNING: BV model produced non-constant term " << mk_pp(chAssignment, m) << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        // TODO I hope this works
+                        assignment.push_back((unsigned)'?');
                     }
                 }
                 zstring strValue(assignment.size(), assignment.c_ptr());

@@ -808,7 +808,7 @@ protected:
     lbool fixed_length_model_construction(expr_ref_vector formulas, obj_map<expr, zstring> &model, expr_ref_vector &cex);
     void fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs);
     void fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs);
-    void fixed_length_reduce_string_term(expr * term, ptr_vector<expr> & eqcChars);
+    void fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & eqcChars);
     bool fixed_length_get_len_value(expr * e, rational & val);
 
     // strRegex
