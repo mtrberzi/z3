@@ -11138,14 +11138,19 @@ namespace smt {
         }
     }
 
-    void theory_str::fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
+    bool theory_str::fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs, expr_ref & cex) {
         ptr_vector<expr> lhs_chars, rhs_chars;
         fixed_length_reduce_string_term(subsolver, lhs, lhs_chars);
         fixed_length_reduce_string_term(subsolver, rhs, rhs_chars);
 
         if(lhs_chars.size() != rhs_chars.size()) {
-            TRACE("str", tout << "length information inconsistent: " << mk_pp(lhs, get_manager()) << " and " << mk_pp(rhs, get_manager()) << " have different # chars" << std::endl;);
-            NOT_IMPLEMENTED_YET();
+            TRACE("str", tout << "length information inconsistent: " << mk_pp(lhs, get_manager()) << " has " << lhs_chars.size() <<
+                    " chars, " << mk_pp(rhs, get_manager()) << " has " << rhs_chars.size() << " chars" << std::endl;);
+            context & ctx = get_context();
+            ast_manager & m = get_manager();
+            // equal strings ought to have equal lengths
+            cex = m.mk_or(m.mk_not(ctx.mk_eq_atom(lhs, rhs)), ctx.mk_eq_atom(mk_strlen(lhs), mk_strlen(rhs)));
+            return false;
         }
         for (unsigned i = 0; i < lhs_chars.size(); ++i) {
             expr * cLHS = lhs_chars.get(i);
@@ -11153,6 +11158,7 @@ namespace smt {
             subsolver.assert_expr(subsolver.get_context().mk_eq_atom(cLHS, cRHS));
         }
         fixed_length_used_len_terms.push_back(get_context().mk_eq_atom(lhs, rhs));
+        return true;
     }
 
     void theory_str::fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
@@ -11267,7 +11273,12 @@ namespace smt {
                     sort * lhs_sort = m.get_sort(lhs);
                     if (lhs_sort == str_sort) {
                         TRACE("str", tout << "reduce string equality: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << std::endl;);
-                        fixed_length_reduce_eq(subsolver, lhs, rhs);
+                        expr_ref cex(m);
+                        if (!fixed_length_reduce_eq(subsolver, lhs, rhs, cex)) {
+                            // missing a side condition. assert it and return unknown
+                            assert_axiom(cex);
+                            return l_undef;
+                        }
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not an equality over strings" << std::endl;);
                     }
