@@ -10946,7 +10946,11 @@ namespace smt {
                 assert_axiom(x);
                 return FC_DONE;
             } else if (model_status == l_false) {
-                NOT_IMPLEMENTED_YET();
+                // whatever came back in CEX is the conflict clause.
+                // negate its conjunction and assert that
+                expr_ref conflict(m.mk_not(mk_and(cex)), m);
+                assert_axiom(conflict);
+                return FC_CONTINUE;
             } else { // model_status == l_undef
                 TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
                 return FC_CONTINUE;
@@ -11282,6 +11286,9 @@ namespace smt {
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not an equality over strings" << std::endl;);
                     }
+                } else if (u.str.is_in_re(f)) {
+                    TRACE("str", tout << "WARNING: regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
+                    NOT_IMPLEMENTED_YET();
                 } else if (m.is_not(f, subterm)) {
                     // if subterm is a string formula such as an equality, reduce it as a disequality
                     if (m.is_eq(subterm, lhs, rhs)) {
@@ -11290,6 +11297,9 @@ namespace smt {
                             TRACE("str", tout << "reduce string disequality: " << mk_pp(lhs, m) << " != " << mk_pp(rhs, m) << std::endl;);
                             fixed_length_reduce_diseq(subsolver, lhs, rhs);
                         }
+                    } else if (u.str.is_in_re(subterm)) {
+                        TRACE("str", tout << "WARNING: regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not a boolean formula we handle" << std::endl;);
                     }
@@ -11350,7 +11360,11 @@ namespace smt {
             return l_true;
         } else if (subproblem_status == l_false) {
             TRACE("str", tout << "subsolver found UNSAT; reconstructing unsat core" << std::endl;);
-            NOT_IMPLEMENTED_YET();
+            // TODO better unsat core reconstruction
+            // for now, just copy the precondition into CEX
+            for (auto e : fixed_length_used_len_terms) {
+                cex.push_back(e);
+            }
             return l_false;
         } else { // l_undef
             TRACE("str", tout << "WARNING: subsolver found UNKNOWN" << std::endl;);
