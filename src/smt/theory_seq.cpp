@@ -260,10 +260,6 @@ final_check_status theory_seq::final_check_eh() {
         TRACE("seq", tout << ">>solve_eqs\n";);
         return FC_CONTINUE;
     }
-    if (m_params.m_multiset_check && check_multiset_coherence()) {
-        TRACE("seq", tout << ">>check_multiset_coherence\n";);
-        return FC_CONTINUE;
-    }
     if (check_contains()) {
         ++m_stats.m_propagate_contains;
         TRACE("seq", tout << ">>propagate_contains\n";);
@@ -2472,6 +2468,10 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
             m_eqs.push_back(eq(m_eq_id++, ls, rs, deps));
         }
         TRACE("seq", tout << "simplified\n";);
+        return true;
+    }
+    if (m_params.m_multiset_check && !ctx.inconsistent() && coherent_multisets(ls, rs, deps)) {
+        TRACE("seq", tout << ">>multiset_coherence\n";);
         return true;
     }
     return false;
@@ -5987,52 +5987,47 @@ void theory_seq::get_concat(expr* e, ptr_vector<expr>& concats) {
     }
 }
 
-bool theory_seq::check_multiset_coherence() {
-    context& ctx = get_context();
-    int start = ctx.get_random_value();
 
-    for (unsigned i = 0; !ctx.inconsistent() && i < m_eqs.size(); ++i) {
-        eq const& e = m_eqs[(i + start) % m_eqs.size()];
-        if (!coherent_multisets(e.ls(), e.rs(), e.dep(), i)) {
-            ++m_stats.m_check_multiset_coherence;
-            return false;
-        }
-    }
-    return true;
-}
-
-bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps, unsigned idx) {
+bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps) {
     std::multiset<expr*> left_var_set;
     std::multiset<expr*> left_elem_set;
-    get_multisets(l, &left_elem_set, &left_var_set);
+
+    for (auto const& elem : l) {
+        SASSERT(m_util.is_seq(elem));
+        if (m_util.str.is_unit(elem)) {
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to left_c_set" << std::endl;);
+            left_elem_set.insert(elem);
+        } else if (is_var(elem)){
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to left_v_set" << std::endl;);
+            left_var_set.insert(elem);
+        } else {
+            TRACE("seq", tout << "Not a unit or a variable! " << mk_ismt2_pp(elem, m) << std::endl;);
+            return false;
+        }
+    }    
 
     std::multiset<expr*> right_var_set;
     std::multiset<expr*> right_elem_set;
-    get_multisets(r, &right_elem_set, &right_var_set);
+
+    for (auto const& elem : r) {
+        SASSERT(m_util.is_seq(elem));
+        if (m_util.str.is_unit(elem)) {
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to right_c_set" << std::endl;);
+            right_elem_set.insert(elem);
+        } else if (is_var(elem)){
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to right_v_set" << std::endl;);
+            right_var_set.insert(elem);
+        } else {
+            TRACE("seq", tout << "Not a unit or a variable! " << mk_ismt2_pp(elem, m) << std::endl;);
+            return false;
+        }
+    }    
 
     if (left_var_set == right_var_set && left_elem_set != right_elem_set) {
         TRACE("seq", tout << l << " != " << r << "\n";);
         set_conflict(deps);
-        return false;
+        return true;
     }
-    return true;
+    return false;
 }
 
-void theory_seq::get_multisets(expr_ref_vector ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set) {
-    for (auto const& elem : ex) {
-        SASSERT(m_util.is_seq(elem));
-        if (m_util.str.is_unit(elem)) {
-            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to c_set" << std::endl;);
-            c_set->insert(elem);
-        } else if (is_var(elem)){
-            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to v_set" << std::endl;);
-            v_set->insert(elem);
-        } else {
-            TRACE("seq", tout << "Not a unit or a variable! " << mk_ismt2_pp(elem, m) << std::endl;);
-            SASSERT(m_util.str.is_concat(elem));
-            expr_ref_vector es(m); 
-            m_util.str.get_concat(elem, es);
-            get_multisets(es, c_set, v_set);
-        }
-    }
-}

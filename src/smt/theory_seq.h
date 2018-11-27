@@ -437,9 +437,7 @@ namespace smt {
         bool solve_binary_eq(expr_ref_vector const& l, expr_ref_vector const& r, dependency* dep);
         bool propagate_max_length(expr* l, expr* r, dependency* dep);
 
-        bool check_multiset_coherence();
-        bool coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps, unsigned idx);
-        void get_multisets(expr_ref_vector ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set);
+        bool coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
 
         bool get_length(expr* s, expr_ref& len, literal_vector& lits);
         bool reduce_length(expr* l, expr* r, literal_vector& lits);
