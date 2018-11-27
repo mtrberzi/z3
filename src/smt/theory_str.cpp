@@ -10950,6 +10950,7 @@ namespace smt {
                 // negate its conjunction and assert that
                 expr_ref conflict(m.mk_not(mk_and(cex)), m);
                 assert_axiom(conflict);
+                add_persisted_axiom(conflict);
                 return FC_CONTINUE;
             } else { // model_status == l_undef
                 TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
