@@ -2446,6 +2446,10 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
         TRACE("seq", tout << "binary\n";);
         return true;
     }
+    if (m_params.m_multiset_check && !ctx.inconsistent() && change && coherent_multisets(ls, rs, deps)) {
+        TRACE("seq", tout << ">>multiset_coherence\n";);
+        return true;
+    }
     if (!ctx.inconsistent() && change) {
         // The propagation step from arithmetic state (e.g. length offset) to length constraints
         if (get_context().get_scope_level() == 0) {
@@ -2468,10 +2472,6 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
             m_eqs.push_back(eq(m_eq_id++, ls, rs, deps));
         }
         TRACE("seq", tout << "simplified\n";);
-        return true;
-    }
-    if (m_params.m_multiset_check && !ctx.inconsistent() && coherent_multisets(ls, rs, deps)) {
-        TRACE("seq", tout << ">>multiset_coherence\n";);
         return true;
     }
     return false;
