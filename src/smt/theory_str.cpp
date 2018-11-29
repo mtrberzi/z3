@@ -11102,6 +11102,7 @@ namespace smt {
 
         expr * arg0;
         expr * arg1;
+        expr * arg2;
 
         zstring strConst;
         if (u.str.is_string(term, strConst)) {
@@ -11137,8 +11138,36 @@ namespace smt {
             fixed_length_reduce_string_term(subsolver, arg1, chars1);
             eqcChars.append(chars0);
             eqcChars.append(chars1);
+        } else if (u.str.is_extract(term, arg0, arg1, arg2)) {
+            // (str.substr Base Pos Len)
+            ptr_vector<expr> baseChars;
+            fixed_length_reduce_string_term(subsolver, arg0, baseChars);
+            arith_value v(ctx);
+            rational pos, len;
+            bool pos_exists = v.get_value(arg1, pos);
+            bool len_exists = v.get_value(arg2, len);
+            ENSURE(pos_exists);
+            ENSURE(len_exists);
+            TRACE("str", tout << "reduce substring term: base=" << mk_pp(term, m) << ", pos=" << pos.to_string() << ", len=" << len.to_string() << std::endl;);
+            // Case 1: pos < 0 or pos >= strlen(base) or len < 0
+            // ==> (Substr ...) = ""
+            if (pos.is_neg() || pos >= rational(baseChars.size()) || len.is_neg()) {
+                eqcChars.reset();
+                return;
+            } else {
+                if (pos + len >= rational(baseChars.size())) {
+                    // take as many characters as possible up to the end of baseChars
+                    for (unsigned i = pos.get_unsigned(); i < baseChars.size(); ++i) {
+                        eqcChars.push_back(baseChars.get(i));
+                    }
+                } else {
+                    for (unsigned i = pos.get_unsigned(); i < pos.get_unsigned() + len.get_unsigned(); ++i) {
+                        eqcChars.push_back(baseChars.get(i));
+                    }
+                }
+            }
         } else {
-            TRACE("str", tout << "unknown string term " << mk_pp(term, get_manager()) << std::endl;);
+            TRACE("str", tout << "unknown string term " << mk_pp(term, m) << std::endl;);
             NOT_IMPLEMENTED_YET();
         }
     }
