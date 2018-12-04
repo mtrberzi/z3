@@ -11167,8 +11167,22 @@ namespace smt {
                 }
             }
         } else {
-            TRACE("str", tout << "unknown string term " << mk_pp(term, m) << std::endl;);
-            NOT_IMPLEMENTED_YET();
+            TRACE("str", tout << "string term " << mk_pp(term, m) << " handled as uninterpreted function" << std::endl;);
+            if (!uninterpreted_to_char_subterm_map.contains(term)) {
+                rational ufLen_value;
+                bool uf_hasLen = fixed_length_get_len_value(term, ufLen_value);
+                ENSURE(uf_hasLen);
+                TRACE("str", tout << "creating character terms for uninterpreted function " << mk_pp(term, m) << ", length = " << ufLen_value << std::endl;);
+                ptr_vector<expr> newChars;
+                for (unsigned i = 0; i < ufLen_value.get_unsigned(); ++i) {
+                    expr_ref ch(mk_fresh_const("char", bv8_sort), m);
+                    newChars.push_back(ch);
+                    fixed_length_subterm_trail.push_back(ch);
+                }
+                uninterpreted_to_char_subterm_map.insert(term, newChars);
+                fixed_length_used_len_terms.push_back(ctx.mk_eq_atom(mk_strlen(term), mk_int(ufLen_value)));
+            }
+            uninterpreted_to_char_subterm_map.find(term, eqcChars);
         }
     }
 
@@ -11287,6 +11301,7 @@ namespace smt {
         fixed_length_subterm_trail.reset();
         fixed_length_used_len_terms.reset();
         var_to_char_subterm_map.reset();
+        uninterpreted_to_char_subterm_map.reset();
 
         smt_params subsolver_params;
         smt::kernel subsolver(m, subsolver_params);
@@ -11380,7 +11395,22 @@ namespace smt {
                     if (chAssignment != nullptr && bv.is_numeral(chAssignment, n)) {
                         assignment.push_back(n.get_unsigned());
                     } else {
-                        // TODO I hope this works
+                        assignment.push_back((unsigned)'?');
+                    }
+                }
+                zstring strValue(assignment.size(), assignment.c_ptr());
+                model.insert(var, strValue);
+            }
+            for (auto entry : uninterpreted_to_char_subterm_map) {
+                svector<unsigned> assignment;
+                expr * var = entry.m_key;
+                ptr_vector<expr> charSubterms = entry.m_value;
+                for (expr * chExpr : charSubterms) {
+                    expr_ref chAssignment(subModel->get_const_interp(to_app(chExpr)->get_decl()), m);
+                    rational n;
+                    if (chAssignment != nullptr && bv.is_numeral(chAssignment, n)) {
+                        assignment.push_back(n.get_unsigned());
+                    } else {
                         assignment.push_back((unsigned)'?');
                     }
                 }
