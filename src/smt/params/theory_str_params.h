@@ -122,6 +122,12 @@ struct theory_str_params {
      * If false, Z3str3 will use the legacy length tester and value tester procedure.
      */
     bool m_FixedLengthModels;
+  
+    /*
+     * If MultisetCheck is true, we use the character multiset abstraction to 
+     * help solve word equations.
+     */
+    bool m_MultisetCheck;
 
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),

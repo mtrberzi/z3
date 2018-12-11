@@ -2446,6 +2446,10 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
         TRACE("seq", tout << "binary\n";);
         return true;
     }
+    if (m_params.m_multiset_check && !ctx.inconsistent() && change && coherent_multisets(ls, rs, deps)) {
+        TRACE("seq", tout << ">>multiset_coherence\n";);
+        return true;
+    }
     if (!ctx.inconsistent() && change) {
         // The propagation step from arithmetic state (e.g. length offset) to length constraints
         if (get_context().get_scope_level() == 0) {
@@ -5982,3 +5986,48 @@ void theory_seq::get_concat(expr* e, ptr_vector<expr>& concats) {
         return;
     }
 }
+
+
+bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps) {
+    std::multiset<expr*> left_var_set;
+    std::multiset<expr*> left_elem_set;
+
+    for (auto const& elem : l) {
+        SASSERT(m_util.is_seq(elem));
+        if (m_util.str.is_unit(elem)) {
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to left_c_set" << std::endl;);
+            left_elem_set.insert(elem);
+        } else if (is_var(elem)){
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to left_v_set" << std::endl;);
+            left_var_set.insert(elem);
+        } else {
+            TRACE("seq", tout << "Not a unit or a variable! " << mk_ismt2_pp(elem, m) << std::endl;);
+            return false;
+        }
+    }    
+
+    std::multiset<expr*> right_var_set;
+    std::multiset<expr*> right_elem_set;
+
+    for (auto const& elem : r) {
+        SASSERT(m_util.is_seq(elem));
+        if (m_util.str.is_unit(elem)) {
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to right_c_set" << std::endl;);
+            right_elem_set.insert(elem);
+        } else if (is_var(elem)){
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to right_v_set" << std::endl;);
+            right_var_set.insert(elem);
+        } else {
+            TRACE("seq", tout << "Not a unit or a variable! " << mk_ismt2_pp(elem, m) << std::endl;);
+            return false;
+        }
+    }    
+
+    if (left_var_set == right_var_set && left_elem_set != right_elem_set) {
+        TRACE("seq", tout << l << " != " << r << "\n";);
+        set_conflict(deps);
+        return true;
+    }
+    return false;
+}
+

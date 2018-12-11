@@ -257,19 +257,30 @@ def cp_vs_runtime(x64):
     else:
         platform = "x86"
     vcdir = os.environ['VCINSTALLDIR']
-    path  = '%sredist\\%s' % (vcdir, platform)
-    VS_RUNTIME_FILES = []
+    path  = '%sredist' % vcdir
+    vs_runtime_files = []
+    print("Walking %s" % path)
+    # Everything changes with every release of VS
+    # Prior versions of VS had DLLs under "redist\x64"
+    # There are now several variants of redistributables
+    # The naming convention defies my understanding so 
+    # we use a "check_root" filter to find some hopefully suitable
+    # redistributable.
+    def check_root(root):
+        return platform in root and ("CRT" in root or "MP" in root) and "onecore" not in root and "debug" not in root
     for root, dirs, files in os.walk(path):
         for filename in files:
-            if fnmatch(filename, '*.dll'):
+            if fnmatch(filename, '*.dll') and check_root(root):
+                print("Checking %s %s" % (root, filename))
                 for pat in VS_RUNTIME_PATS:
                     if pat.match(filename):
                         fname = os.path.join(root, filename)
                         if not os.path.isdir(fname):
-                            VS_RUNTIME_FILES.append(fname)
-
+                            vs_runtime_files.append(fname)
+    if not vs_runtime_files:
+        raise MKException("Did not find any runtime files to include")       
     bin_dist_path = os.path.join(DIST_DIR, get_dist_path(x64), 'bin')
-    for f in VS_RUNTIME_FILES:
+    for f in vs_runtime_files:
         shutil.copy(f, bin_dist_path)
         if is_verbose():
             print("Copied '%s' to '%s'" % (f, bin_dist_path))
