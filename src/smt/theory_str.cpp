@@ -1144,11 +1144,15 @@ namespace smt {
 
         std::multiset<expr*> left_v_set;
         std::multiset<expr*> left_c_set;
-        get_multisets(lhs, &left_c_set, &left_v_set);
+        if(!get_multisets(lhs, &left_c_set, &left_v_set)){
+            return;
+        }
 
         std::multiset<expr*> right_v_set;
         std::multiset<expr*> right_c_set;
-        get_multisets(rhs, &right_c_set, &right_v_set);
+        if(!get_multisets(rhs, &right_c_set, &right_v_set)){
+            return;
+        }
 
         if (left_v_set == right_v_set && left_c_set != right_c_set) {
             // build premise: (lhs == rhs)
@@ -1161,7 +1165,7 @@ namespace smt {
         
     }
 
-    void theory_str::get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set) {
+    bool theory_str::get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set) {
         ast_manager & m = get_manager();
 
         sort * ex_sort = m.get_sort(ex);
@@ -1185,24 +1189,26 @@ namespace smt {
                             TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to c_set" << std::endl;);
                             c_set->insert(mk_string(str_const.extract(i, 1)));
                         }
-                        return;
                     }else{
                         TRACE("str", tout << "adding " << mk_ismt2_pp(ap, m) << " to v_set" << std::endl;);
                         v_set->insert(ap);
                     }
+                    return true;
+                }else if(u.str.is_concat(ap)){
+                    unsigned num_args = ap->get_num_args();
+                    for (unsigned i = 0; i < num_args; i++) {
+                        if (!get_multisets(ap->get_arg(i), c_set, v_set)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }else{
+                    TRACE("str", tout << "Unsupported Multiset_check " << mk_ismt2_pp(ap, m) << ": quiting." << std::endl;);
+                    return false;
                 }
             }
         }
-
-        // if expr is an application, recursively inspect all arguments
-        if (is_app(ex)) {
-            app * term = to_app(ex);
-            unsigned num_args = term->get_num_args();
-            for (unsigned i = 0; i < num_args; i++) {
-                get_multisets(term->get_arg(i), c_set, v_set);
-            }
-        }
-        return;
+        return false;
     }
 
 
