@@ -334,6 +334,16 @@ final_check_status theory_seq::final_check_eh() {
         TRACE("seq", tout << ">>is_solved\n";);
         return FC_DONE;
     }
+    if (m_params.m_length_based_word_solving){
+        ++m_stats.m_length_based_word_solving;
+        if (length_based_word_solving()) {
+            TRACE("seq", tout << ">>fixed_len_and_solved\n";);
+            return FC_DONE;
+        }else {
+            TRACE("seq", tout << ">>fixed_len_and_learned\n";);
+            return FC_CONTINUE;
+        }
+    }
     TRACE("seq", tout << ">>give_up\n";);
     return FC_GIVEUP;
 }
@@ -2446,9 +2456,12 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
         TRACE("seq", tout << "binary\n";);
         return true;
     }
-    if (m_params.m_multiset_check && !ctx.inconsistent() && change && coherent_multisets(ls, rs, deps)) {
-        TRACE("seq", tout << ">>multiset_coherence\n";);
-        return true;
+    if (m_params.m_multiset_check && !ctx.inconsistent() && change) {
+        add_implied_length_axiom(ls, rs);
+        if (coherent_multisets(ls, rs, deps)) {
+            TRACE("seq", tout << ">>multiset_coherence\n";);
+            return true;
+        }
     }
     if (!ctx.inconsistent() && change) {
         // The propagation step from arithmetic state (e.g. length offset) to length constraints
@@ -6031,3 +6044,24 @@ bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector co
     return false;
 }
 
+// add implied length equality: (lhs = rhs) => (len(lhs) = len(rhs))
+void theory_seq::add_implied_length_axiom(expr_ref_vector const& lhs, expr_ref_vector const& rhs){
+    expr_ref lhs_len(m_autil.mk_int(0), m);
+    for (auto elem : lhs){
+        lhs_len = mk_add(lhs_len, m_util.str.mk_length(elem));
+    }
+    expr_ref rhs_len(m_autil.mk_int(0), m);
+    for (auto elem : rhs){
+        rhs_len = mk_add(rhs_len, m_util.str.mk_length(elem));
+    }
+
+    TRACE("seq", tout << "adding implied length equality\n" 
+        << mk_pp(mk_concat(lhs), m) << " = " << mk_pp(mk_concat(rhs), m) << "\n=>\n" 
+        << mk_pp(lhs_len, m) << " = " << mk_pp(rhs_len, m) << "\n";
+    );
+    add_axiom(~mk_seq_eq(mk_concat(lhs), mk_concat(rhs)), mk_eq(lhs_len, rhs_len, false));
+}
+
+bool theory_seq::length_based_word_solving() {
+    return false;
+}

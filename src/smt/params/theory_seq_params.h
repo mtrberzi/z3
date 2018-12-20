@@ -30,9 +30,15 @@ struct theory_seq_params {
      */  
     bool m_multiset_check;
 
+    /*
+     * Enable fix length and check
+     */  
+    bool m_length_based_word_solving;
+
     theory_seq_params(params_ref const & p = params_ref()):
         m_split_w_len(true),
-        m_multiset_check(true)
+        m_multiset_check(true),
+        m_length_based_word_solving(true)
     {
         updt_params(p);
     }

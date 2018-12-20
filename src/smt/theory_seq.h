@@ -292,6 +292,7 @@ namespace smt {
             unsigned m_propagate_contains;
             unsigned m_int_string;
             unsigned m_check_multiset_coherence;
+            unsigned m_length_based_word_solving;
         };
         typedef hashtable<rational, rational::hash_proc, rational::eq_proc> rational_set;
 
@@ -437,7 +438,10 @@ namespace smt {
         bool solve_binary_eq(expr_ref_vector const& l, expr_ref_vector const& r, dependency* dep);
         bool propagate_max_length(expr* l, expr* r, dependency* dep);
 
+        // length and count based abstraction refinement
         bool coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
+        bool length_based_word_solving();
+        void add_implied_length_axiom(expr_ref_vector const& lhs, expr_ref_vector const& rhs);
 
         bool get_length(expr* s, expr_ref& len, literal_vector& lits);
         bool reduce_length(expr* l, expr* r, literal_vector& lits);
