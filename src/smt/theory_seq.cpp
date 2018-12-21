@@ -315,6 +315,13 @@ final_check_status theory_seq::final_check_eh() {
         TRACE("seq", tout << ">>branch_variable\n";);
         return FC_CONTINUE;
     }
+    if (m_params.m_length_based_word_solving){
+        if (!length_based_word_solving()) {
+            ++m_stats.m_length_based_word_solving;
+            TRACE("seq", tout << ">>fixed_len_and_learned\n";);
+            return FC_CONTINUE;
+        }
+    }
     if (check_length_coherence()) {
         ++m_stats.m_check_length_coherence;
         TRACE("seq", tout << ">>check_length_coherence\n";);
@@ -333,16 +340,6 @@ final_check_status theory_seq::final_check_eh() {
     if (is_solved()) {
         TRACE("seq", tout << ">>is_solved\n";);
         return FC_DONE;
-    }
-    if (m_params.m_length_based_word_solving){
-        ++m_stats.m_length_based_word_solving;
-        if (length_based_word_solving()) {
-            TRACE("seq", tout << ">>fixed_len_and_solved\n";);
-            return FC_DONE;
-        }else {
-            TRACE("seq", tout << ">>fixed_len_and_learned\n";);
-            return FC_CONTINUE;
-        }
     }
     TRACE("seq", tout << ">>give_up\n";);
     return FC_GIVEUP;
@@ -2457,7 +2454,6 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
         return true;
     }
     if (m_params.m_multiset_check && !ctx.inconsistent() && change) {
-        add_implied_length_axiom(ls, rs);
         if (coherent_multisets(ls, rs, deps)) {
             TRACE("seq", tout << ">>multiset_coherence\n";);
             return true;
@@ -4564,6 +4560,7 @@ bool theory_seq::get_num_value(expr* e, rational& val) const {
     context& ctx = get_context();
     expr_ref _val(m);
     if (!ctx.e_internalized(e))
+        TRACE("seq", tout << "not internalized: " << mk_pp(e, m) << "\n";);
         return false;
     enode* next = ctx.get_enode(e), *n = next;
     do { 
@@ -6044,24 +6041,127 @@ bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector co
     return false;
 }
 
-// add implied length equality: (lhs = rhs) => (len(lhs) = len(rhs))
-void theory_seq::add_implied_length_axiom(expr_ref_vector const& lhs, expr_ref_vector const& rhs){
-    expr_ref lhs_len(m_autil.mk_int(0), m);
-    for (auto elem : lhs){
-        lhs_len = mk_add(lhs_len, m_util.str.mk_length(elem));
-    }
-    expr_ref rhs_len(m_autil.mk_int(0), m);
-    for (auto elem : rhs){
-        rhs_len = mk_add(rhs_len, m_util.str.mk_length(elem));
+// true means it passed, false means we learned
+bool theory_seq::length_based_word_solving() {
+    smt_params subsolver_params;
+    smt::kernel subsolver(m, subsolver_params);
+    // maps a var to a list of character terms *in the subsolver*
+    obj_map<expr, ptr_vector<expr> > var_char_map; 
+
+    for (auto const& e : m_eqs) {
+        if (!fixed_length_reduce_eq(subsolver, e.ls(), e.rs(), e.dep(), var_char_map&)) {
+            return false;
+        }
     }
 
-    TRACE("seq", tout << "adding implied length equality\n" 
-        << mk_pp(mk_concat(lhs), m) << " = " << mk_pp(mk_concat(rhs), m) << "\n=>\n" 
-        << mk_pp(lhs_len, m) << " = " << mk_pp(rhs_len, m) << "\n";
-    );
-    add_axiom(~mk_seq_eq(mk_concat(lhs), mk_concat(rhs)), mk_eq(lhs_len, rhs_len, false));
+    for (auto const& e : m_nqs) {
+        if (!fixed_length_reduce_nq(subsolver, e.ls(), e.rs(), var_char_map&)) {
+            return false;
+        }
+    }
+    
+    TRACE("str", tout << "calling subsolver" << std::endl;);
+    lbool subproblem_status = subsolver.setup_and_check();
+    TRACE("str", tout << "result of subvolver: " << lbool << std::endl;);
+    //... TODO check result
+    return true;
 }
 
-bool theory_seq::length_based_word_solving() {
-    return false;
+ptr_vector<expr> theory_seq::fixed_length_reduce_sequence(expr_ref_vector const& seq_vec, vector<rational> lens, obj_map<expr, ptr_vector<expr> >* var_char_map) {
+    sort * int_sort = m.mk_sort(m_autil.get_family_id(), INT_SORT);
+    ptr_vector<expr> chars;
+    
+    for (unsigned i = 0; i < lens.size(); ++i) {
+        
+        expr const& elem = seq_vec.get(i)
+        SASSERT(m_util.is_seq(elem));
+        
+        if (m_util.str.is_unit(elem)) {
+            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to chars vector" << std::endl;);
+            chars.push_back(mk_int(elem->get_arg(0)));
+        } 
+        else if (is_var(elem)) {
+            
+            if (!var_char_map->contains(elem)) {
+                rational varLen_value = lens.get(i);
+                TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
+                ptr_vector<expr> newChars;
+                for (unsigned i = 0; i < varLen_value; ++i) {
+                    expr_ref ch(mk_fresh_const("char", int_sort), m);
+                    newChars.push_back(ch);
+                    chars.append(ch);//todo how?
+                }
+                var_char_map->insert(elem, newChars);
+            } else {
+                chars.append(var_char_map->find(elem));//todo how?
+            }
+        
+        } else {
+            //todo
+        }
+    }    
+    return chars;
+}
+
+// return false if failed and need to change something
+bool theory_seq::fixed_length_reduce_eq(smt::kernel & subsolver, expr_ref_vector const& lhs, expr_ref_vector const& rhs, dependency* dep, obj_map<expr, ptr_vector<expr> >* var_char_map) {
+        vector<rational> len1, len2;
+        if (!enforce_length(lhs, len1) || !enforce_length(rhs, len2)) {
+            return false;
+        }
+        rational l1, l2;
+        for (const auto& elem : len1) l1 += elem;
+        for (const auto& elem : len2) l2 += elem;
+        if (l1 != l2) {
+            TRACE("seq", tout << "lengths are not compatible\n";);
+            expr_ref l = mk_concat(lhs);
+            expr_ref r = mk_concat(rhs);
+            expr_ref lnl(m_util.str.mk_length(l), m), lnr(m_util.str.mk_length(r), m);
+            propagate_eq(dep, lnl, lnr, false);
+            return false;
+        }
+
+        ptr_vector<expr> lhs_chars = fixed_length_reduce_sequence(lhs, len1, var_char_map);
+        ptr_vector<expr> rhs_chars = fixed_length_reduce_sequence(rhs, len2, var_char_map);
+        for (unsigned i = 0; i < lhs_chars.size(); ++i) {
+            expr * cLHS = lhs_chars.get(i);
+            expr * cRHS = rhs_chars.get(i);
+            subsolver.assert_expr(subsolver.get_context().mk_eq_atom(cLHS, cRHS));
+        }
+        return true;
+}
+
+// return false if failed and need to change something
+bool theory_seq::fixed_length_reduce_nq(smt::kernel & subsolver, expr_ref_vector const& lhs, expr_ref_vector const& rhs, obj_map<expr, ptr_vector<expr> >* var_char_map) {
+        vector<rational> len1, len2;
+        if (!enforce_length(lhs, len1) || !enforce_length(rhs, len2)) {
+            return false;
+        }
+        rational l1, l2;
+        for (const auto& elem : len1) l1 += elem;
+        for (const auto& elem : len2) l2 += elem;
+        if (l1 != l2) {
+            TRACE("seq", tout << "lengths are not compatible, which is good (easy)\n";);
+            return true;
+        }
+        ptr_vector<expr> lhs_chars = fixed_length_reduce_sequence(lhs, len1, var_char_map);
+        ptr_vector<expr> rhs_chars = fixed_length_reduce_sequence(rhs, len2, var_char_map);
+        expr_ref_vector diseqs(m);
+        for (unsigned i = 0; i < lhs_chars.size(); ++i) {
+            expr * cLHS = lhs_chars.get(i);
+            expr * cRHS = rhs_chars.get(i);
+            diseqs.push_back(m.mk_not(subsolver.get_context().mk_eq_atom(cLHS, cRHS)));
+        }
+        expr_ref final_diseq(mk_or(diseqs), m);
+        subsolver.assert_expr(final_diseq);
+        return true;
+}
+
+app * theory_seq::mk_fresh_const(char const* name, sort* s) {
+    string_buffer<64> buffer;
+    buffer << name;
+    buffer << "!tmp";
+    buffer << m_fresh_id;
+    m_fresh_id++;
+    return m_util.mk_skolem(symbol(buffer.c_str()), 0, nullptr, s);
 }
