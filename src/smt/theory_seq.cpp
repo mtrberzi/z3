@@ -305,11 +305,6 @@ final_check_status theory_seq::final_check_eh() {
         TRACE("seq", tout << ">>branch_binary_variable\n";);
         return FC_CONTINUE;
     }
-    if (branch_ternary_variable1() || branch_ternary_variable2() || branch_quat_variable()) {
-        ++m_stats.m_branch_variable;
-        TRACE("seq", tout << ">>split_based_on_alignment\n";);
-        return FC_CONTINUE;
-    }
     if (m_params.m_length_based_word_solving){
         if (length_based_word_solving()) {
             ++m_stats.m_length_based_word_solving;
@@ -317,6 +312,11 @@ final_check_status theory_seq::final_check_eh() {
             return FC_CONTINUE;
         }
     } else {
+        if (branch_ternary_variable1() || branch_ternary_variable2() || branch_quat_variable()) {
+            ++m_stats.m_branch_variable;
+            TRACE("seq", tout << ">>split_based_on_alignment\n";);
+            return FC_CONTINUE;
+        }
         if (branch_variable_mb() || branch_variable()) {
             ++m_stats.m_branch_variable;
             TRACE("seq", tout << ">>branch_variable\n";);
@@ -6057,18 +6057,46 @@ bool theory_seq::length_based_word_solving() {
         for (const auto& elem : right_lens) l2 += elem;
         if (l1 != l2) {
             TRACE("seq", tout << "lengths are not compatible\n";);
-            expr_ref l = mk_concat(e.ls());
-            expr_ref r = mk_concat(e.rs());
+            expr_ref l(mk_concat(e.ls()), m);
+            expr_ref r(mk_concat(e.rs()), m);
             expr_ref lnl(m_util.str.mk_length(l), m), lnr(m_util.str.mk_length(r), m);
             propagate_eq(e.dep(), lnl, lnr, false);
             return m_new_propagation;
+        }
+        
+        if (l1 > 2048) {
+            TRACE("seq", tout << "Too long! " << m_stats.m_length_based_word_solving << "\n";);
+            return false;
+        } else {
+            TRACE("seq", tout << "Short enough! " << m_stats.m_length_based_word_solving << "\n";);
         }
 
         unsigned left_element_count = 0, right_element_count = 0;
         unsigned left_offset = 0, right_offset = 0;
         while(left_element_count < e.ls().size() && right_element_count < e.rs().size()){
-            expr* curr_left_element = e.ls().get(left_element_count);
-            expr* left_char;
+            expr_ref left_sublen(m);
+            if (left_element_count == 0){
+                left_sublen =  m_autil.mk_int(0);
+            } else {
+                left_sublen = m_util.str.mk_length(mk_concat(left_element_count, e.ls().c_ptr()));
+            }
+
+            expr_ref right_sublen(m);
+            if (right_element_count == 0){
+                right_sublen =  m_autil.mk_int(0);
+            } else {
+                right_sublen = m_util.str.mk_length(mk_concat(right_element_count, e.rs().c_ptr()));
+            }
+
+            expr_ref left_length(mk_add(left_sublen, m_autil.mk_int(left_offset)), m);
+            expr_ref right_length(mk_add(right_sublen, m_autil.mk_int(right_offset)), m);
+
+            expr_ref eq_len(m.mk_eq(left_length, right_length), m);
+			literal lit = mk_simplified_literal(eq_len);
+
+
+            expr_ref curr_left_element(e.ls().get(left_element_count), m);
+            expr_ref left_char(m);
             SASSERT(m_util.is_seq(curr_left_element));
 
             if (m_util.str.is_unit(curr_left_element)) {
@@ -6077,7 +6105,7 @@ bool theory_seq::length_based_word_solving() {
             }
             else {
                 left_char = m_util.str.mk_unit(mk_nth(curr_left_element, m_autil.mk_int(left_offset)));
-                if (rational(left_offset) == left_lens.get(left_element_count) - 1) {
+                if (rational(left_offset) >= left_lens.get(left_element_count) - 1) {
                     // if it is the last one, reset the count and go to the next
                     left_offset = 0;
                     left_element_count++;
@@ -6086,8 +6114,8 @@ bool theory_seq::length_based_word_solving() {
                 }
             }
 
-            expr* curr_right_element = e.rs().get(right_element_count);
-            expr* right_char;
+            expr_ref curr_right_element(e.rs().get(right_element_count), m);
+            expr_ref right_char(m);
             SASSERT(m_util.is_seq(curr_right_element));
 
             if (m_util.str.is_unit(curr_right_element)) {
@@ -6096,7 +6124,7 @@ bool theory_seq::length_based_word_solving() {
             }
             else {
                 right_char = m_util.str.mk_unit(mk_nth(curr_right_element, m_autil.mk_int(right_offset)));
-                if (rational(right_offset) == right_lens.get(right_element_count) - 1) {
+                if (rational(right_offset) >= right_lens.get(right_element_count) - 1) {
                     // if it is the last one, reset the count and go to the next
                     right_offset = 0;
                     right_element_count++;
@@ -6105,8 +6133,12 @@ bool theory_seq::length_based_word_solving() {
                 }
             }
 
-            TRACE("seq", tout << "Asserting char equality: " << mk_ismt2_pp(left_char, m) << " = " << mk_ismt2_pp(right_char, m) << std::endl;);
-            propagate_eq(e.dep(), ensure_enode(left_char), ensure_enode(right_char));
+            TRACE("seq", tout << "propagating char equality\n\t" 
+                << mk_ismt2_pp(left_char, m) << " = " << mk_ismt2_pp(right_char, m) 
+                << "\nwith lit\n\t" 
+                << mk_ismt2_pp(left_length, m) << " = " << mk_ismt2_pp(right_length, m) << std::endl;);
+
+            propagate_eq(mk_join(e.dep(), lit), left_char, right_char, false);
         }
     }
     return m_new_propagation;
