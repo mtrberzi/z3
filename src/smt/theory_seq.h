@@ -445,13 +445,7 @@ namespace smt {
         // length and count based abstraction refinement
         bool coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
         bool length_based_word_solving();
-        void add_implied_length_axiom(expr_ref_vector const& lhs, expr_ref_vector const& rhs);
-        expr_ref add_lengths(expr_ref_vector const& v);
-        app * mk_fresh_const(char const* name, sort* s);
-        ptr_vector<expr> fixed_length_reduce_sequence(expr_ref_vector const& seq_vec, vector<rational> lens, obj_map<expr, ptr_vector<expr> >* var_char_map);
-        bool fixed_length_reduce_eq(smt::kernel & subsolver, expr_ref_vector const& lhs, expr_ref_vector const& rhs, dependency* dep, obj_map<expr, ptr_vector<expr> >* var_char_map);
-        bool fixed_length_reduce_nq(smt::kernel & subsolver, expr_ref_vector const& lhs, expr_ref_vector const& rhs, obj_map<expr, ptr_vector<expr> >* var_char_map);
-
+        
         bool get_length(expr* s, expr_ref& len, literal_vector& lits);
         bool reduce_length(expr* l, expr* r, literal_vector& lits);
         bool reduce_length_eq(expr_ref_vector const& ls, expr_ref_vector const& rs, dependency* deps);

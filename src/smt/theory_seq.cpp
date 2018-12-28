@@ -310,15 +310,16 @@ final_check_status theory_seq::final_check_eh() {
         TRACE("seq", tout << ">>split_based_on_alignment\n";);
         return FC_CONTINUE;
     }
-    if (branch_variable_mb() || branch_variable()) {
-        ++m_stats.m_branch_variable;
-        TRACE("seq", tout << ">>branch_variable\n";);
-        return FC_CONTINUE;
-    }
     if (m_params.m_length_based_word_solving){
-        if (!length_based_word_solving()) {
+        if (length_based_word_solving()) {
             ++m_stats.m_length_based_word_solving;
-            TRACE("seq", tout << ">>fixed_len_and_learned\n";);
+            TRACE("seq", tout << ">>fixed_len_and_propagate\n";);
+            return FC_CONTINUE;
+        }
+    } else {
+        if (branch_variable_mb() || branch_variable()) {
+            ++m_stats.m_branch_variable;
+            TRACE("seq", tout << ">>branch_variable\n";);
             return FC_CONTINUE;
         }
     }
@@ -6043,125 +6044,70 @@ bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector co
 
 // true means it passed, false means we learned
 bool theory_seq::length_based_word_solving() {
-    smt_params subsolver_params;
-    smt::kernel subsolver(m, subsolver_params);
-    // maps a var to a list of character terms *in the subsolver*
-    obj_map<expr, ptr_vector<expr> > var_char_map; 
+    TRACE("seq", tout << "length based word solving!\n";);
 
     for (auto const& e : m_eqs) {
-        if (!fixed_length_reduce_eq(subsolver, e.ls(), e.rs(), e.dep(), var_char_map&)) {
-            return false;
-        }
-    }
-
-    for (auto const& e : m_nqs) {
-        if (!fixed_length_reduce_nq(subsolver, e.ls(), e.rs(), var_char_map&)) {
-            return false;
-        }
-    }
-    
-    TRACE("str", tout << "calling subsolver" << std::endl;);
-    lbool subproblem_status = subsolver.setup_and_check();
-    TRACE("str", tout << "result of subvolver: " << lbool << std::endl;);
-    //... TODO check result
-    return true;
-}
-
-ptr_vector<expr> theory_seq::fixed_length_reduce_sequence(expr_ref_vector const& seq_vec, vector<rational> lens, obj_map<expr, ptr_vector<expr> >* var_char_map) {
-    sort * int_sort = m.mk_sort(m_autil.get_family_id(), INT_SORT);
-    ptr_vector<expr> chars;
-    
-    for (unsigned i = 0; i < lens.size(); ++i) {
-        
-        expr const& elem = seq_vec.get(i)
-        SASSERT(m_util.is_seq(elem));
-        
-        if (m_util.str.is_unit(elem)) {
-            TRACE("seq", tout << "adding " << mk_ismt2_pp(elem, m) << " to chars vector" << std::endl;);
-            chars.push_back(mk_int(elem->get_arg(0)));
-        } 
-        else if (is_var(elem)) {
-            
-            if (!var_char_map->contains(elem)) {
-                rational varLen_value = lens.get(i);
-                TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
-                ptr_vector<expr> newChars;
-                for (unsigned i = 0; i < varLen_value; ++i) {
-                    expr_ref ch(mk_fresh_const("char", int_sort), m);
-                    newChars.push_back(ch);
-                    chars.append(ch);//todo how?
-                }
-                var_char_map->insert(elem, newChars);
-            } else {
-                chars.append(var_char_map->find(elem));//todo how?
-            }
-        
-        } else {
-            //todo
-        }
-    }    
-    return chars;
-}
-
-// return false if failed and need to change something
-bool theory_seq::fixed_length_reduce_eq(smt::kernel & subsolver, expr_ref_vector const& lhs, expr_ref_vector const& rhs, dependency* dep, obj_map<expr, ptr_vector<expr> >* var_char_map) {
-        vector<rational> len1, len2;
-        if (!enforce_length(lhs, len1) || !enforce_length(rhs, len2)) {
-            return false;
+        TRACE("seq", display_equation(tout, e););
+        vector<rational> left_lens, right_lens;
+        if (!enforce_length(e.ls(), left_lens) || !enforce_length(e.rs(), right_lens)) {
+            return m_new_propagation;
         }
         rational l1, l2;
-        for (const auto& elem : len1) l1 += elem;
-        for (const auto& elem : len2) l2 += elem;
+        for (const auto& elem : left_lens) l1 += elem;
+        for (const auto& elem : right_lens) l2 += elem;
         if (l1 != l2) {
             TRACE("seq", tout << "lengths are not compatible\n";);
-            expr_ref l = mk_concat(lhs);
-            expr_ref r = mk_concat(rhs);
+            expr_ref l = mk_concat(e.ls());
+            expr_ref r = mk_concat(e.rs());
             expr_ref lnl(m_util.str.mk_length(l), m), lnr(m_util.str.mk_length(r), m);
-            propagate_eq(dep, lnl, lnr, false);
-            return false;
+            propagate_eq(e.dep(), lnl, lnr, false);
+            return m_new_propagation;
         }
 
-        ptr_vector<expr> lhs_chars = fixed_length_reduce_sequence(lhs, len1, var_char_map);
-        ptr_vector<expr> rhs_chars = fixed_length_reduce_sequence(rhs, len2, var_char_map);
-        for (unsigned i = 0; i < lhs_chars.size(); ++i) {
-            expr * cLHS = lhs_chars.get(i);
-            expr * cRHS = rhs_chars.get(i);
-            subsolver.assert_expr(subsolver.get_context().mk_eq_atom(cLHS, cRHS));
-        }
-        return true;
-}
+        unsigned left_element_count = 0, right_element_count = 0;
+        unsigned left_offset = 0, right_offset = 0;
+        while(left_element_count < e.ls().size() && right_element_count < e.rs().size()){
+            expr* curr_left_element = e.ls().get(left_element_count);
+            expr* left_char;
+            SASSERT(m_util.is_seq(curr_left_element));
 
-// return false if failed and need to change something
-bool theory_seq::fixed_length_reduce_nq(smt::kernel & subsolver, expr_ref_vector const& lhs, expr_ref_vector const& rhs, obj_map<expr, ptr_vector<expr> >* var_char_map) {
-        vector<rational> len1, len2;
-        if (!enforce_length(lhs, len1) || !enforce_length(rhs, len2)) {
-            return false;
-        }
-        rational l1, l2;
-        for (const auto& elem : len1) l1 += elem;
-        for (const auto& elem : len2) l2 += elem;
-        if (l1 != l2) {
-            TRACE("seq", tout << "lengths are not compatible, which is good (easy)\n";);
-            return true;
-        }
-        ptr_vector<expr> lhs_chars = fixed_length_reduce_sequence(lhs, len1, var_char_map);
-        ptr_vector<expr> rhs_chars = fixed_length_reduce_sequence(rhs, len2, var_char_map);
-        expr_ref_vector diseqs(m);
-        for (unsigned i = 0; i < lhs_chars.size(); ++i) {
-            expr * cLHS = lhs_chars.get(i);
-            expr * cRHS = rhs_chars.get(i);
-            diseqs.push_back(m.mk_not(subsolver.get_context().mk_eq_atom(cLHS, cRHS)));
-        }
-        expr_ref final_diseq(mk_or(diseqs), m);
-        subsolver.assert_expr(final_diseq);
-        return true;
-}
+            if (m_util.str.is_unit(curr_left_element)) {
+                left_char = curr_left_element;
+                left_element_count++;
+            }
+            else {
+                left_char = m_util.str.mk_unit(mk_nth(curr_left_element, m_autil.mk_int(left_offset)));
+                if (rational(left_offset) == left_lens.get(left_element_count) - 1) {
+                    // if it is the last one, reset the count and go to the next
+                    left_offset = 0;
+                    left_element_count++;
+                } else {
+                    left_offset++;
+                }
+            }
 
-app * theory_seq::mk_fresh_const(char const* name, sort* s) {
-    string_buffer<64> buffer;
-    buffer << name;
-    buffer << "!tmp";
-    buffer << m_fresh_id;
-    m_fresh_id++;
-    return m_util.mk_skolem(symbol(buffer.c_str()), 0, nullptr, s);
+            expr* curr_right_element = e.rs().get(right_element_count);
+            expr* right_char;
+            SASSERT(m_util.is_seq(curr_right_element));
+
+            if (m_util.str.is_unit(curr_right_element)) {
+                right_char = curr_right_element;
+                right_element_count++;
+            }
+            else {
+                right_char = m_util.str.mk_unit(mk_nth(curr_right_element, m_autil.mk_int(right_offset)));
+                if (rational(right_offset) == right_lens.get(right_element_count) - 1) {
+                    // if it is the last one, reset the count and go to the next
+                    right_offset = 0;
+                    right_element_count++;
+                } else {
+                    right_offset++;
+                }
+            }
+
+            TRACE("seq", tout << "Asserting char equality: " << mk_ismt2_pp(left_char, m) << " = " << mk_ismt2_pp(right_char, m) << std::endl;);
+            propagate_eq(e.dep(), ensure_enode(left_char), ensure_enode(right_char));
+        }
+    }
+    return m_new_propagation;
 }
