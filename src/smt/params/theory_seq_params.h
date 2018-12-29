@@ -35,10 +35,16 @@ struct theory_seq_params {
      */  
     bool m_length_based_word_solving;
 
+    /*
+     * Set the maximum sequence length that will be considered in length based word solving
+     */  
+    unsigned m_max_length_based_solving_length;
+
     theory_seq_params(params_ref const & p = params_ref()):
         m_split_w_len(true),
         m_multiset_check(true),
-        m_length_based_word_solving(true)
+        m_length_based_word_solving(true),
+        m_max_length_based_solving_length(1000)
     {
         updt_params(p);
     }

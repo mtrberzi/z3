@@ -6042,11 +6042,11 @@ bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector co
     return false;
 }
 
-// true means it passed, false means we learned
+// true means we learned, false means continue
 bool theory_seq::length_based_word_solving() {
-    TRACE("seq", tout << "length based word solving!\n";);
-
     for (auto const& e : m_eqs) {
+
+        // Make sure the lengths are equal
         TRACE("seq", display_equation(tout, e););
         vector<rational> left_lens, right_lens;
         if (!enforce_length(e.ls(), left_lens) || !enforce_length(e.rs(), right_lens)) {
@@ -6064,26 +6064,35 @@ bool theory_seq::length_based_word_solving() {
             return m_new_propagation;
         }
         
-        if (l1 > 2048) {
-            TRACE("seq", tout << "Too long! " << m_stats.m_length_based_word_solving << "\n";);
+        // Make sure the string is short enough.
+        // The arithmetic solver favours small value solutions so this is usually not an issue
+        if (l1 > m_params.m_max_length_based_solving_length) { //default 1000
+            TRACE("seq", tout << "Too long! " << l1 << "\n";);
             return false;
-        } else {
-            TRACE("seq", tout << "Short enough! " << m_stats.m_length_based_word_solving << "\n";);
         }
 
+        // given an equation e with fixed (equal and short enough) length,
+        // assert that each pair of characters, from left to right, are equal
         unsigned left_element_count = 0, right_element_count = 0;
         unsigned left_offset = 0, right_offset = 0;
         while(left_element_count < e.ls().size() && right_element_count < e.rs().size()){
+            // suppose we are looking at equation 
+            //          WcX = YdZ
+            // and focused on the character pair (c, d). 
+
+            // First get the length dependency for this pair.
+            // In the example, the length dependency is len(W) = len(Y).
+            // start getting length dependency
             expr_ref left_sublen(m);
             if (left_element_count == 0){
-                left_sublen =  m_autil.mk_int(0);
+                left_sublen =  m_autil.mk_int(0); //mk_concat fails if given 0 length vector
             } else {
                 left_sublen = m_util.str.mk_length(mk_concat(left_element_count, e.ls().c_ptr()));
             }
 
             expr_ref right_sublen(m);
             if (right_element_count == 0){
-                right_sublen =  m_autil.mk_int(0);
+                right_sublen =  m_autil.mk_int(0); //mk_concat fails if given 0 length vector
             } else {
                 right_sublen = m_util.str.mk_length(mk_concat(right_element_count, e.rs().c_ptr()));
             }
@@ -6093,8 +6102,9 @@ bool theory_seq::length_based_word_solving() {
 
             expr_ref eq_len(m.mk_eq(left_length, right_length), m);
 			literal lit = mk_simplified_literal(eq_len);
+            // end getting length dependency
 
-
+            // start getting c
             expr_ref curr_left_element(e.ls().get(left_element_count), m);
             expr_ref left_char(m);
             SASSERT(m_util.is_seq(curr_left_element));
@@ -6113,7 +6123,9 @@ bool theory_seq::length_based_word_solving() {
                     left_offset++;
                 }
             }
+            // end getting c
 
+            // start getting d
             expr_ref curr_right_element(e.rs().get(right_element_count), m);
             expr_ref right_char(m);
             SASSERT(m_util.is_seq(curr_right_element));
@@ -6132,12 +6144,16 @@ bool theory_seq::length_based_word_solving() {
                     right_offset++;
                 }
             }
+            //end getting d
 
             TRACE("seq", tout << "propagating char equality\n\t" 
                 << mk_ismt2_pp(left_char, m) << " = " << mk_ismt2_pp(right_char, m) 
-                << "\nwith lit\n\t" 
+                << "\nwith length dependency\n\t" 
                 << mk_ismt2_pp(left_length, m) << " = " << mk_ismt2_pp(right_length, m) << std::endl;);
 
+            // Here we propagate, for the running example, that c = d
+            // lit is the length dependency len(W) = len(Y).
+            // The propagation also depends on what made WcX = YdZ in the first place (e.dep())
             propagate_eq(mk_join(e.dep(), lit), left_char, right_char, false);
         }
     }
