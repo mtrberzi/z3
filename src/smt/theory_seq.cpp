@@ -305,9 +305,8 @@ final_check_status theory_seq::final_check_eh() {
         TRACE("seq", tout << ">>branch_binary_variable\n";);
         return FC_CONTINUE;
     }
-    if (m_params.m_length_based_word_solving){
+    if (m_params.m_length_based_word_solving && m_stats.m_length_based_word_solving < m_stats.m_branch_variable){
         if (length_based_word_solving()) {
-            ++m_stats.m_length_based_word_solving;
             TRACE("seq", tout << ">>fixed_len_and_propagate\n";);
             return FC_CONTINUE;
         }
@@ -3669,6 +3668,7 @@ void theory_seq::collect_statistics(::statistics & st) const {
     st.update("seq extensionality", m_stats.m_extensionality);
     st.update("seq fixed length", m_stats.m_fixed_length);
     st.update("seq int.to.str", m_stats.m_int_string);
+    st.update("seq learned lengths", m_stats.m_length_based_word_solving);
 }
 
 void theory_seq::init_search_eh() {
@@ -6155,6 +6155,7 @@ bool theory_seq::length_based_word_solving() {
             // lit is the length dependency len(W) = len(Y).
             // The propagation also depends on what made WcX = YdZ in the first place (e.dep())
             propagate_eq(mk_join(e.dep(), lit), left_char, right_char, false);
+            ++m_stats.m_length_based_word_solving;
         }
     }
     return m_new_propagation;
