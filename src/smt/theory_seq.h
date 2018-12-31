@@ -444,7 +444,7 @@ namespace smt {
 
         // length and count based abstraction refinement
         bool coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
-        bool length_based_word_solving(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
+        bool solve_by_length(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
         bool get_length(expr_ref_vector const& es, vector<rational>& len);
         
         bool get_length(expr* s, expr_ref& len, literal_vector& lits);

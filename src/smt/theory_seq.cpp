@@ -2446,12 +2446,12 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
         TRACE("seq", tout << "binary\n";);
         return true;
     }
-    if (m_params.m_multiset_check && change && coherent_multisets(ls, rs, deps)) {
+    if (m_params.m_multiset_check && change && !coherent_multisets(ls, rs, deps)) {
         ++m_stats.m_check_multiset_coherence;
         TRACE("seq", tout << ">>multiset_coherence\n";);
-        return true;
+        return false;
     }
-    if (m_params.m_length_based_word_solving && length_based_word_solving(ls, rs, deps)) {
+    if (m_params.m_length_based_word_solving && solve_by_length(ls, rs, deps)) {
         ++m_stats.m_length_based_word_solving;
         TRACE("seq", tout << ">>length_based_word_solving\n";);
         return true;
@@ -6065,13 +6065,13 @@ bool theory_seq::get_length(expr_ref_vector const& es, vector<rational> & len) {
     return all_have_length;
 }
 
-// false means we learned, true means continue
-bool theory_seq::length_based_word_solving(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps) {
+// true means we have enough information and it passed
+bool theory_seq::solve_by_length(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps) {
     context& ctx = get_context();
 
     vector<rational> left_lens, right_lens;
     if (!get_length(l, left_lens) || !get_length(r, right_lens)) {
-        return true;
+        return false;
     }
 
     rational l1, l2;
@@ -6082,7 +6082,9 @@ bool theory_seq::length_based_word_solving(expr_ref_vector const& l, expr_ref_ve
         expr_ref lhs(mk_concat(l), m);
         expr_ref rhs(mk_concat(r), m);
         expr_ref lnl(m_util.str.mk_length(lhs), m), lnr(m_util.str.mk_length(rhs), m);
-        propagate_eq(deps, lnl, lnr, false);
+        expr_ref eq_len(m.mk_eq(lnl, lnr), m);
+        literal lit = mk_simplified_literal(eq_len);
+        set_conflict(mk_join(deps, lit));
         return false;
     }
     
@@ -6090,7 +6092,7 @@ bool theory_seq::length_based_word_solving(expr_ref_vector const& l, expr_ref_ve
     // The arithmetic solver favours small value solutions so this is usually not an issue
     if (l1 > m_params.m_max_length_based_solving_length) {
         TRACE("seq", tout << "Too long! " << l1 << "\n";);
-        return true;
+        return false;
     }
 
     // given an equation e with fixed (equal and short enough) length,
@@ -6177,11 +6179,8 @@ bool theory_seq::length_based_word_solving(expr_ref_vector const& l, expr_ref_ve
         // lit is the length dependency len(W) = len(Y).
         // The propagation also depends on what made WcX = YdZ in the first place (deps)
         propagate_eq(mk_join(deps, lit), left_char, right_char, false);
-
-        if (ctx.inconsistent()) {
-            return false;
-        }
     }
 
-    return true;
+    // if all pairs are OK, then it is solved.
+    return !ctx.inconsistent();
 }
