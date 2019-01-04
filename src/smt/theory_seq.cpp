@@ -2446,8 +2446,14 @@ bool theory_seq::solve_eq(expr_ref_vector const& l, expr_ref_vector const& r, de
         TRACE("seq", tout << "binary\n";);
         return true;
     }
-    if (m_params.m_multiset_check && !ctx.inconsistent() && change && coherent_multisets(ls, rs, deps)) {
+    if (m_params.m_multiset_check && change && !coherent_multisets(ls, rs, deps)) {
+        ++m_stats.m_check_multiset_coherence;
         TRACE("seq", tout << ">>multiset_coherence\n";);
+        return false;
+    }
+    if (m_params.m_length_based_word_solving && solve_by_length(ls, rs, deps)) {
+        ++m_stats.m_length_based_word_solving;
+        TRACE("seq", tout << ">>length_based_word_solving\n";);
         return true;
     }
     if (!ctx.inconsistent() && change) {
@@ -3659,6 +3665,8 @@ void theory_seq::collect_statistics(::statistics & st) const {
     st.update("seq extensionality", m_stats.m_extensionality);
     st.update("seq fixed length", m_stats.m_fixed_length);
     st.update("seq int.to.str", m_stats.m_int_string);
+    st.update("seq learned lengths", m_stats.m_length_based_word_solving);
+    st.update("seq passed multiset check", m_stats.m_check_multiset_coherence);
 }
 
 void theory_seq::init_search_eh() {
@@ -4551,6 +4559,7 @@ bool theory_seq::get_num_value(expr* e, rational& val) const {
     context& ctx = get_context();
     expr_ref _val(m);
     if (!ctx.e_internalized(e))
+        TRACE("seq", tout << "not internalized: " << mk_pp(e, m) << "\n";);
         return false;
     enode* next = ctx.get_enode(e), *n = next;
     do { 
@@ -6002,7 +6011,7 @@ bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector co
             left_var_set.insert(elem);
         } else {
             TRACE("seq", tout << "Not a unit or a variable! " << mk_ismt2_pp(elem, m) << std::endl;);
-            return false;
+            return true;
         }
     }    
 
@@ -6019,15 +6028,159 @@ bool theory_seq::coherent_multisets(expr_ref_vector const& l, expr_ref_vector co
             right_var_set.insert(elem);
         } else {
             TRACE("seq", tout << "Not a unit or a variable! " << mk_ismt2_pp(elem, m) << std::endl;);
-            return false;
+            return true;
         }
     }    
 
     if (left_var_set == right_var_set && left_elem_set != right_elem_set) {
         TRACE("seq", tout << l << " != " << r << "\n";);
         set_conflict(deps);
-        return true;
+        return false;
     }
-    return false;
+    return true;
 }
 
+bool theory_seq::get_length(expr_ref_vector const& es, vector<rational> & len) {
+    bool all_have_length = true;
+    rational val;
+    zstring s;
+    for (unsigned i = 0; i < es.size(); ++i) {
+        expr* e = es[i];
+        if (m_util.str.is_unit(e)) {
+            len.push_back(rational(1));
+        } 
+        else if (m_util.str.is_empty(e)) {
+            len.push_back(rational(0));
+        }
+        else if (m_util.str.is_string(e, s)) {
+            len.push_back(rational(s.length()));
+        }
+        else if (get_length(e, val)) {
+            len.push_back(val);
+        }
+        else {
+            return false;
+        }
+    }
+    return all_have_length;
+}
+
+// true means we have enough information and it passed
+bool theory_seq::solve_by_length(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps) {
+    context& ctx = get_context();
+
+    vector<rational> left_lens, right_lens;
+    if (!get_length(l, left_lens) || !get_length(r, right_lens)) {
+        return false;
+    }
+
+    rational l1, l2;
+    for (const auto& elem : left_lens) l1 += elem;
+    for (const auto& elem : right_lens) l2 += elem;
+    if (l1 != l2) {
+        TRACE("seq", tout << "lengths are not compatible\n";);
+        expr_ref lhs(mk_concat(l), m);
+        expr_ref rhs(mk_concat(r), m);
+        expr_ref lnl(m_util.str.mk_length(lhs), m), lnr(m_util.str.mk_length(rhs), m);
+        expr_ref eq_len(m.mk_eq(lnl, lnr), m);
+        literal lit = mk_simplified_literal(eq_len);
+        set_conflict(mk_join(deps, lit));
+        return false;
+    }
+    
+    // Make sure the string is short enough.
+    // The arithmetic solver favours small value solutions so this is usually not an issue
+    if (l1 > m_params.m_max_length_based_solving_length) {
+        TRACE("seq", tout << "Too long! " << l1 << "\n";);
+        return false;
+    }
+
+    // given an equation e with fixed (equal and short enough) length,
+    // assert that each pair of characters, from left to right, are equal
+    unsigned left_element_count = 0, right_element_count = 0;
+    unsigned left_offset = 0, right_offset = 0;
+    while(left_element_count < l.size() && right_element_count < r.size()){
+        // suppose we are looking at equation 
+        //          WcX = YdZ
+        // and focused on the character pair (c, d). 
+
+        // First get the length dependency for this pair.
+        // In the example, the length dependency is len(W) = len(Y).
+        // start getting length dependency
+        expr_ref left_sublen(m);
+        if (left_element_count == 0){
+            left_sublen =  m_autil.mk_int(0); //mk_concat fails if given 0 length vector
+        } else {
+            left_sublen = m_util.str.mk_length(mk_concat(left_element_count, l.c_ptr()));
+        }
+
+        expr_ref right_sublen(m);
+        if (right_element_count == 0){
+            right_sublen =  m_autil.mk_int(0); //mk_concat fails if given 0 length vector
+        } else {
+            right_sublen = m_util.str.mk_length(mk_concat(right_element_count, r.c_ptr()));
+        }
+
+        expr_ref left_length(mk_add(left_sublen, m_autil.mk_int(left_offset)), m);
+        expr_ref right_length(mk_add(right_sublen, m_autil.mk_int(right_offset)), m);
+
+        expr_ref eq_len(m.mk_eq(left_length, right_length), m);
+        literal lit = mk_simplified_literal(eq_len);
+        // end getting length dependency
+
+        // start getting c
+        expr_ref curr_left_element(l.get(left_element_count), m);
+        expr_ref left_char(m);
+        SASSERT(m_util.is_seq(curr_left_element));
+
+        if (m_util.str.is_unit(curr_left_element)) {
+            left_char = curr_left_element;
+            left_element_count++;
+        }
+        else {
+            left_char = m_util.str.mk_unit(mk_nth(curr_left_element, m_autil.mk_int(left_offset)));
+            if (rational(left_offset) >= left_lens.get(left_element_count) - 1) {
+                // if it is the last one, reset the count and go to the next
+                left_offset = 0;
+                left_element_count++;
+            } else {
+                left_offset++;
+            }
+        }
+        // end getting c
+
+        // start getting d
+        expr_ref curr_right_element(r.get(right_element_count), m);
+        expr_ref right_char(m);
+        SASSERT(m_util.is_seq(curr_right_element));
+
+        if (m_util.str.is_unit(curr_right_element)) {
+            right_char = curr_right_element;
+            right_element_count++;
+        }
+        else {
+            right_char = m_util.str.mk_unit(mk_nth(curr_right_element, m_autil.mk_int(right_offset)));
+            if (rational(right_offset) >= right_lens.get(right_element_count) - 1) {
+                // if it is the last one, reset the count and go to the next
+                right_offset = 0;
+                right_element_count++;
+            } else {
+                right_offset++;
+            }
+        }
+        //end getting d
+
+        TRACE("seq", tout << "propagating char equality\n\t" 
+            << mk_ismt2_pp(left_char, m) << " = " << mk_ismt2_pp(right_char, m) 
+            << "\nwith length dependency\n\t" 
+            << mk_ismt2_pp(left_length, m) << " = " << mk_ismt2_pp(right_length, m) << std::endl;);
+
+        // Here we propagate, for the running example, that c = d
+        // lit is the length dependency len(W) = len(Y).
+        // The propagation also depends on what made WcX = YdZ in the first place (deps)
+        propagate_eq(mk_join(deps, lit), left_char, right_char, false);
+    }
+
+    // if all pairs are OK, then it is solved.
+    return !ctx.inconsistent();
+}

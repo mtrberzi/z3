@@ -31,6 +31,8 @@ Revision History:
 #include "util/union_find.h"
 #include "util/obj_ref_hashtable.h"
 
+#include "smt/smt_kernel.h"
+
 #include<set>
 
 namespace smt {
@@ -292,6 +294,7 @@ namespace smt {
             unsigned m_propagate_contains;
             unsigned m_int_string;
             unsigned m_check_multiset_coherence;
+            unsigned m_length_based_word_solving;
         };
         typedef hashtable<rational, rational::hash_proc, rational::eq_proc> rational_set;
 
@@ -350,6 +353,8 @@ namespace smt {
         re2automaton                   m_mk_aut;
 
         obj_hashtable<expr>            m_fixed;            // string variables that are fixed length.
+
+        unsigned                       m_fresh_id;         //keep track of fresh variables created
 
         void init(context* ctx) override;
         final_check_status final_check_eh() override;
@@ -437,8 +442,11 @@ namespace smt {
         bool solve_binary_eq(expr_ref_vector const& l, expr_ref_vector const& r, dependency* dep);
         bool propagate_max_length(expr* l, expr* r, dependency* dep);
 
+        // length and count based abstraction refinement
         bool coherent_multisets(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
-
+        bool solve_by_length(expr_ref_vector const& l, expr_ref_vector const& r, dependency* deps);
+        bool get_length(expr_ref_vector const& es, vector<rational>& len);
+        
         bool get_length(expr* s, expr_ref& len, literal_vector& lits);
         bool reduce_length(expr* l, expr* r, literal_vector& lits);
         bool reduce_length_eq(expr_ref_vector const& ls, expr_ref_vector const& rs, dependency* deps);
