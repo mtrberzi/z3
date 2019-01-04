@@ -11017,15 +11017,13 @@ namespace smt {
                     expr_ref varAssign(ctx.mk_eq_atom(var, mk_string(assignment)), m);
                     modelEntries.push_back(varAssign);
                 }
-                /*
-                expr_ref premise(mk_and(precondition), m);
-                expr_ref conclusion(mk_and(modelEntries), m);
-                assert_implication(premise, conclusion);
-                */
-                expr_ref x1(mk_and(precondition), m);
-                expr_ref x2(mk_and(modelEntries), m);
-                expr_ref x(m.mk_and(x1, x2), m);
-                assert_axiom(x);
+                // DEBUG: assert these separately, so we see the conflicts easily
+                for (auto ex : precondition) {
+                    assert_axiom(ex);
+                }
+                for (auto ex: modelEntries) {
+                    assert_axiom(ex);
+                }
                 return FC_DONE;
             } else if (model_status == l_false) {
                 // whatever came back in CEX is the conflict clause.
@@ -11419,6 +11417,7 @@ namespace smt {
                         if (!fixed_length_reduce_eq(subsolver, lhs, rhs, cex)) {
                             // missing a side condition. assert it and return unknown
                             assert_axiom(cex);
+                            add_persisted_axiom(cex);
                             return l_undef;
                         }
                     } else {
@@ -11437,6 +11436,7 @@ namespace smt {
                             if (!fixed_length_reduce_diseq(subsolver, lhs, rhs, cex)) {
                                 // missing a side condition. assert it and return unknown
                                 assert_axiom(cex);
+                                add_persisted_axiom(cex);
                                 return l_undef;
                             }
                         }
@@ -11464,18 +11464,6 @@ namespace smt {
         TRACE("str", tout << "calling subsolver" << std::endl;);
 
         lbool subproblem_status = subsolver.setup_and_check();
-
-        if (is_trace_enabled("str")) {
-        TRACE_CODE(
-            ast_manager & m = get_manager();
-            context & ctx = get_context();
-            tout << "dumping all formulas:" << std::endl;
-            for (expr_ref_vector::iterator i = formulas.begin(); i != formulas.end(); ++i) {
-                expr * ex = *i;
-                tout << mk_pp(ex, m) << (ctx.is_relevant(ex) ? "" : " (NOT REL)") << std::endl;
-            }
-                   );
-        }
 
         if (subproblem_status == l_true) {
             bv_util bv(m);
