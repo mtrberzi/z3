@@ -1136,6 +1136,77 @@ namespace smt {
     }
 
     /*
+     * Quickly check that we can balance the equations
+     */
+    void theory_str::multiset_check(expr * lhs, expr * rhs) {
+        context & ctx = get_context();
+        ast_manager & m = get_manager();
+
+        std::multiset<expr*> left_v_set;
+        std::multiset<expr*> left_c_set;
+        get_multisets(lhs, &left_c_set, &left_v_set);
+
+        std::multiset<expr*> right_v_set;
+        std::multiset<expr*> right_c_set;
+        get_multisets(rhs, &right_c_set, &right_v_set);
+
+        if (left_v_set == right_v_set && left_c_set != right_c_set) {
+            // build premise: (lhs == rhs)
+            expr_ref premise(ctx.mk_eq_atom(lhs, rhs), m);
+            TRACE("str", tout << "Multiset Contradiction! " << mk_ismt2_pp(premise, m) << std::endl;);
+            // build false
+            expr_ref conflict(m.mk_false(), m);
+            assert_implication(premise, conflict);
+        }
+        
+    }
+
+    void theory_str::get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set) {
+        ast_manager & m = get_manager();
+
+        sort * ex_sort = m.get_sort(ex);
+        sort * str_sort = u.str.mk_string_sort();
+
+        TRACE("str", tout << "Getting vars/literal characters in " << mk_ismt2_pp(ex, m) << std::endl;);
+
+        if (ex_sort == str_sort) {
+            if (is_app(ex)) {
+                app * ap = to_app(ex);
+                if (ap->get_num_args() == 0) { 
+                    if (u.str.is_string(ap)) {
+                        bool str_exists;
+                        expr * str = get_eqc_value(ex, str_exists);
+                        SASSERT(str_exists);
+                        zstring str_const;
+                        u.str.is_string(str, str_const); 
+                        // get characters/vars out of str_const
+                        for(size_t i = 0; i < str_const.length(); i++)
+                        {
+                            TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to c_set" << std::endl;);
+                            c_set->insert(mk_string(str_const.extract(i, 1)));
+                        }
+                        return;
+                    }else{
+                        TRACE("str", tout << "adding " << mk_ismt2_pp(ap, m) << " to v_set" << std::endl;);
+                        v_set->insert(ap);
+                    }
+                }
+            }
+        }
+
+        // if expr is an application, recursively inspect all arguments
+        if (is_app(ex)) {
+            app * term = to_app(ex);
+            unsigned num_args = term->get_num_args();
+            for (unsigned i = 0; i < num_args; i++) {
+                get_multisets(term->get_arg(i), c_set, v_set);
+            }
+        }
+        return;
+    }
+
+
+    /*
      * Add an axiom of the form:
      * (lhs == rhs) -> ( Length(lhs) == Length(rhs) )
      */
@@ -8113,6 +8184,11 @@ namespace smt {
         }
 
         // BEGIN new_eq_handler() in strTheory
+        if (m_params.m_MultisetCheck) {
+            multiset_check(lhs, rhs);
+        } else {
+            TRACE("str", tout << "WARNING: character abstraction integration disabled" << std::endl;);
+        }
 
         check_eqc_empty_string(lhs, rhs);
         instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));

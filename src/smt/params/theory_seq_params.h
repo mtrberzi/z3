@@ -25,9 +25,14 @@ struct theory_seq_params {
      */
     bool m_split_w_len;
 
+    /*
+     * Enable multiset abstraction checking
+     */  
+    bool m_multiset_check;
 
     theory_seq_params(params_ref const & p = params_ref()):
-        m_split_w_len(true)
+        m_split_w_len(true),
+        m_multiset_check(true)
     {
         updt_params(p);
     }
