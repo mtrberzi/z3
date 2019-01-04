@@ -11209,22 +11209,32 @@ namespace smt {
         return true;
     }
 
-    void theory_str::fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs) {
+    bool theory_str::fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs, expr_ref & cex) {
         ast_manager & m = get_manager();
-
-        ptr_vector<expr> lhs_chars, rhs_chars;
-        fixed_length_reduce_string_term(subsolver, lhs, lhs_chars);
-        fixed_length_reduce_string_term(subsolver, rhs, rhs_chars);
 
         // we do generation before this check to make sure that
         // variables which only appear in disequalities show up in the model
         rational lhsLen, rhsLen;
         bool lhsLen_exists = fixed_length_get_len_value(lhs, lhsLen);
         bool rhsLen_exists = fixed_length_get_len_value(rhs, rhsLen);
-        ENSURE(lhsLen_exists && rhsLen_exists);
+
+        if (!lhsLen_exists) {
+            cex = m_autil.mk_ge(mk_strlen(lhs), mk_int(0));
+            return false;
+        }
+
+        if (!rhsLen_exists) {
+            cex = m_autil.mk_ge(mk_strlen(rhs), mk_int(0));
+            return false;
+        }
+
+        ptr_vector<expr> lhs_chars, rhs_chars;
+        fixed_length_reduce_string_term(subsolver, lhs, lhs_chars);
+        fixed_length_reduce_string_term(subsolver, rhs, rhs_chars);
+
         if (lhsLen != rhsLen) {
             TRACE("str", tout << "skip disequality: len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << std::endl;);
-            return;
+            return true;
         }
 
         SASSERT(lhs_chars.size() == rhs_chars.size());
@@ -11237,6 +11247,7 @@ namespace smt {
         expr_ref final_diseq(mk_or(diseqs), m);
         subsolver.assert_expr(final_diseq);
         fixed_length_used_len_terms.push_back(m.mk_not(get_context().mk_eq_atom(lhs, rhs)));
+        return true;
     }
 
     /*
@@ -11340,7 +11351,12 @@ namespace smt {
                         sort * lhs_sort = m.get_sort(lhs);
                         if (lhs_sort == str_sort) {
                             TRACE("str", tout << "reduce string disequality: " << mk_pp(lhs, m) << " != " << mk_pp(rhs, m) << std::endl;);
-                            fixed_length_reduce_diseq(subsolver, lhs, rhs);
+                            expr_ref cex(m);
+                            if (!fixed_length_reduce_diseq(subsolver, lhs, rhs, cex)) {
+                                // missing a side condition. assert it and return unknown
+                                assert_axiom(cex);
+                                return l_undef;
+                            }
                         }
                     } else if (u.str.is_in_re(subterm)) {
                         TRACE("str", tout << "WARNING: regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
