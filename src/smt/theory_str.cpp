@@ -73,7 +73,8 @@ namespace smt {
         m_trail_stack(*this),
         m_find(*this),
         fixed_length_subterm_trail(m),
-        fixed_length_used_len_terms(m)
+        fixed_length_used_len_terms(m),
+        fixed_length_assumptions(m)
     {
         initialize_charset();
     }
@@ -11267,6 +11268,7 @@ namespace smt {
     }
 
     bool theory_str::fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs, expr_ref & cex) {
+        ast_manager & m = get_manager();
         ptr_vector<expr> lhs_chars, rhs_chars;
         fixed_length_reduce_string_term(subsolver, lhs, lhs_chars);
         fixed_length_reduce_string_term(subsolver, rhs, rhs_chars);
@@ -11283,7 +11285,8 @@ namespace smt {
         for (unsigned i = 0; i < lhs_chars.size(); ++i) {
             expr * cLHS = lhs_chars.get(i);
             expr * cRHS = rhs_chars.get(i);
-            subsolver.assert_expr(subsolver.get_context().mk_eq_atom(cLHS, cRHS));
+            expr_ref _e(subsolver.get_context().mk_eq_atom(cLHS, cRHS), m);
+            fixed_length_assumptions.push_back(_e);
         }
         fixed_length_used_len_terms.push_back(get_context().mk_eq_atom(lhs, rhs));
         return true;
@@ -11325,7 +11328,7 @@ namespace smt {
             diseqs.push_back(m.mk_not(subsolver.get_context().mk_eq_atom(cLHS, cRHS)));
         }
         expr_ref final_diseq(mk_or(diseqs), m);
-        subsolver.assert_expr(final_diseq);
+        fixed_length_assumptions.push_back(final_diseq);
         fixed_length_used_len_terms.push_back(m.mk_not(get_context().mk_eq_atom(lhs, rhs)));
         return true;
     }
@@ -11391,6 +11394,7 @@ namespace smt {
 
         fixed_length_subterm_trail.reset();
         fixed_length_used_len_terms.reset();
+        fixed_length_assumptions.reset();
         var_to_char_subterm_map.reset();
         uninterpreted_to_char_subterm_map.reset();
 
@@ -11463,7 +11467,7 @@ namespace smt {
 
         TRACE("str", tout << "calling subsolver" << std::endl;);
 
-        lbool subproblem_status = subsolver.setup_and_check();
+        lbool subproblem_status = subsolver.check(fixed_length_assumptions);
 
         if (subproblem_status == l_true) {
             bv_util bv(m);
@@ -11506,6 +11510,10 @@ namespace smt {
             return l_true;
         } else if (subproblem_status == l_false) {
             TRACE("str", tout << "subsolver found UNSAT; reconstructing unsat core" << std::endl;);
+            TRACE("str", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
+            for (unsigned i = 0; i < subsolver.get_unsat_core_size(); ++i) {
+                TRACE("str", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
+            }
             // TODO better unsat core reconstruction
             // for now, just copy the precondition into CEX
             for (auto e : fixed_length_used_len_terms) {
