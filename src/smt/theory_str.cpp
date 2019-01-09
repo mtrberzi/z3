@@ -11326,12 +11326,11 @@ namespace smt {
         for (unsigned i = 0; i < lhs_chars.size(); ++i) {
             expr * cLHS = lhs_chars.get(i);
             expr * cRHS = rhs_chars.get(i);
-            expr_ref _e(subsolver.get_context().mk_eq_atom(cLHS, cRHS), m);
-            diseqs.push_back(m.mk_not(_e));
-            fixed_length_lesson.insert(m.mk_not(_e), std::make_tuple(i, lhs, rhs));
+            diseqs.push_back(m.mk_not(subsolver.get_context().mk_eq_atom(cLHS, cRHS)));
         }
         expr_ref final_diseq(mk_or(diseqs), m);
         fixed_length_assumptions.push_back(final_diseq);
+        fixed_length_lesson.insert(final_diseq, std::make_tuple(-1, lhs, rhs));
         fixed_length_used_len_terms.push_back(m.mk_not(get_context().mk_eq_atom(lhs, rhs)));
         return true;
     }
