@@ -11287,6 +11287,7 @@ namespace smt {
             expr * cRHS = rhs_chars.get(i);
             expr_ref _e(subsolver.get_context().mk_eq_atom(cLHS, cRHS), m);
             fixed_length_assumptions.push_back(_e);
+            fixed_length_lesson.insert(_e, std::make_tuple(i, lhs, rhs));
         }
         fixed_length_used_len_terms.push_back(get_context().mk_eq_atom(lhs, rhs));
         return true;
@@ -11325,7 +11326,9 @@ namespace smt {
         for (unsigned i = 0; i < lhs_chars.size(); ++i) {
             expr * cLHS = lhs_chars.get(i);
             expr * cRHS = rhs_chars.get(i);
-            diseqs.push_back(m.mk_not(subsolver.get_context().mk_eq_atom(cLHS, cRHS)));
+            expr_ref _e(subsolver.get_context().mk_eq_atom(cLHS, cRHS), m);
+            diseqs.push_back(m.mk_not(_e));
+            fixed_length_lesson.insert(m.mk_not(_e), std::make_tuple(i, lhs, rhs));
         }
         expr_ref final_diseq(mk_or(diseqs), m);
         fixed_length_assumptions.push_back(final_diseq);
@@ -11397,6 +11400,7 @@ namespace smt {
         fixed_length_assumptions.reset();
         var_to_char_subterm_map.reset();
         uninterpreted_to_char_subterm_map.reset();
+        fixed_length_lesson.reset();
 
         smt_params subsolver_params;
         smt::kernel subsolver(m, subsolver_params);
@@ -11513,10 +11517,16 @@ namespace smt {
             TRACE("str", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
             for (unsigned i = 0; i < subsolver.get_unsat_core_size(); ++i) {
                 TRACE("str", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
+                unsigned index;
+                expr* lhs;
+                expr* rhs;
+                std::tie(index, lhs, rhs) = fixed_length_lesson.find(subsolver.get_unsat_core_expr(i));
+                TRACE("str", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
             }
             // TODO better unsat core reconstruction
             // for now, just copy the precondition into CEX
             for (auto e : fixed_length_used_len_terms) {
+                // TRACE("str", tout << "cex " <<  mk_pp(e, m) << std::endl;);
                 cex.push_back(e);
             }
             return l_false;
