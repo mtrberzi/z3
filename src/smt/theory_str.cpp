@@ -13018,14 +13018,14 @@ namespace smt {
 
         for (std::multiset<expr*>::iterator it=left_v_set.begin(); it!=left_v_set.end(); ++it){
             unsigned len = fixed_length_used_len_terms.find(*it);
-            diseqs.push_back(m.mk_not(m.mk_eq(u.str.mk_length(*it), mk_int(len))));
+            diseqs.push_back(m.mk_eq(u.str.mk_length(*it), mk_int(len)));
         }
 
         for (std::multiset<expr*>::iterator it=right_v_set.begin(); it!=right_v_set.end(); ++it){
             unsigned len = fixed_length_used_len_terms.find(*it);
-            diseqs.push_back(m.mk_not(m.mk_eq(u.str.mk_length(*it), mk_int(len))));
+            diseqs.push_back(m.mk_eq(u.str.mk_length(*it), mk_int(len)));
         }
-        expr_ref final_diseq(mk_or(diseqs), m);
+        expr_ref final_diseq(mk_and(diseqs), m);
         return final_diseq;
     }
 
