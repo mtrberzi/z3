@@ -73,7 +73,6 @@ namespace smt {
         m_trail_stack(*this),
         m_find(*this),
         fixed_length_subterm_trail(m),
-        fixed_length_used_len_terms(m),
         fixed_length_assumptions(m)
     {
         initialize_charset();
@@ -11210,7 +11209,7 @@ namespace smt {
                     fixed_length_subterm_trail.push_back(ch);
                 }
                 var_to_char_subterm_map.insert(term, newChars);
-                fixed_length_used_len_terms.push_back(ctx.mk_eq_atom(mk_strlen(term), mk_int(varLen_value)));
+                fixed_length_used_len_terms.insert(term, varLen_value.get_unsigned());
             }
             var_to_char_subterm_map.find(term, eqcChars);
         } else if (u.str.is_concat(term, arg0, arg1)) {
@@ -11261,7 +11260,7 @@ namespace smt {
                     fixed_length_subterm_trail.push_back(ch);
                 }
                 uninterpreted_to_char_subterm_map.insert(term, newChars);
-                fixed_length_used_len_terms.push_back(ctx.mk_eq_atom(mk_strlen(term), mk_int(ufLen_value)));
+                fixed_length_used_len_terms.insert(term, ufLen_value.get_unsigned());
             }
             uninterpreted_to_char_subterm_map.find(term, eqcChars);
         }
@@ -11287,9 +11286,9 @@ namespace smt {
             expr * cRHS = rhs_chars.get(i);
             expr_ref _e(subsolver.get_context().mk_eq_atom(cLHS, cRHS), m);
             fixed_length_assumptions.push_back(_e);
-            fixed_length_lesson.insert(_e, std::make_tuple(i, lhs, rhs));
+            fixed_length_lesson.insert(_e, std::make_tuple(rational(i), lhs, rhs));
         }
-        fixed_length_used_len_terms.push_back(get_context().mk_eq_atom(lhs, rhs));
+        // fixed_length_used_len_terms.push_back(get_context().mk_eq_atom(lhs, rhs));
         return true;
     }
 
@@ -11330,8 +11329,8 @@ namespace smt {
         }
         expr_ref final_diseq(mk_or(diseqs), m);
         fixed_length_assumptions.push_back(final_diseq);
-        fixed_length_lesson.insert(final_diseq, std::make_tuple(-1, lhs, rhs));
-        fixed_length_used_len_terms.push_back(m.mk_not(get_context().mk_eq_atom(lhs, rhs)));
+        fixed_length_lesson.insert(final_diseq, std::make_tuple(rational(-1), lhs, rhs));
+        // fixed_length_used_len_terms.push_back(m.mk_not(get_context().mk_eq_atom(lhs, rhs)));
         return true;
     }
 
@@ -11464,9 +11463,9 @@ namespace smt {
                 continue;
             }
         }
-        for (auto e : fixed_length_used_len_terms) {
-            precondition.push_back(e);
-        }
+        // for (auto e : fixed_length_used_len_terms) {
+        //     precondition.push_back(e);
+        // }
 
         TRACE("str", tout << "calling subsolver" << std::endl;);
 
@@ -11516,17 +11515,12 @@ namespace smt {
             TRACE("str", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
             for (unsigned i = 0; i < subsolver.get_unsat_core_size(); ++i) {
                 TRACE("str", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
-                unsigned index;
+                rational index;
                 expr* lhs;
                 expr* rhs;
                 std::tie(index, lhs, rhs) = fixed_length_lesson.find(subsolver.get_unsat_core_expr(i));
                 TRACE("str", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
-            }
-            // TODO better unsat core reconstruction
-            // for now, just copy the precondition into CEX
-            for (auto e : fixed_length_used_len_terms) {
-                // TRACE("str", tout << "cex " <<  mk_pp(e, m) << std::endl;);
-                cex.push_back(e);
+                cex.push_back(refine(lhs, rhs, index));
             }
             return l_false;
         } else { // l_undef
@@ -12961,6 +12955,154 @@ namespace smt {
 
     void theory_str::display(std::ostream & out) const {
         out << "TODO: theory_str display" << std::endl;
+    }
+
+    expr* theory_str::refine(expr* lhs, expr* rhs, rational offset) {
+        // TRACE("str", tout << "refine with " << offset.get_unsigned() << std::endl;);
+        if (offset >= rational(0)) {
+            return refine_eq(lhs, rhs, offset.get_unsigned());
+        }
+        return refine_dis(lhs, rhs);
+    }
+
+    expr* theory_str::refine_eq(expr* lhs, expr* rhs, unsigned offset) {
+        TRACE("str", tout << "refine eq " << offset << std::endl;);
+        ast_manager & m = get_manager();
+        // find Gamma[:i]
+        expr* left_sublen = nullptr;
+        expr* left_extra_cond = nullptr;
+        get_sublen_and_cond(lhs, offset, 0, left_sublen, left_extra_cond);
+        TRACE("str", tout << "lhs " << mk_pp(lhs, m)  << " left_sublen " << mk_pp(left_sublen, m) << " extra " << mk_pp(left_extra_cond, m) << std::endl;);
+
+        // find Delta[:j]
+        expr* right_sublen = nullptr;
+        expr* right_extra_cond = nullptr;
+        get_sublen_and_cond(rhs, offset, 0, right_sublen, right_extra_cond);
+        TRACE("str", tout << "rhs " << mk_pp(rhs, m)  << " right_sublen " << mk_pp(right_sublen, m) << " right_extra_cond " << mk_pp(right_extra_cond, m) << std::endl;);
+
+        // len(Gamma[:i]) == len(Delta[:j])
+        expr* sublen_eq = m.mk_eq(left_sublen, right_sublen);
+
+        // Offset tells us that Gamma[i+1:]) != Delta[j+1:]
+        // so learn that len(Gamma[:i]) != len(Delta[:j])
+
+        expr * lesson;
+
+        if (left_extra_cond != nullptr && right_extra_cond != nullptr) {
+            lesson = m.mk_and(sublen_eq, m.mk_and(left_extra_cond, right_extra_cond));
+        } else if (left_extra_cond != nullptr) {
+            lesson = m.mk_and(sublen_eq, left_extra_cond);
+        } else if (right_extra_cond != nullptr) {
+            lesson = m.mk_and(sublen_eq, right_extra_cond);
+        } else {
+            lesson = sublen_eq;
+        }
+
+        return m.mk_and(m.mk_eq(lhs, rhs), lesson);
+    }
+
+    expr* theory_str::refine_dis(expr* lhs, expr* rhs) {
+        ast_manager & m = get_manager();
+        //for now just assert a change in lengths
+        expr_ref_vector diseqs(m);
+
+        std::multiset<expr*> left_v_set;
+        std::multiset<expr*> left_c_set;
+        get_multisets(lhs, &left_c_set, &left_v_set);
+
+        std::multiset<expr*> right_v_set;
+        std::multiset<expr*> right_c_set;
+        get_multisets(rhs, &right_c_set, &right_v_set);
+
+        std::multiset<expr*>::iterator it;
+
+        for (std::multiset<expr*>::iterator it=left_v_set.begin(); it!=left_v_set.end(); ++it){
+            unsigned len = fixed_length_used_len_terms.find(*it);
+            diseqs.push_back(m.mk_not(m.mk_eq(u.str.mk_length(*it), mk_int(len))));
+        }
+
+        for (std::multiset<expr*>::iterator it=right_v_set.begin(); it!=right_v_set.end(); ++it){
+            unsigned len = fixed_length_used_len_terms.find(*it);
+            diseqs.push_back(m.mk_not(m.mk_eq(u.str.mk_length(*it), mk_int(len))));
+        }
+        expr_ref final_diseq(mk_or(diseqs), m);
+        return final_diseq;
+    }
+
+    unsigned theory_str::get_sublen_and_cond(expr* ex, unsigned target, unsigned length, expr* & sublen, expr* & extra) {
+        ast_manager & m = get_manager();
+        // TRACE("str", tout << "ex " << mk_pp(ex, m)  << " target " << target << " length " << length << " sublen " << mk_pp(sublen, m) << " extra " << mk_pp(extra, m) << std::endl;);
+
+        sort * ex_sort = m.get_sort(ex);
+        sort * str_sort = u.str.mk_string_sort();
+
+        if (ex_sort == str_sort) {
+            if (is_app(ex)) {
+                app * ap = to_app(ex);
+                if (ap->get_num_args() == 0) { 
+                    if (u.str.is_string(ap)) {
+                        bool str_exists;
+                        expr * str = get_eqc_value(ex, str_exists);
+                        SASSERT(str_exists);
+                        zstring str_const;
+                        u.str.is_string(str, str_const);
+                        if (length + str_const.length() > target) {
+                            if (sublen != nullptr) {
+                                sublen = m_autil.mk_add(sublen, mk_int(target - length));
+                            } else {
+                                sublen = mk_int(target - length);
+                            }
+                            return target - length;
+                        }
+                        if (sublen != nullptr) {
+                            sublen = m_autil.mk_add(sublen, mk_int(str_const.length()));
+                        } else {
+                            sublen = mk_int(str_const.length());
+                        }
+                        return str_const.length();
+                    }else{
+                        unsigned len = fixed_length_used_len_terms.find(ex);
+                        if (length + len > target) {
+                            extra = m_autil.mk_ge(u.str.mk_length(ex), mk_int(target - length));
+                            if (sublen != nullptr) {
+                                sublen = m_autil.mk_add(sublen, mk_int(target - length));
+                            } else {
+                                sublen = mk_int(target - length);
+                            }
+                            return target - length;
+                        }
+                        if (sublen != nullptr) {
+                            sublen = m_autil.mk_add(sublen, u.str.mk_length(ex));
+                        } else {
+                            sublen = u.str.mk_length(ex);
+                        }
+                        return len;
+                    }
+                    return true;
+                }else if(u.str.is_concat(ap)){
+                    unsigned concat_len = 0;
+
+                    unsigned num_args = ap->get_num_args();
+                    for (unsigned i = 0; i < num_args; i++) {
+                        // TRACE("str", tout << "loop: " << i << " " << mk_pp(ap->get_arg(i), m)  << " target " << target << " length " << length << " sublen " << mk_pp(sublen, m) << " extra " << mk_pp(extra, m) << std::endl;);
+                        unsigned len = get_sublen_and_cond(ap->get_arg(i), target, length, sublen, extra);
+                        if (length < target) {
+                            concat_len += len;
+                            length += len;
+                        } else {
+                            SASSERT(length == target);
+                            break;
+                        }
+                    }
+                    return concat_len;
+                } else {
+                    UNREACHABLE();
+                    return 0;
+                }
+            }
+        }
+        UNREACHABLE();
+        return 0;
     }
 
 }; /* namespace smt */
