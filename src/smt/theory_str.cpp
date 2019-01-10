@@ -846,6 +846,7 @@ namespace smt {
 
     void theory_str::propagate() {
         context & ctx = get_context();
+        clear_candidate_model();
         while (can_propagate()) {
             TRACE("str", tout << "propagating..." << std::endl;);
             while(true) {
@@ -8552,6 +8553,7 @@ namespace smt {
         //TRACE("str", tout << "new eq: v#" << x << " = v#" << y << std::endl;);
         TRACE("str", tout << "new eq: " << mk_ismt2_pp(get_enode(x)->get_owner(), get_manager()) << " = " <<
               mk_ismt2_pp(get_enode(y)->get_owner(), get_manager()) << std::endl;);
+        clear_candidate_model();
 
         /*
           if (m_find.find(x) == m_find.find(y)) {
@@ -8568,6 +8570,7 @@ namespace smt {
         //TRACE("str", tout << "new diseq: v#" << x << " != v#" << y << std::endl;);
         TRACE("str", tout << "new diseq: " << mk_ismt2_pp(get_enode(x)->get_owner(), get_manager()) << " != " <<
               mk_ismt2_pp(get_enode(y)->get_owner(), get_manager()) << std::endl;);
+        clear_candidate_model();
     }
 
     void theory_str::relevant_eh(app * n) {
@@ -8576,6 +8579,7 @@ namespace smt {
 
     void theory_str::assign_eh(bool_var v, bool is_true) {
         TRACE("str", tout << "assert: v" << v << " #" << get_context().bool_var2expr(v)->get_id() << " is_true: " << is_true << std::endl;);
+        clear_candidate_model();
     }
 
     void theory_str::push_scope_eh() {
@@ -8585,6 +8589,7 @@ namespace smt {
         sLevel += 1;
         TRACE("str", tout << "push to " << sLevel << std::endl;);
         TRACE_CODE(if (is_trace_enabled("t_str_dump_assign_on_scope_change")) { dump_assignments(); });
+        clear_candidate_model();
     }
 
     void theory_str::recursive_check_variable_scope(expr * ex) {
@@ -8646,6 +8651,7 @@ namespace smt {
     void theory_str::pop_scope_eh(unsigned num_scopes) {
         sLevel -= num_scopes;
         TRACE("str", tout << "pop " << num_scopes << " to " << sLevel << std::endl;);
+        clear_candidate_model();
 
         TRACE_CODE(if (is_trace_enabled("t_str_dump_assign_on_scope_change")) { dump_assignments(); });
 
@@ -10619,6 +10625,13 @@ namespace smt {
         }
     }
 
+    void theory_str::clear_candidate_model() {
+        if (!current_candidate_model.empty()) {
+            current_candidate_model.reset();
+            TRACE("str", tout << "clearing candidate model" << std::endl;);
+        }
+    }
+
     final_check_status theory_str::final_check_eh() {
         context & ctx = get_context();
         ast_manager & m = get_manager();
@@ -10628,6 +10641,7 @@ namespace smt {
         }
 
         TRACE("str", tout << "final check" << std::endl;);
+        clear_candidate_model();
         TRACE_CODE(if (is_trace_enabled("t_str_dump_assign")) { dump_assignments(); });
         check_variable_scope();
 
@@ -11004,27 +11018,10 @@ namespace smt {
             ctx.get_assignments(assignments);
 
             expr_ref_vector precondition(m);
-            obj_map<expr, zstring> model;
             expr_ref_vector cex(m);
-            lbool model_status = fixed_length_model_construction(assignments, precondition, model, cex);
+            lbool model_status = fixed_length_model_construction(assignments, precondition, current_candidate_model, cex);
 
             if (model_status == l_true) {
-                // assert the current assignment into the context
-
-                expr_ref_vector modelEntries(m);
-                for (auto entry : model) {
-                    expr * var = entry.m_key;
-                    zstring assignment = entry.m_value;
-                    expr_ref varAssign(ctx.mk_eq_atom(var, mk_string(assignment)), m);
-                    modelEntries.push_back(varAssign);
-                }
-                // DEBUG: assert these separately, so we see the conflicts easily
-                for (auto ex : precondition) {
-                    assert_axiom(ex);
-                }
-                for (auto ex: modelEntries) {
-                    assert_axiom(ex);
-                }
                 return FC_DONE;
             } else if (model_status == l_false) {
                 // whatever came back in CEX is the conflict clause.
@@ -11466,12 +11463,14 @@ namespace smt {
         }
 
         TRACE("str", tout << "calling subsolver" << std::endl;);
+        TRACE("str_mc", tout << "calling subsolver" << std::endl;);
 
         lbool subproblem_status = subsolver.check(fixed_length_assumptions);
 
         if (subproblem_status == l_true) {
             bv_util bv(m);
             TRACE("str", tout << "subsolver found SAT; reconstructing model" << std::endl;);
+            TRACE("str_mc", tout << "subsolver found SAT; reconstructing model" << std::endl;);
             model_ref subModel;
             subsolver.get_model(subModel);
             // model_smt2_pp(std::cout, m, *subModel, 2);
@@ -11510,9 +11509,12 @@ namespace smt {
             return l_true;
         } else if (subproblem_status == l_false) {
             TRACE("str", tout << "subsolver found UNSAT; reconstructing unsat core" << std::endl;);
+            TRACE("str_mc", tout << "subsolver found UNSAT; reconstructing unsat core" << std::endl;);
             TRACE("str", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
+            TRACE("str_mc", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
             for (unsigned i = 0; i < subsolver.get_unsat_core_size(); ++i) {
                 TRACE("str", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
+                TRACE("str_mc", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
             }
             // TODO better unsat core reconstruction
             // for now, just copy the precondition into CEX
@@ -11522,6 +11524,7 @@ namespace smt {
             return l_false;
         } else { // l_undef
             TRACE("str", tout << "WARNING: subsolver found UNKNOWN" << std::endl;);
+            TRACE("str_mc", tout << "WARNING: subsolver found UNKNOWN" << std::endl;);
             return l_undef;
         }
     }
@@ -12916,6 +12919,14 @@ namespace smt {
                 return to_app(mk_string(result));
             }
         }
+
+        if (m_params.m_FixedLengthModels) {
+            zstring assignedValue;
+            if (current_candidate_model.find(n, assignedValue)) {
+                return to_app(mk_string(assignedValue));
+            }
+        }
+
         // fallback path
         // try to find some constant string, anything, in the equivalence class of n
         bool hasEqc = false;

@@ -599,6 +599,7 @@ protected:
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
     obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
     obj_map<expr, ptr_vector<expr> > uninterpreted_to_char_subterm_map; // maps an "uninterpreted" string term to a list of character terms *in the subsolver*
+    obj_map<expr, zstring> current_candidate_model; // maps each string variable to a constant assignment
 protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);
@@ -817,6 +818,7 @@ protected:
     bool fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs, expr_ref & cex);
     void fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & eqcChars);
     bool fixed_length_get_len_value(expr * e, rational & val);
+    void clear_candidate_model();
 
     // strRegex
 
