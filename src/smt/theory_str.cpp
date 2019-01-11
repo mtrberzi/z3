@@ -8404,33 +8404,37 @@ namespace smt {
         family_id m_arith_fid = m.mk_family_id("arith");
         sort * int_sort = m.mk_sort(m_arith_fid, INT_SORT);
 
+        /*
         if (m_params.m_FixedLengthPreprocessing) {
-            // limited axiom setup for this case
-            TRACE("str", tout << "setting up axioms for " << mk_pp(ex, m) <<
-                              ": expr is of sort String (preprocessing mode only)" << std::endl;);
-            // set up basic string axioms
-            enode * n = ctx.get_enode(ex);
-            SASSERT(n);
-            m_basicstr_axiom_todo.push_back(n);
-            TRACE("str", tout << "add " << mk_pp(ex, m) << " to m_basicstr_axiom_todo" << std::endl;);
-            if (u.str.is_concat(ex)) {
-                // if ex is a concat, set up concat axioms later
-                m_concat_axiom_todo.push_back(n);
-                // we also want to check whether we can eval this concat,
-                // in case the rewriter did not totally finish with this term
-                m_concat_eval_todo.push_back(n);
-            }
-            // if expr is an application, recursively inspect all arguments
-            if (is_app(ex)) {
-                app * term = to_app(ex);
-                unsigned num_args = term->get_num_args();
-                for (unsigned i = 0; i < num_args; i++) {
-                    set_up_axioms(term->get_arg(i));
+            if (ex_sort == str_sort) {
+                // limited axiom setup for this case
+                TRACE("str", tout << "setting up axioms for " << mk_pp(ex, m) <<
+                        ": expr is of sort String (preprocessing mode only)" << std::endl;);
+                // set up basic string axioms
+                enode * n = ctx.get_enode(ex);
+                SASSERT(n);
+                m_basicstr_axiom_todo.push_back(n);
+                TRACE("str", tout << "add " << mk_pp(ex, m) << " to m_basicstr_axiom_todo" << std::endl;);
+                if (u.str.is_concat(ex)) {
+                    // if ex is a concat, set up concat axioms later
+                    m_concat_axiom_todo.push_back(n);
+                    // we also want to check whether we can eval this concat,
+                    // in case the rewriter did not totally finish with this term
+                    m_concat_eval_todo.push_back(n);
                 }
+                // if expr is an application, recursively inspect all arguments
+                if (is_app(ex)) {
+                    app * term = to_app(ex);
+                    unsigned num_args = term->get_num_args();
+                    for (unsigned i = 0; i < num_args; i++) {
+                        set_up_axioms(term->get_arg(i));
+                    }
+                }
+                // don't do high-level function axioms, or anything beyond this much really
             }
-            // don't do high-level function axioms, or anything beyond this much really
             return;
         }
+        */
 
         if (ex_sort == str_sort) {
             TRACE("str", tout << "setting up axioms for " << mk_ismt2_pp(ex, get_manager()) <<
@@ -10732,7 +10736,23 @@ namespace smt {
                     return FC_DONE;
                 } else {
                     TRACE("str", tout << "model is not valid -- generating conflict clause" << std::endl;);
-                    NOT_IMPLEMENTED_YET();
+                    preprocessing_iteration_count += 1;
+                    if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
+                        TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
+                        return FC_GIVEUP;
+                    }
+                    // negate (precondition AND model) and assert this as conflict clause
+                    expr_ref_vector conflict(m);
+                    for (auto ex : precondition) {
+                        conflict.push_back(ex);
+                    }
+                    for (auto entry : model) {
+                        conflict.push_back(ctx.mk_eq_atom(entry.m_key, mk_string(entry.m_value)));
+                    }
+                    expr_ref final_conflict(m.mk_not(mk_and(conflict)), m);
+                    assert_axiom(final_conflict);
+                    add_persisted_axiom(final_conflict);
+                    return FC_CONTINUE;
                 }
             } else if (model_status == l_false) {
                 // UNSAT
