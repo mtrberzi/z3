@@ -599,6 +599,8 @@ protected:
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
     obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
     obj_map<expr, ptr_vector<expr> > uninterpreted_to_char_subterm_map; // maps an "uninterpreted" string term to a list of character terms *in the subsolver*
+    unsigned preprocessing_iteration_count; // number of attempts we've made to solve by preprocessing length information
+    obj_map<expr, zstring> candidate_model;
 protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);

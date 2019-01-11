@@ -129,6 +129,9 @@ struct theory_str_params {
      */
     bool m_MultisetCheck;
 
+    bool m_FixedLengthPreprocessing;
+    unsigned m_FixedLengthIterations;
+
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
@@ -147,7 +150,9 @@ struct theory_str_params {
         m_RegexAutomata_FailedAutomatonThreshold(10),
         m_RegexAutomata_FailedIntersectionThreshold(10),
         m_RegexAutomata_LengthAttemptThreshold(10),
-        m_FixedLengthModels(true)
+        m_FixedLengthModels(true),
+        m_FixedLengthPreprocessing(true),
+        m_FixedLengthIterations(1024)
     {
         updt_params(p);
     }

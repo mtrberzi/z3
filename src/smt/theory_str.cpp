@@ -74,7 +74,8 @@ namespace smt {
         m_find(*this),
         fixed_length_subterm_trail(m),
         fixed_length_used_len_terms(m),
-        fixed_length_assumptions(m)
+        fixed_length_assumptions(m),
+        preprocessing_iteration_count(0)
     {
         initialize_charset();
     }
@@ -846,6 +847,7 @@ namespace smt {
 
     void theory_str::propagate() {
         context & ctx = get_context();
+        candidate_model.reset();
         while (can_propagate()) {
             TRACE("str", tout << "propagating..." << std::endl;);
             while(true) {
@@ -2085,6 +2087,7 @@ namespace smt {
         TRACE("str", tout << "resetting" << std::endl;);
         m_trail_stack.reset();
 
+        candidate_model.reset();
         m_basicstr_axiom_todo.reset();
         m_str_eq_todo.reset();
         m_concat_axiom_todo.reset();
@@ -8140,6 +8143,14 @@ namespace smt {
             return;
         }
 
+        if (m_params.m_FixedLengthPreprocessing) {
+            if (m_params.m_MultisetCheck) {
+                multiset_check(lhs, rhs);
+            }
+            instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
+            return;
+        }
+
         /* // temporarily disabled, we are borrowing these testers for something else
            if (m_params.m_FiniteOverlapModels && !finite_model_test_varlists.empty()) {
            if (finite_model_test_varlists.contains(lhs)) {
@@ -8393,6 +8404,34 @@ namespace smt {
         family_id m_arith_fid = m.mk_family_id("arith");
         sort * int_sort = m.mk_sort(m_arith_fid, INT_SORT);
 
+        if (m_params.m_FixedLengthPreprocessing) {
+            // limited axiom setup for this case
+            TRACE("str", tout << "setting up axioms for " << mk_pp(ex, m) <<
+                              ": expr is of sort String (preprocessing mode only)" << std::endl;);
+            // set up basic string axioms
+            enode * n = ctx.get_enode(ex);
+            SASSERT(n);
+            m_basicstr_axiom_todo.push_back(n);
+            TRACE("str", tout << "add " << mk_pp(ex, m) << " to m_basicstr_axiom_todo" << std::endl;);
+            if (u.str.is_concat(ex)) {
+                // if ex is a concat, set up concat axioms later
+                m_concat_axiom_todo.push_back(n);
+                // we also want to check whether we can eval this concat,
+                // in case the rewriter did not totally finish with this term
+                m_concat_eval_todo.push_back(n);
+            }
+            // if expr is an application, recursively inspect all arguments
+            if (is_app(ex)) {
+                app * term = to_app(ex);
+                unsigned num_args = term->get_num_args();
+                for (unsigned i = 0; i < num_args; i++) {
+                    set_up_axioms(term->get_arg(i));
+                }
+            }
+            // don't do high-level function axioms, or anything beyond this much really
+            return;
+        }
+
         if (ex_sort == str_sort) {
             TRACE("str", tout << "setting up axioms for " << mk_ismt2_pp(ex, get_manager()) <<
                   ": expr is of sort String" << std::endl;);
@@ -8411,7 +8450,8 @@ namespace smt {
                     // we also want to check whether we can eval this concat,
                     // in case the rewriter did not totally finish with this term
                     m_concat_eval_todo.push_back(n);
-                } else if (u.str.is_length(ap)) {
+                }
+                if (u.str.is_length(ap)) {
                     // if the argument is a variable,
                     // keep track of this for later, we'll need it during model gen
                     expr * var = ap->get_arg(0);
@@ -8491,6 +8531,10 @@ namespace smt {
     }
 
     void theory_str::add_theory_assumptions(expr_ref_vector & assumptions) {
+        if (m_params.m_FixedLengthPreprocessing) {
+            // don't add this assumption if we're only preprocessing
+            return;
+        }
         TRACE("str", tout << "add overlap assumption for theory_str" << std::endl;);
         const char* strOverlap = "!!TheoryStrOverlapAssumption!!";
         seq_util m_sequtil(get_manager());
@@ -8519,6 +8563,10 @@ namespace smt {
 
     void theory_str::init_search_eh() {
         context & ctx = get_context();
+
+        if (m_params.m_FixedLengthPreprocessing) {
+            TRACE("str", tout << "NOTE: using fixed length preprocessing -- normal processing DISABLED" << std::endl;);
+        }
 
         TRACE("str",
               tout << "dumping all asserted formulas:" << std::endl;
@@ -8552,6 +8600,7 @@ namespace smt {
         //TRACE("str", tout << "new eq: v#" << x << " = v#" << y << std::endl;);
         TRACE("str", tout << "new eq: " << mk_ismt2_pp(get_enode(x)->get_owner(), get_manager()) << " = " <<
               mk_ismt2_pp(get_enode(y)->get_owner(), get_manager()) << std::endl;);
+        candidate_model.reset();
 
         /*
           if (m_find.find(x) == m_find.find(y)) {
@@ -8568,6 +8617,7 @@ namespace smt {
         //TRACE("str", tout << "new diseq: v#" << x << " != v#" << y << std::endl;);
         TRACE("str", tout << "new diseq: " << mk_ismt2_pp(get_enode(x)->get_owner(), get_manager()) << " != " <<
               mk_ismt2_pp(get_enode(y)->get_owner(), get_manager()) << std::endl;);
+        candidate_model.reset();
     }
 
     void theory_str::relevant_eh(app * n) {
@@ -8576,6 +8626,7 @@ namespace smt {
 
     void theory_str::assign_eh(bool_var v, bool is_true) {
         TRACE("str", tout << "assert: v" << v << " #" << get_context().bool_var2expr(v)->get_id() << " is_true: " << is_true << std::endl;);
+        candidate_model.reset();
     }
 
     void theory_str::push_scope_eh() {
@@ -8585,6 +8636,7 @@ namespace smt {
         sLevel += 1;
         TRACE("str", tout << "push to " << sLevel << std::endl;);
         TRACE_CODE(if (is_trace_enabled("t_str_dump_assign_on_scope_change")) { dump_assignments(); });
+        candidate_model.reset();
     }
 
     void theory_str::recursive_check_variable_scope(expr * ex) {
@@ -8646,6 +8698,7 @@ namespace smt {
     void theory_str::pop_scope_eh(unsigned num_scopes) {
         sLevel -= num_scopes;
         TRACE("str", tout << "pop " << num_scopes << " to " << sLevel << std::endl;);
+        candidate_model.reset();
 
         TRACE_CODE(if (is_trace_enabled("t_str_dump_assign_on_scope_change")) { dump_assignments(); });
 
@@ -10630,6 +10683,76 @@ namespace smt {
         TRACE("str", tout << "final check" << std::endl;);
         TRACE_CODE(if (is_trace_enabled("t_str_dump_assign")) { dump_assignments(); });
         check_variable_scope();
+
+        if (m_params.m_FixedLengthPreprocessing) {
+            TRACE("str", tout << "preprocessing in final check, iteration " << preprocessing_iteration_count << std::endl;);
+            candidate_model.reset();
+            arith_value v(ctx);
+            final_check_status arith_fc_status = v.final_check();
+            if (arith_fc_status != FC_DONE) {
+                TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
+                return FC_CONTINUE;
+            }
+            TRACE("str", tout << "arithmetic solver done in final check" << std::endl;);
+
+            expr_ref_vector assignments(m);
+            ctx.get_assignments(assignments);
+
+            expr_ref_vector precondition(m);
+            obj_map<expr, zstring> model;
+            expr_ref_vector cex(m);
+            lbool model_status = fixed_length_model_construction(assignments, precondition, model, cex);
+
+            if (model_status == l_true) {
+                // SAT
+                TRACE("str", tout << "subsolver found SAT -- validating model" << std::endl;);
+
+                smt_params subsolver_params;
+                subsolver_params.m_string_solver = symbol("seq");
+                smt::kernel subsolver(m, subsolver_params);
+                subsolver.set_logic(symbol("QF_S"));
+
+                // check satisfiability of (assignment AND precondition AND model)
+
+                for (auto ex : assignments) {
+                    subsolver.assert_expr(ex);
+                }
+                for (auto ex : precondition) {
+                    subsolver.assert_expr(ex);
+                }
+                for (auto entry : model) {
+                    subsolver.assert_expr(subsolver.get_context().mk_eq_atom(entry.m_key, mk_string(entry.m_value)));
+                }
+                TRACE("str", tout << "validating model in subsolver" << std::endl;);
+                lbool validation_result = subsolver.setup_and_check();
+                if (validation_result == l_true) {
+                    // SAT
+                    TRACE("str", tout << "model is valid" << std::endl;);
+                    candidate_model = model;
+                    return FC_DONE;
+                } else {
+                    TRACE("str", tout << "model is not valid -- generating conflict clause" << std::endl;);
+                    NOT_IMPLEMENTED_YET();
+                }
+            } else if (model_status == l_false) {
+                // UNSAT
+                preprocessing_iteration_count += 1;
+                if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
+                    TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
+                    return FC_GIVEUP;
+                }
+                // whatever came back in CEX is the conflict clause.
+                // negate its conjunction and assert that
+                expr_ref conflict(m.mk_not(mk_and(cex)), m);
+                assert_axiom(conflict);
+                add_persisted_axiom(conflict);
+                return FC_CONTINUE;
+            } else {
+                // UNKNOWN
+                TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
+                return FC_CONTINUE;
+            }
+        }
 
         if (opt_DeferEQCConsistencyCheck) {
             TRACE("str", tout << "performing deferred EQC consistency check" << std::endl;);
@@ -12918,6 +13041,12 @@ namespace smt {
         }
         // fallback path
         // try to find some constant string, anything, in the equivalence class of n
+        if (!candidate_model.empty()) {
+            zstring val;
+            if (candidate_model.find(n, val)) {
+                return to_app(mk_string(val));
+            }
+        }
         bool hasEqc = false;
         expr * n_eqc = get_eqc_value(n, hasEqc);
         if (hasEqc) {

@@ -39,4 +39,6 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_RegexAutomata_LengthAttemptThreshold = p.str_regex_automata_length_attempt_threshold();
     m_FixedLengthModels = p.str_fixed_length_models();
     m_MultisetCheck = p.str_multiset_check();
+    m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
+    m_FixedLengthIterations = p.str_fixed_length_iterations();
 }
