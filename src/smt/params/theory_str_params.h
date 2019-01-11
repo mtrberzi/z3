@@ -152,7 +152,7 @@ struct theory_str_params {
         m_RegexAutomata_LengthAttemptThreshold(10),
         m_FixedLengthModels(true),
         m_FixedLengthPreprocessing(true),
-        m_FixedLengthIterations(1024)
+        m_FixedLengthIterations(100)
     {
         updt_params(p);
     }
