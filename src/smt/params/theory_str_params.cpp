@@ -42,3 +42,28 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
     m_FixedLengthIterations = p.str_fixed_length_iterations();
 }
+
+#define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;
+
+void theory_str_params::display(std::ostream & out) const {
+    DISPLAY_PARAM(m_StrongArrangements);
+    DISPLAY_PARAM(m_AggressiveLengthTesting);
+    DISPLAY_PARAM(m_AggressiveValueTesting);
+    DISPLAY_PARAM(m_AggressiveUnrollTesting);
+    DISPLAY_PARAM(m_UseFastLengthTesterCache);
+    DISPLAY_PARAM(m_UseFastValueTesterCache);
+    DISPLAY_PARAM(m_StringConstantCache);
+    DISPLAY_PARAM(m_UseBinarySearch);
+    DISPLAY_PARAM(m_BinarySearchInitialUpperBound);
+    DISPLAY_PARAM(m_OverlapTheoryAwarePriority);
+    DISPLAY_PARAM(m_RegexAutomata);
+    DISPLAY_PARAM(m_RegexAutomata_DifficultyThreshold);
+    DISPLAY_PARAM(m_RegexAutomata_IntersectionDifficultyThreshold);
+    DISPLAY_PARAM(m_RegexAutomata_FailedAutomatonThreshold);
+    DISPLAY_PARAM(m_RegexAutomata_FailedIntersectionThreshold);
+    DISPLAY_PARAM(m_RegexAutomata_LengthAttemptThreshold);
+    DISPLAY_PARAM(m_FixedLengthModels);
+    DISPLAY_PARAM(m_MultisetCheck);
+    DISPLAY_PARAM(m_FixedLengthPreprocessing);
+    DISPLAY_PARAM(m_FixedLengthIterations);
+}

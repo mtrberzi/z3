@@ -12,6 +12,7 @@ z3_add_component(smtlogic_tactics
     qfufbv_ackr_model_converter.cpp
     qfufbv_tactic.cpp
     qfuf_tactic.cpp
+    z3str3_tactic.cpp
     quant_tactics.cpp
   COMPONENT_DEPENDENCIES
     ackermannization
@@ -38,5 +39,6 @@ z3_add_component(smtlogic_tactics
     qfnra_tactic.h
     qfuf_tactic.h
     qfufbv_tactic.h
+    z3str3_tactic.h
     quant_tactics.h
 )

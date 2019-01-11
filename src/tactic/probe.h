@@ -119,6 +119,7 @@ probe * mk_is_propositional_probe();
 probe * mk_is_qfbv_probe();
 probe * mk_is_qfaufbv_probe();
 probe * mk_is_qfufbv_probe();
+probe * mk_contains_string_probe();
 
 /*
   ADD_PROBE("is-propositional", "true if the goal is in propositional logic.", "mk_is_propositional_probe()")
