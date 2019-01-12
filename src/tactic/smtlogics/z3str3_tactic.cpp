@@ -18,9 +18,12 @@ Notes:
 --*/
 #include "util/params.h"
 #include "tactic/tactical.h"
+#include "tactic/core/simplify_tactic.h"
 #include "smt/tactic/smt_tactic.h"
 
 tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
+    tactic * preamble = mk_simplify_tactic(m, p);
+
     params_ref preprocess_p = p;
     preprocess_p.set_bool("str.fixed_length_preprocessing", true);
     preprocess_p.set_bool("str.fixed_length_models", true);
@@ -31,9 +34,9 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     general_p.set_bool("str.fixed_length_models", false);
     general_p.set_sym("string_solver", symbol("z3str3"));
 
-    tactic * st = or_else(
+    tactic * st = and_then(preamble, or_else(
             using_params(mk_smt_tactic(m), preprocess_p),
-            using_params(mk_smt_tactic(m), general_p));
+            using_params(mk_smt_tactic(m), general_p)));
     st->updt_params(p);
     return st;
 }

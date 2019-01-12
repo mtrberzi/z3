@@ -32,6 +32,7 @@ Notes:
 #include "tactic/smtlogics/qfufbv_tactic.h"
 #include "tactic/smtlogics/qfidl_tactic.h"
 #include "tactic/smtlogics/nra_tactic.h"
+#include "tactic/smtlogics/z3str3_tactic.h"
 #include "tactic/portfolio/default_tactic.h"
 #include "tactic/fd_solver/fd_solver.h"
 #include "tactic/ufbv/ufbv_tactic.h"
@@ -97,6 +98,8 @@ tactic * mk_tactic_for_logic(ast_manager & m, params_ref const & p, symbol const
         return mk_horn_tactic(m, p);
     else if ((logic == "QF_FD" || logic == "SAT") && !m.proofs_enabled())
         return mk_fd_tactic(m, p);
+    else if ((logic == "QF_S") && p.get_sym("string_solver", symbol("auto")) == "z3str3")
+        return mk_z3str3_tactic(m, p);
     else 
         return mk_default_tactic(m, p);
 }
