@@ -508,7 +508,8 @@ protected:
 
     // for count abstraction
     app * mk_strcount(expr * x, expr * y);
-    void get_eq_chars_vars(expr * ex, std::set<expr*> *characterSet, std::set<expr*> *varSet);
+    bool get_eq_chars_vars(expr * ex, std::set<expr*> *characterSet, std::set<expr*> *varSet);
+    bool instantiate_str_eq_count_axiom(enode * lhs, enode * rhs);
 
     // for ConcatOverlapAvoid
     bool will_result_in_overlap(expr * lhs, expr * rhs);
@@ -528,7 +529,6 @@ protected:
     void try_eval_concat(enode * cat);
     void instantiate_basic_string_axioms(enode * str);
     void instantiate_str_eq_length_axiom(enode * lhs, enode * rhs);
-    void instantiate_str_eq_count_axiom(enode * lhs, enode * rhs);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);

@@ -121,7 +121,7 @@ struct theory_str_params {
      * If CharacterAbstraction is true, we use the character multiset abstraction to 
      * help solve word equations.
      */
-    bool m_CharacterAbstraction;
+    bool m_CountAbstraction;
 
 
     theory_str_params(params_ref const & p = params_ref()):
@@ -142,7 +142,7 @@ struct theory_str_params {
         m_RegexAutomata_FailedAutomatonThreshold(10),
         m_RegexAutomata_FailedIntersectionThreshold(10),
         m_RegexAutomata_LengthAttemptThreshold(10),
-        m_CharacterAbstraction(true)
+        m_CountAbstraction(true)
     {
         updt_params(p);
     }

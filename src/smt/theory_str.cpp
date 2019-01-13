@@ -1162,112 +1162,6 @@ namespace smt {
         assert_implication(premise, conclusion);
     }
 
-    /*
-     * For every literal character c appearing in the equation
-     * add an axiom of the form:
-     * (lhs == rhs) -> ( Count(c, lhs) == Count(c, rhs) )
-     */
-    void theory_str::instantiate_str_eq_count_axiom(enode * lhs, enode * rhs) {
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-
-        app * a_lhs = lhs->get_owner();
-        app * a_rhs = rhs->get_owner();
-
-        // build premise: (lhs == rhs)
-        expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
-
-        // get all vars that appear in the equality:
-        std::set<expr*> varSet;
-        // for each character c that appears in the equality:
-        std::set<expr*> characterSet;
-        
-        get_eq_chars_vars(premise, &characterSet, &varSet);
-        TRACE("str", tout << "CharacterSet.size(): " << characterSet.size() << std::endl;);
-        TRACE("str", tout << "varSet.size(): " << varSet.size() << std::endl;);
-
-        for(auto c : characterSet)
-        {
-            // build conclusion: ( Count(c, lhs) == Count(c, rhs) )
-            expr_ref count_lhs(mk_strcount(c, a_lhs), m);
-            SASSERT(count_lhs);
-
-            expr_ref count_rhs(mk_strcount(c, a_rhs), m);
-            SASSERT(count_rhs);
-            
-            expr_ref conclusion(ctx.mk_eq_atom(count_lhs, count_rhs), m);
-            TRACE("str", tout << "Conclusion before rewrite: " << mk_ismt2_pp(conclusion, m) << std::endl;);
-            th_rewriter rw(m);
-            rw(conclusion);
-
-            TRACE("str", tout << "string-eq count-eq axiom: "
-                << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
-            assert_implication(premise, conclusion);
-
-            //also assert that for all vars X (count c X) >= 0
-            for(auto v : varSet)
-            {
-                // build LHS
-                expr_ref count_str(m);
-                count_str = mk_strcount(c, v);
-                SASSERT(count_str);
-                // build RHS
-                expr_ref zero(m);
-                zero = m_autil.mk_numeral(rational(0), true);
-                SASSERT(zero);
-                // build LHS >= RHS and assert
-                app * lhs_ge_rhs = m_autil.mk_ge(count_str, zero);
-                SASSERT(lhs_ge_rhs);
-                TRACE("str", tout << "count axiom: " << mk_ismt2_pp(lhs_ge_rhs, m) << std::endl;);
-                assert_axiom(lhs_ge_rhs);
-            }
-        }
-    }
-
-    void theory_str::get_eq_chars_vars(expr * ex,  std::set<expr*> *characterSet, std::set<expr*> *varSet) {
-        ast_manager & m = get_manager();
-
-        sort * ex_sort = m.get_sort(ex);
-        sort * str_sort = u.str.mk_string_sort();
-
-        TRACE("str", tout << "Getting vars/literal characters in " << mk_ismt2_pp(ex, m) << std::endl;);
-
-        if (ex_sort == str_sort) {
-            if (is_app(ex)) {
-                app * ap = to_app(ex);
-                if (ap->get_num_args() == 0) { 
-                    if (u.str.is_string(ap)) {
-                        bool str_exists;
-                        expr * str = get_eqc_value(ex, str_exists);
-                        SASSERT(str_exists);
-                        zstring str_const;
-                        u.str.is_string(str, str_const); 
-                        // get characters/vars out of str_const
-                        for(size_t i = 0; i < str_const.length(); i++)
-                        {
-                            TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to characterSet" << std::endl;);
-                            characterSet->insert(mk_string(str_const.extract(i, 1)));
-                        }
-                        return;
-                    }else{
-                        TRACE("str", tout << "adding " << mk_ismt2_pp(ap, m) << " to varSet" << std::endl;);
-                        varSet->insert(ap);
-                    }
-                }
-            }
-        }
-
-        // if expr is an application, recursively inspect all arguments
-        if (is_app(ex)) {
-            app * term = to_app(ex);
-            unsigned num_args = term->get_num_args();
-            for (unsigned i = 0; i < num_args; i++) {
-                get_eq_chars_vars(term->get_arg(i), characterSet, varSet);
-            }
-        }
-        return;
-    }
-
     void theory_str::instantiate_axiom_CharAt(enode * e) {
         context & ctx = get_context();
         ast_manager & m = get_manager();
@@ -8225,10 +8119,8 @@ namespace smt {
         check_eqc_empty_string(lhs, rhs);
         instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
 
-        if (m_params.m_CharacterAbstraction) {
-            instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
-        } else {
-            TRACE("str", tout << "WARNING: character abstraction integration disabled" << std::endl;);
+        if (m_params.m_CountAbstraction && instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs))) {
+            TRACE("str", tout << "Succesfully instantiated count axiom" << std::endl;);
         }
 
         // group terms by equivalence class (groupNodeInEqc())
@@ -12576,6 +12468,117 @@ namespace smt {
 
     void theory_str::display(std::ostream & out) const {
         out << "TODO: theory_str display" << std::endl;
+    }
+
+    /*
+     * For every literal character c appearing in the equation
+     * add an axiom of the form:
+     * (lhs == rhs) -> ( Count(c, lhs) == Count(c, rhs) )
+     */
+    bool theory_str::instantiate_str_eq_count_axiom(enode * lhs, enode * rhs) {
+        context & ctx = get_context();
+        ast_manager & m = get_manager();
+
+        app * a_lhs = lhs->get_owner();
+        app * a_rhs = rhs->get_owner();
+
+        // build premise: (lhs == rhs)
+        expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
+
+        // get all vars that appear in the equality:
+        std::set<expr*> varSet;
+        // for each character c that appears in the equality:
+        std::set<expr*> characterSet;
+        
+        if (!get_eq_chars_vars(premise, &characterSet, &varSet)) {
+            return false;
+        }
+        TRACE("str", tout << "CharacterSet.size(): " << characterSet.size() << std::endl;);
+        TRACE("str", tout << "varSet.size(): " << varSet.size() << std::endl;);
+
+        for(auto c : characterSet)
+        {
+            // build conclusion: ( Count(c, lhs) == Count(c, rhs) )
+            expr_ref count_lhs(mk_strcount(c, a_lhs), m);
+            SASSERT(count_lhs);
+
+            expr_ref count_rhs(mk_strcount(c, a_rhs), m);
+            SASSERT(count_rhs);
+            
+            expr_ref conclusion(ctx.mk_eq_atom(count_lhs, count_rhs), m);
+            TRACE("str", tout << "Conclusion before rewrite: " << mk_ismt2_pp(conclusion, m) << std::endl;);
+            th_rewriter rw(m);
+            rw(conclusion);
+
+            TRACE("str", tout << "string-eq count-eq axiom: "
+                << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
+            assert_implication(premise, conclusion);
+
+            //also assert that for all vars X (count c X) >= 0
+            for(auto v : varSet)
+            {
+                // build LHS
+                expr_ref count_str(m);
+                count_str = mk_strcount(c, v);
+                SASSERT(count_str);
+                // build RHS
+                expr_ref zero(m);
+                zero = m_autil.mk_numeral(rational(0), true);
+                SASSERT(zero);
+                // build LHS >= RHS and assert
+                app * lhs_ge_rhs = m_autil.mk_ge(count_str, zero);
+                SASSERT(lhs_ge_rhs);
+                TRACE("str", tout << "count axiom: " << mk_ismt2_pp(lhs_ge_rhs, m) << std::endl;);
+                assert_axiom(lhs_ge_rhs);
+            }
+        }
+        return true;
+    }
+
+    bool theory_str::get_eq_chars_vars(expr * ex,  std::set<expr*> *characterSet, std::set<expr*> *varSet) {
+        ast_manager & m = get_manager();
+
+        sort * ex_sort = m.get_sort(ex);
+        sort * str_sort = u.str.mk_string_sort();
+
+        TRACE("str", tout << "Getting vars/literal characters in " << mk_ismt2_pp(ex, m) << std::endl;);
+
+        if (ex_sort == str_sort) {
+            if (is_app(ex)) {
+                app * ap = to_app(ex);
+                if (ap->get_num_args() == 0) { 
+                    if (u.str.is_string(ap)) {
+                        bool str_exists;
+                        expr * str = get_eqc_value(ex, str_exists);
+                        SASSERT(str_exists);
+                        zstring str_const;
+                        u.str.is_string(str, str_const); 
+                        // get characters/vars out of str_const
+                        for(size_t i = 0; i < str_const.length(); i++)
+                        {
+                            TRACE("str", tout << "adding " << str_const.extract(i, 1) << " to c_set" << std::endl;);
+                            characterSet->insert(mk_string(str_const.extract(i, 1)));
+                        }
+                    }else{
+                        TRACE("str", tout << "adding " << mk_ismt2_pp(ap, m) << " to v_set" << std::endl;);
+                        varSet->insert(ap);
+                    }
+                    return true;
+                }else if(u.str.is_concat(ap)){
+                    unsigned num_args = ap->get_num_args();
+                    for (unsigned i = 0; i < num_args; i++) {
+                        if (!get_eq_chars_vars(ap->get_arg(i), characterSet, varSet)) {
+                            return false;
+                        }
+                    }
+                    return true;
+                }else{
+                    TRACE("str", tout << "Not a char or var! " << mk_ismt2_pp(ap, m) << " quiting." << std::endl;);
+                    return false;
+                }
+            }
+        }
+        return false;
     }
 
 }; /* namespace smt */
