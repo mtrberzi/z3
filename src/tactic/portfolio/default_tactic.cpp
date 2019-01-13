@@ -32,6 +32,7 @@ Notes:
 #include "tactic/smtlogics/qfaufbv_tactic.h"
 #include "tactic/smtlogics/qfauflia_tactic.h"
 #include "tactic/fd_solver/fd_solver.h"
+#include "tactic/smtlogics/z3str3_tactic.h"
 
 tactic * mk_default_tactic(ast_manager & m, params_ref const & p) {
     tactic * st = using_params(and_then(mk_simplify_tactic(m),
@@ -48,7 +49,7 @@ tactic * mk_default_tactic(ast_manager & m, params_ref const & p) {
                                         cond(mk_is_qffp_probe(), mk_qffp_tactic(m, p),
                                         cond(mk_is_qffplra_probe(), mk_qffplra_tactic(m, p),
                                         //cond(mk_is_qfufnra_probe(), mk_qfufnra_tactic(m, p),
-                                             mk_smt_tactic()))))))))))))),
+                                             mk_smt_tactic(m)))))))))))))),
                                p);
     return st;
 }

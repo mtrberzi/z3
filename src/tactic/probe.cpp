@@ -301,6 +301,22 @@ struct is_non_qfbv_predicate {
     }
 };
 
+struct is_string_predicate {
+    struct found {};
+    ast_manager & m;
+    seq_util u;
+    is_string_predicate(ast_manager & _m):m(_m), u(m) {}
+    void operator()(var *) { return; }
+    void operator()(quantifier *) { return; }
+    void operator()(app * n) {
+        family_id fid = n->get_family_id();
+        if (fid == u.get_family_id()) {
+            throw found();
+        }
+        return;
+    }
+};
+
 class is_propositional_probe : public probe {
 public:
     result operator()(goal const & g) override {
@@ -316,12 +332,23 @@ public:
     }
 };
 
+class contains_string_probe : public probe {
+public:
+    result operator()(goal const & g) override {
+        return test<is_string_predicate>(g);
+    }
+};
+
 probe * mk_is_propositional_probe() {
     return alloc(is_propositional_probe);
 }
 
 probe * mk_is_qfbv_probe() {
     return alloc(is_qfbv_probe);
+}
+
+probe * mk_contains_string_probe() {
+    return alloc(contains_string_probe);
 }
 
 struct is_non_qfaufbv_predicate {
