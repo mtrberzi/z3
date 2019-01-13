@@ -8153,7 +8153,6 @@ namespace smt {
             if (m_params.m_CountAbstraction && instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs))) {
                 TRACE("str", tout << "Succesfully instantiated count axiom" << std::endl;);
             }
-            instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
             return;
         }
 
@@ -8208,10 +8207,7 @@ namespace smt {
         }
 
         // BEGIN new_eq_handler() in strTheory
-        if (m_params.m_MultisetCheck) {
-            multiset_check(lhs, rhs);
-        }
-        check_eqc_empty_string(lhs, rhs);
+        check_eqc_empty_string(lhs, rhs); //TODO This stays here?
         instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
 
         // group terms by equivalence class (groupNodeInEqc())
