@@ -595,10 +595,11 @@ protected:
 
     // fixed length model construction
     expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
-    expr_ref_vector fixed_length_used_len_terms; // constraints used in generating fixed length model
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
+    obj_map<expr, unsigned> fixed_length_used_len_terms; // constraints used in generating fixed length model
     obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
     obj_map<expr, ptr_vector<expr> > uninterpreted_to_char_subterm_map; // maps an "uninterpreted" string term to a list of character terms *in the subsolver*
+    obj_map<expr, std::tuple<rational, expr*, expr*>> fixed_length_lesson; //keep track of information for the lesson
     unsigned preprocessing_iteration_count; // number of attempts we've made to solve by preprocessing length information
     obj_map<expr, zstring> candidate_model;
 protected:
@@ -646,6 +647,10 @@ protected:
 
     void multiset_check(expr * lhs, expr * rhs);
     bool get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set);
+    expr* refine(expr* lhs, expr* rhs, rational offset);
+    expr* refine_eq(expr* lhs, expr* rhs, unsigned offset);
+    expr* refine_dis(expr* lhs, expr* rhs);
+    unsigned get_sublen_and_cond(expr* lhs, unsigned offset, unsigned length, expr* & sublen, expr* & extra);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
