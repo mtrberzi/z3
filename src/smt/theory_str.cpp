@@ -8150,7 +8150,6 @@ namespace smt {
             if (m_params.m_MultisetCheck) {
                 multiset_check(lhs, rhs);
             }
-            instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
             if (m_params.m_CountAbstraction && instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs))) {
                 TRACE("str", tout << "Succesfully instantiated count axiom" << std::endl;);
             }

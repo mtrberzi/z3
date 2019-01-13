@@ -127,13 +127,13 @@ struct theory_str_params {
     unsigned m_FixedLengthIterations;
 
     /*
-    * If MultisetCheck is true, we use the character multiset abstraction to 
+    * If MultisetCheck is true, we use the quick multiset check to 
     * help solve word equations.
     */
     bool m_MultisetCheck;
 
     /*
-     * If CharacterAbstraction is true, we use the character multiset abstraction to 
+     * If CharacterAbstraction is true, we use the character count abstraction to 
      * help solve word equations.
      */
     bool m_CountAbstraction;
