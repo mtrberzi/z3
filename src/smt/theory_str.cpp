@@ -8153,7 +8153,7 @@ namespace smt {
             if (m_params.m_CountAbstraction && instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs))) {
                 TRACE("str", tout << "Succesfully instantiated count axiom" << std::endl;);
             }
-	    instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
+	        instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
             return;
         }
 
@@ -13290,7 +13290,7 @@ namespace smt {
                     }else{
                         unsigned len = fixed_length_used_len_terms.find(ex);
                         if (length + len > target) {
-                            extra = m_autil.mk_ge(u.str.mk_length(ex), mk_int(target - length));
+                            extra = m_autil.mk_ge(u.str.mk_length(ex), mk_int(target - length + 1));
                             if (sublen != nullptr) {
                                 sublen = m_autil.mk_add(sublen, mk_int(target - length));
                             } else {
@@ -13311,15 +13311,17 @@ namespace smt {
 
                     unsigned num_args = ap->get_num_args();
                     for (unsigned i = 0; i < num_args; i++) {
-                        // TRACE("str", tout << "loop: " << i << " " << mk_pp(ap->get_arg(i), m)  << " target " << target << " length " << length << " sublen " << mk_pp(sublen, m) << " extra " << mk_pp(extra, m) << std::endl;);
-                        unsigned len = get_sublen_and_cond(ap->get_arg(i), target, length, sublen, extra);
+                        TRACE("str", tout << "loop: " << i << " " << mk_pp(ap->get_arg(i), m)  << " target " << target << " length " << length << " sublen " << mk_pp(sublen, m) << " extra " << mk_pp(extra, m) << std::endl;);
                         if (length < target) {
+                            unsigned len = get_sublen_and_cond(ap->get_arg(i), target, length, sublen, extra);
                             concat_len += len;
                             length += len;
                         } else {
                             SASSERT(length == target);
+                            get_remaining_zeros(ap->get_arg(i), sublen);
                             break;
                         }
+                        TRACE("str", tout << "loop: " << i << " " << mk_pp(ap->get_arg(i), m)  << " target " << target << " length " << length << " sublen " << mk_pp(sublen, m) << " extra " << mk_pp(extra, m) << std::endl;);
                     }
                     return concat_len;
                 } else {
@@ -13330,5 +13332,52 @@ namespace smt {
         }
         UNREACHABLE();
         return 0;
+    }
+
+   bool theory_str::get_remaining_zeros(expr* ex, expr* & sublen) {
+        ast_manager & m = get_manager();
+        // TRACE("str", tout << "ex " << mk_pp(ex, m)  << " target " << target << " length " << length << " sublen " << mk_pp(sublen, m) << " extra " << mk_pp(extra, m) << std::endl;);
+
+        sort * ex_sort = m.get_sort(ex);
+        sort * str_sort = u.str.mk_string_sort();
+
+        if (ex_sort == str_sort) {
+            if (is_app(ex)) {
+                app * ap = to_app(ex);
+                if (ap->get_num_args() == 0) { 
+                    if (u.str.is_string(ap)) {
+                        return false; //false means stop collecting
+                    } else {
+                        unsigned len = fixed_length_used_len_terms.find(ex);
+                        if (len == 0) {
+                            if (sublen != nullptr) {
+                                sublen = m_autil.mk_add(sublen, u.str.mk_length(ex));
+                            } else {
+                                sublen = u.str.mk_length(ex);
+                            }
+                            return true; //true means continue
+                        }
+                        return false;
+                    }
+                }else if(u.str.is_concat(ap)){
+                    unsigned num_args = ap->get_num_args();
+                    bool keep_going = true;
+                    for (unsigned i = 0; i < num_args; i++) {
+                        TRACE("str", tout << "loop: " << i << " " << mk_pp(ap->get_arg(i), m) << " sublen " << mk_pp(sublen, m) << std::endl;);
+                        keep_going = get_remaining_zeros(ap->get_arg(i), sublen);
+                        if (!keep_going) {
+                            return false;
+                        }
+                        TRACE("str", tout << "loop: " << i << " " << mk_pp(ap->get_arg(i), m) << " sublen " << mk_pp(sublen, m) << std::endl;);
+                    }
+                    return keep_going;
+                } else {
+                    UNREACHABLE();
+                    return false;
+                }
+            }
+        }
+        UNREACHABLE();
+        return false;
     }
 }; /* namespace smt */

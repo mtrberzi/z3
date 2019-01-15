@@ -656,6 +656,7 @@ protected:
     expr* refine_eq(expr* lhs, expr* rhs, unsigned offset);
     expr* refine_dis(expr* lhs, expr* rhs);
     unsigned get_sublen_and_cond(expr* lhs, unsigned offset, unsigned length, expr* & sublen, expr* & extra);
+    bool get_remaining_zeros(expr* lhs, expr* & sublen);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
