@@ -13208,21 +13208,31 @@ namespace smt {
         TRACE("str", tout << "rhs " << mk_pp(rhs, m)  << " right_sublen " << mk_pp(right_sublen, m) << " right_extra_cond " << mk_pp(right_extra_cond, m) << std::endl;);
 
         // len(Gamma[:i]) == len(Delta[:j])
-        expr* sublen_eq = m.mk_eq(left_sublen, right_sublen);
-
+        expr* sublen_eq;
         // Offset tells us that Gamma[i+1:]) != Delta[j+1:]
         // so learn that len(Gamma[:i]) != len(Delta[:j])
-
         expr * lesson;
-
-        if (left_extra_cond != nullptr && right_extra_cond != nullptr) {
-            lesson = m.mk_and(sublen_eq, m.mk_and(left_extra_cond, right_extra_cond));
-        } else if (left_extra_cond != nullptr) {
-            lesson = m.mk_and(sublen_eq, left_extra_cond);
-        } else if (right_extra_cond != nullptr) {
-            lesson = m.mk_and(sublen_eq, right_extra_cond);
+        if (left_sublen != nullptr && right_sublen != nullptr && left_sublen != right_sublen) {
+            sublen_eq = m.mk_eq(left_sublen, right_sublen);
+            if (left_extra_cond != nullptr && right_extra_cond != nullptr) {
+                lesson = m.mk_and(sublen_eq, m.mk_and(left_extra_cond, right_extra_cond));
+            } else if (left_extra_cond != nullptr) {
+                lesson = m.mk_and(sublen_eq, left_extra_cond);
+            } else if (right_extra_cond != nullptr) {
+                lesson = m.mk_and(sublen_eq, right_extra_cond);
+            } else {
+                lesson = sublen_eq;
+            }
         } else {
-            lesson = sublen_eq;
+            if (left_extra_cond != nullptr && right_extra_cond != nullptr) {
+                lesson = m.mk_and(left_extra_cond, right_extra_cond);
+            } else if (left_extra_cond != nullptr) {
+                lesson = left_extra_cond;
+            } else if (right_extra_cond != nullptr) {
+                lesson = right_extra_cond;
+            } else {
+                UNREACHABLE();
+            }   
         }
 
         return m.mk_and(m.mk_eq(lhs, rhs), lesson);
@@ -13289,8 +13299,10 @@ namespace smt {
                         return str_const.length();
                     }else{
                         unsigned len = fixed_length_used_len_terms.find(ex);
+                        TRACE("str", tout << "len: " << len << std::endl;);
                         if (length + len > target) {
                             extra = m_autil.mk_ge(u.str.mk_length(ex), mk_int(target - length + 1));
+                            TRACE("str", tout << "extra: " << mk_pp(extra, m) << std::endl;);
                             if (sublen != nullptr) {
                                 sublen = m_autil.mk_add(sublen, mk_int(target - length));
                             } else {
@@ -13312,7 +13324,7 @@ namespace smt {
                     unsigned num_args = ap->get_num_args();
                     for (unsigned i = 0; i < num_args; i++) {
                         TRACE("str", tout << "loop: " << i << " " << mk_pp(ap->get_arg(i), m)  << " target " << target << " length " << length << " sublen " << mk_pp(sublen, m) << " extra " << mk_pp(extra, m) << std::endl;);
-                        if (length < target) {
+                        if (length < target || (target == 0 && length == 0)) {
                             unsigned len = get_sublen_and_cond(ap->get_arg(i), target, length, sublen, extra);
                             concat_len += len;
                             length += len;
