@@ -626,11 +626,6 @@ protected:
     void add_cut_info_merge(expr * destNode, int slevel, expr * srcNode);
     bool has_self_cut(expr * n1, expr * n2);
 
-    // for count abstraction
-    app * mk_strcount(expr * x, expr * y);
-    bool get_eq_chars_vars(expr * ex, std::set<expr*> *characterSet, std::set<expr*> *varSet);
-    bool instantiate_str_eq_count_axiom(enode * lhs, enode * rhs);
-
     // for ConcatOverlapAvoid
     bool will_result_in_overlap(expr * lhs, expr * rhs);
 
@@ -650,13 +645,17 @@ protected:
     void instantiate_basic_string_axioms(enode * str);
     void instantiate_str_eq_length_axiom(enode * lhs, enode * rhs);
 
+    // for count abstraction and refinement
+    app * mk_strcount(expr * x, expr * y);
+    bool instantiate_str_eq_count_axiom(enode * lhs, enode * rhs);
     void multiset_check(expr * lhs, expr * rhs);
+    bool get_sets(expr * ex, std::set<expr*> *characterSet, std::set<expr*> *varSet);
     bool get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set);
     expr* refine(expr* lhs, expr* rhs, rational offset);
     expr* refine_eq(expr* lhs, expr* rhs, unsigned offset);
     expr* refine_dis(expr* lhs, expr* rhs);
-    unsigned get_sublen_and_cond(expr* lhs, unsigned offset, unsigned length, expr* & sublen, expr* & extra);
-    bool get_remaining_zeros(expr* lhs, expr* & sublen);
+    bool flatten(expr* ex, expr_ref_vector & flat);
+    unsigned get_refine_length(expr* ex);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
