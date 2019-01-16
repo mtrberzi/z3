@@ -10603,6 +10603,7 @@ namespace smt {
             if (model_status == l_true) {
                 // SAT
                 TRACE("str", tout << "subsolver found SAT -- validating model" << std::endl;);
+                TRACE("str_ref", tout << "subsolver found SAT -- validating model" << std::endl;);
 
                 smt_params subsolver_params;
                 subsolver_params.m_string_solver = symbol("seq");
@@ -10621,17 +10622,21 @@ namespace smt {
                     subsolver.assert_expr(subsolver.get_context().mk_eq_atom(entry.m_key, mk_string(entry.m_value)));
                 }
                 TRACE("str", tout << "validating model in subsolver" << std::endl;);
+                TRACE("str_ref", tout << "validating model in subsolver" << std::endl;);
                 lbool validation_result = subsolver.setup_and_check();
                 if (validation_result == l_true) {
                     // SAT
                     TRACE("str", tout << "model is valid" << std::endl;);
+                    TRACE("str_ref", tout << "model is valid" << std::endl;);
                     candidate_model = model;
                     return FC_DONE;
                 } else {
                     TRACE("str", tout << "model is not valid -- generating conflict clause" << std::endl;);
+                    TRACE("str_ref", tout << "model is not valid -- generating conflict clause" << std::endl;);
                     preprocessing_iteration_count += 1;
                     if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                         TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
+                        TRACE("str_ref", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                         return FC_GIVEUP;
                     }
                     // negate (precondition AND model) and assert this as conflict clause
@@ -10652,6 +10657,7 @@ namespace smt {
                 preprocessing_iteration_count += 1;
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
+                    TRACE("str_ref", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     return FC_GIVEUP;
                 }
                 // whatever came back in CEX is the conflict clause.
@@ -10663,6 +10669,7 @@ namespace smt {
             } else {
                 // UNKNOWN
                 TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
+                TRACE("str_ref", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
                 return FC_CONTINUE;
             }
         }
@@ -11484,9 +11491,11 @@ namespace smt {
                 continue;
             }
         }
-        // for (auto e : fixed_length_used_len_terms) {
-        //     precondition.push_back(e);
-        // }
+
+        for (auto e : fixed_length_used_len_terms) {
+            expr * var = &e.get_key();
+            precondition.push_back(m.mk_eq(u.str.mk_length(var), mk_int(e.get_value())));
+        }
 
         TRACE("str", tout << "calling subsolver" << std::endl;);
         TRACE("str_mc", tout << "calling subsolver" << std::endl;);
