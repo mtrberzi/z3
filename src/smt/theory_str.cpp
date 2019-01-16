@@ -11219,6 +11219,7 @@ namespace smt {
                 rational varLen_value;
                 bool var_hasLen = fixed_length_get_len_value(term, varLen_value);
                 ENSURE(var_hasLen);
+                TRACE("str_ref", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
                 TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
                 // TODO what happens if the variable has length 0?
                 ptr_vector<expr> newChars;
@@ -11543,7 +11544,7 @@ namespace smt {
                 expr* lhs;
                 expr* rhs;
                 std::tie(index, lhs, rhs) = fixed_length_lesson.find(subsolver.get_unsat_core_expr(i));
-                TRACE("str", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
+                TRACE("str_ref", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
                 cex.push_back(refine(lhs, rhs, index));
             }
             return l_false;
@@ -13312,7 +13313,7 @@ namespace smt {
             diseqs.push_back(extra_right_cond);
         }
         expr* final_diseq = m.mk_and(diseqs.size(), diseqs.c_ptr());
-        TRACE("str", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
+        TRACE("str_ref", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
         return final_diseq;
     }
 
@@ -13341,7 +13342,7 @@ namespace smt {
             diseqs.push_back(m.mk_eq(u.str.mk_length(*it), mk_int(len)));
         }
         expr* final_diseq = m.mk_and(diseqs.size(), diseqs.c_ptr());
-        TRACE("str", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
+        TRACE("str_ref", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
         return final_diseq;
     }
 
