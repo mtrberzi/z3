@@ -44,10 +44,12 @@ Notes:
 #include "solver/solver2tactic.h"
 #include "solver/parallel_tactic.h"
 #include "solver/parallel_params.hpp"
-
+#include "smt/params/smt_params.h"
 
 
 tactic * mk_tactic_for_logic(ast_manager & m, params_ref const & p, symbol const & logic) {
+    smt_params m_smt_params;
+    m_smt_params.updt_params(p);
     if (logic=="QF_UF")
         return mk_qfuf_tactic(m, p);
     else if (logic=="QF_BV")
@@ -98,7 +100,7 @@ tactic * mk_tactic_for_logic(ast_manager & m, params_ref const & p, symbol const
         return mk_horn_tactic(m, p);
     else if ((logic == "QF_FD" || logic == "SAT") && !m.proofs_enabled())
         return mk_fd_tactic(m, p);
-    else if ((logic == "QF_S") && p.get_sym("string_solver", symbol("auto")) == "z3str3")
+    else if ((logic == "QF_S") && m_smt_params.m_string_solver == symbol("z3str3"))
         return mk_z3str3_tactic(m, p);
     else 
         return mk_default_tactic(m, p);

@@ -22,6 +22,7 @@ Notes:
 #include "smt/tactic/smt_tactic.h"
 
 tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
+    TRACE("str", tout << "using Z3str3 portfolio tactic" << std::endl;);
     tactic * preamble = mk_simplify_tactic(m, p);
 
     params_ref preprocess_p = p;
@@ -34,9 +35,8 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     general_p.set_bool("str.fixed_length_models", false);
     general_p.set_sym("string_solver", symbol("z3str3"));
 
-    tactic * st = and_then(preamble, or_else(
-            using_params(mk_smt_tactic(m), preprocess_p),
-            using_params(mk_smt_tactic(m), general_p)));
-    st->updt_params(p);
+    tactic * st = using_params(and_then(preamble, or_else(
+            and_then(using_params(mk_smt_tactic(m), preprocess_p), mk_fail_if_undecided_tactic()),
+            using_params(mk_smt_tactic(m), general_p))), p);
     return st;
 }
