@@ -11484,8 +11484,6 @@ namespace smt {
                     TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not a boolean formula we handle" << std::endl;);
                     continue;
                 }
-            } else if (fSort == str_sort) {
-                NOT_IMPLEMENTED_YET();
             } else {
                 TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not relevant to strings" << std::endl;);
                 continue;
