@@ -10603,7 +10603,6 @@ namespace smt {
             if (model_status == l_true) {
                 // SAT
                 TRACE("str", tout << "subsolver found SAT -- validating model" << std::endl;);
-                TRACE("str_ref", tout << "subsolver found SAT -- validating model" << std::endl;);
 
                 smt_params subsolver_params;
                 subsolver_params.m_string_solver = symbol("seq");
@@ -10622,21 +10621,17 @@ namespace smt {
                     subsolver.assert_expr(subsolver.get_context().mk_eq_atom(entry.m_key, mk_string(entry.m_value)));
                 }
                 TRACE("str", tout << "validating model in subsolver" << std::endl;);
-                TRACE("str_ref", tout << "validating model in subsolver" << std::endl;);
                 lbool validation_result = subsolver.setup_and_check();
                 if (validation_result == l_true) {
                     // SAT
                     TRACE("str", tout << "model is valid" << std::endl;);
-                    TRACE("str_ref", tout << "model is valid" << std::endl;);
                     candidate_model = model;
                     return FC_DONE;
                 } else {
                     TRACE("str", tout << "model is not valid -- generating conflict clause" << std::endl;);
-                    TRACE("str_ref", tout << "model is not valid -- generating conflict clause" << std::endl;);
                     preprocessing_iteration_count += 1;
                     if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                         TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
-                        TRACE("str_ref", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                         return FC_GIVEUP;
                     }
                     // negate (precondition AND model) and assert this as conflict clause
@@ -10657,7 +10652,6 @@ namespace smt {
                 preprocessing_iteration_count += 1;
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
-                    TRACE("str_ref", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     return FC_GIVEUP;
                 }
                 // whatever came back in CEX is the conflict clause.
@@ -10669,7 +10663,6 @@ namespace smt {
             } else {
                 // UNKNOWN
                 TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
-                TRACE("str_ref", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
                 return FC_CONTINUE;
             }
         }
@@ -11226,7 +11219,6 @@ namespace smt {
                 rational varLen_value;
                 bool var_hasLen = fixed_length_get_len_value(term, varLen_value);
                 ENSURE(var_hasLen);
-                TRACE("str_ref", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
                 TRACE("str", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
                 // TODO what happens if the variable has length 0?
                 ptr_vector<expr> newChars;
@@ -11551,7 +11543,7 @@ namespace smt {
                 expr* lhs;
                 expr* rhs;
                 std::tie(index, lhs, rhs) = fixed_length_lesson.find(subsolver.get_unsat_core_expr(i));
-                TRACE("str_ref", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
+                TRACE("str", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
                 cex.push_back(refine(lhs, rhs, index));
             }
             return l_false;
@@ -13320,7 +13312,7 @@ namespace smt {
             diseqs.push_back(extra_right_cond);
         }
         expr* final_diseq = m.mk_and(diseqs.size(), diseqs.c_ptr());
-        TRACE("str_ref", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
+        TRACE("str", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
         return final_diseq;
     }
 
@@ -13349,7 +13341,7 @@ namespace smt {
             diseqs.push_back(m.mk_eq(u.str.mk_length(*it), mk_int(len)));
         }
         expr* final_diseq = m.mk_and(diseqs.size(), diseqs.c_ptr());
-        TRACE("str_ref", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
+        TRACE("str", tout << "learning " << mk_pp(final_diseq, m) << std::endl;);
         return final_diseq;
     }
 
