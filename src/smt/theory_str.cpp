@@ -1282,6 +1282,10 @@ namespace smt {
         ast_manager & m = get_manager();
 
         app * ex = e->get_owner();
+        if (m_params.m_FixedLengthPreprocessing) {
+            TRACE("str", tout << "skipping axiom setup on " << mk_pp(ex, m) << ": preprocessing to character-solver encoding" << std::endl;);
+            return;
+        }
         if (axiomatized_terms.contains(ex)) {
             TRACE("str", tout << "already set up Contains axiom for " << mk_pp(ex, m) << std::endl;);
             return;
@@ -11419,14 +11423,19 @@ namespace smt {
 
         if (haystack_chars.size() == 0 && needle_chars.size() > 0) {
             // the empty string doesn't "contain" any non-empty string
-            NOT_IMPLEMENTED_YET();
+            cex = m.mk_or(m.mk_not(f), get_context().mk_eq_atom(mk_strlen(needle), mk_int(0)),
+                    m_autil.mk_ge(mk_strlen(haystack), mk_int(0)));
+            th_rewriter m_rw(m);
+            m_rw(cex);
             return false;
         }
 
         if (needle_chars.size() > haystack_chars.size()) {
             // a string can't contain a longer one
             // X contains Y -> len(X) >= len(Y)
-            NOT_IMPLEMENTED_YET();
+            cex = m.mk_or(m.mk_not(f), m_autil.mk_ge(mk_strlen(haystack), mk_strlen(needle)));
+            th_rewriter m_rw(m);
+            m_rw(cex);
             return false;
         }
         // find all positions at which `needle` could occur in `haystack`
