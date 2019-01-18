@@ -10662,6 +10662,11 @@ namespace smt {
                 return FC_CONTINUE;
             } else {
                 // UNKNOWN
+                preprocessing_iteration_count += 1;
+                if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
+                    TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
+                    return FC_GIVEUP;
+                }
                 TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
                 return FC_CONTINUE;
             }
@@ -11397,6 +11402,53 @@ namespace smt {
         return val.is_int();
     }
 
+    bool theory_str::fixed_length_reduce_contains(smt::kernel & subsolver, expr * f, expr_ref & cex) {
+        ast_manager & m = get_manager();
+
+        expr * needle;
+        expr * haystack;
+        u.str.is_contains(f, haystack, needle);
+        ptr_vector<expr> needle_chars, haystack_chars;
+        fixed_length_reduce_string_term(subsolver, needle, needle_chars);
+        fixed_length_reduce_string_term(subsolver, haystack, haystack_chars);
+
+        if (needle_chars.size() == 0) {
+            // all strings "contain" the empty one
+            return true;
+        }
+
+        if (haystack_chars.size() == 0 && needle_chars.size() > 0) {
+            // the empty string doesn't "contain" any non-empty string
+            NOT_IMPLEMENTED_YET();
+            return false;
+        }
+
+        if (needle_chars.size() > haystack_chars.size()) {
+            // a string can't contain a longer one
+            // X contains Y -> len(X) >= len(Y)
+            NOT_IMPLEMENTED_YET();
+            return false;
+        }
+        // find all positions at which `needle` could occur in `haystack`
+        expr_ref_vector branches(m);
+        for (unsigned i = 0; i <= (haystack_chars.size() - needle_chars.size()); ++i) {
+            // i defines the offset into haystack_chars
+            expr_ref_vector branch(m);
+            for (unsigned j = 0; j < needle_chars.size(); ++j) {
+                // needle[j] == haystack[i+j]
+                ENSURE(i+j < haystack_chars.size());
+                expr * cL = needle_chars.get(j);
+                expr * cR = haystack_chars.get(j+i);
+                branch.push_back(subsolver.get_context().mk_eq_atom(cL, cR));
+            }
+            branches.push_back(mk_and(branch));
+        }
+        expr_ref final_diseq(mk_or(branches), m);
+        fixed_length_assumptions.push_back(final_diseq);
+        // TODO fixed_length_lesson
+        return true;
+    }
+
     lbool theory_str::fixed_length_model_construction(expr_ref_vector formulas, expr_ref_vector &precondition,
             obj_map<expr, zstring> &model, expr_ref_vector &cex) {
         ast_manager & m = get_manager();
@@ -11451,7 +11503,15 @@ namespace smt {
                     }
                 } else if (u.str.is_in_re(f)) {
                     TRACE("str", tout << "WARNING: regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
-                    NOT_IMPLEMENTED_YET();
+                    return l_undef;
+                }else if (u.str.is_contains(f)) {
+                    TRACE("str", tout << "reduce positive contains: " << mk_pp(f, m) << std::endl;);
+                    expr_ref cex(m);
+                    if (!fixed_length_reduce_contains(subsolver, f, cex)) {
+                        assert_axiom(cex);
+                        add_persisted_axiom(cex);
+                        return l_undef;
+                    }
                 } else if (m.is_not(f, subterm)) {
                     // if subterm is a string formula such as an equality, reduce it as a disequality
                     if (m.is_eq(subterm, lhs, rhs)) {
@@ -11467,8 +11527,11 @@ namespace smt {
                             }
                         }
                     } else if (u.str.is_in_re(subterm)) {
-                        TRACE("str", tout << "WARNING: regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        TRACE("str", tout << "WARNING: negative regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
+                        return l_undef;
+                    } else if (u.str.is_contains(f)) {
+                        TRACE("str", tout << "WARNING: negative contains not yet implemented in fixed-length model construction!" << std::endl;);
+                        return l_undef;
                     } else {
                         TRACE("str", tout << "skip reducing formula " << mk_pp(f, m) << ", not a boolean formula we handle" << std::endl;);
                     }
