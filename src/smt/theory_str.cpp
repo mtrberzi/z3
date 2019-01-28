@@ -74,7 +74,8 @@ namespace smt {
         m_find(*this),
         fixed_length_subterm_trail(m),
         fixed_length_assumptions(m),
-        preprocessing_iteration_count(0)
+        preprocessing_iteration_count(0),
+        fixed_length_transcendent_axioms(m)
     {
         initialize_charset();
     }
@@ -10663,6 +10664,7 @@ namespace smt {
                 expr_ref conflict(m.mk_not(mk_and(cex)), m);
                 assert_axiom(conflict);
                 add_persisted_axiom(conflict);
+                fixed_length_transcendent_axioms.push_back(conflict);
                 return FC_CONTINUE;
             } else {
                 // UNKNOWN
@@ -11060,6 +11062,7 @@ namespace smt {
                 expr_ref conflict(m.mk_not(mk_and(cex)), m);
                 assert_axiom(conflict);
                 add_persisted_axiom(conflict);
+                fixed_length_transcendent_axioms.push_back(conflict);
                 return FC_CONTINUE;
             } else { // model_status == l_undef
                 TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);

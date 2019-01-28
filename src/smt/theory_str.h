@@ -602,6 +602,7 @@ protected:
     obj_map<expr, std::tuple<rational, expr*, expr*>> fixed_length_lesson; //keep track of information for the lesson
     unsigned preprocessing_iteration_count; // number of attempts we've made to solve by preprocessing length information
     obj_map<expr, zstring> candidate_model;
+    expr_ref_vector fixed_length_transcendent_axioms; // learned clauses to carry over between different SMT solvers across tactics
 protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);
@@ -868,6 +869,7 @@ public:
     void display(std::ostream & out) const override;
 
     bool overlapping_variables_detected() const { return loopDetected; }
+    expr_ref_vector get_transcendent_axioms() const { return fixed_length_transcendent_axioms; }
 
     th_trail_stack& get_trail_stack() { return m_trail_stack; }
     void merge_eh(theory_var, theory_var, theory_var v1, theory_var v2) {}

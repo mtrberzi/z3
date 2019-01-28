@@ -74,6 +74,7 @@ public:
 
     // translate tactic to the given manager
     virtual tactic * translate(ast_manager & m) = 0;
+
 protected:
     friend class nary_tactical;
     friend class binary_tactical;

@@ -1125,4 +1125,3 @@ tactic * if_no_models(tactic * t) {
 tactic * skip_if_failed(tactic * t) {
     return or_else(t, mk_skip_tactic());
 }
-
