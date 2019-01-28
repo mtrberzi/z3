@@ -656,7 +656,7 @@ protected:
     expr* refine_dis(expr* lhs, expr* rhs);
     expr* refine_function(expr* f);
     bool flatten(expr* ex, expr_ref_vector & flat);
-    unsigned get_refine_length(expr* ex);
+    unsigned get_refine_length(expr* ex, expr_ref_vector& extra_deps);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
