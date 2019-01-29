@@ -655,8 +655,9 @@ protected:
     expr* refine(expr* lhs, expr* rhs, rational offset);
     expr* refine_eq(expr* lhs, expr* rhs, unsigned offset);
     expr* refine_dis(expr* lhs, expr* rhs);
+    expr* refine_function(expr* f);
     bool flatten(expr* ex, expr_ref_vector & flat);
-    unsigned get_refine_length(expr* ex);
+    unsigned get_refine_length(expr* ex, expr_ref_vector& extra_deps);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
@@ -830,6 +831,11 @@ protected:
     bool fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs, expr_ref & cex);
     void fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & eqcChars);
     bool fixed_length_reduce_contains(smt::kernel & subsolver, expr * f, expr_ref & cex);
+    bool fixed_length_reduce_negative_contains(smt::kernel & subsolver, expr * f, expr_ref & cex);
+    bool fixed_length_reduce_prefix(smt::kernel & subsolver, expr * f, expr_ref & cex);
+    bool fixed_length_reduce_negative_prefix(smt::kernel & subsolver, expr * f, expr_ref & cex);
+    bool fixed_length_reduce_suffix(smt::kernel & subsolver, expr * f, expr_ref & cex);
+    bool fixed_length_reduce_negative_suffix(smt::kernel & subsolver, expr * f, expr_ref & cex);
     bool fixed_length_get_len_value(expr * e, rational & val);
 
     // strRegex
