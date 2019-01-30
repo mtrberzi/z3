@@ -13788,4 +13788,365 @@ namespace smt {
         TRACE("str", tout << "non string term!" << mk_pp(ex, m) << std::endl;);
         return false;
     }
+
+    // @mku
+    // Lemma stuff
+    // Transfer an expr to expr vector
+   // preparation for n-ary concat; build an interface like this...
+   void theory_str::expr_to_expr_vector(expr * ex, expr_ref_vector & ex_v, std::set<expr*> & letter_alphabet, std::set<expr*> & variable_alphabet){
+	ast_manager & m = get_manager();
+	zstring strConst;
+	expr * lhs;
+	expr * rhs;
+
+	if (u.str.is_string(ex, strConst)) {
+		//ex_v.push_back(ex);
+		split_letter_expression(strConst,ex_v,letter_alphabet);
+	} else if (u.str.is_concat(ex, lhs, rhs)) {
+		expr_to_expr_vector(lhs,ex_v,letter_alphabet,variable_alphabet);
+		expr_to_expr_vector(rhs,ex_v,letter_alphabet,variable_alphabet);
+	} else {
+		ex_v.push_back(ex);
+		variable_alphabet.insert(ex);
+	}
+   }
+
+   void theory_str::expr_vector_to_expr(expr_ref_vector * ex_v, expr*& ex){
+	   ast_manager & m = get_manager();
+	   if(ex_v->size() == 1){
+		   ex = ex_v->get(0);
+		   return;
+	   }
+	   ex = m.mk_app(get_family_id(), OP_SEQ_CONCAT, ex_v->size() , ex_v->c_ptr());
+   }
+
+   void theory_str::split_letter_expression(zstring & strConst, expr_ref_vector & ex_v,std::set<expr*> & alphabet){
+	for(size_t i = 0; i < strConst.length(); i++){
+		expr * letter = mk_string(strConst.extract(i, 1));
+		ex_v.push_back(letter);
+		alphabet.insert(letter);
+	}
+   }
+
+   // returns the prefix of length k of a given expression vector
+   bool theory_str::get_prefix(expr_ref_vector * ex_v, unsigned k, expr_ref_vector & prefix){
+	if (k > ex_v->size()){
+		return false;
+	}
+
+	expr_ref_vector::iterator startPoint = ex_v->begin();
+	for(expr_ref_vector::iterator it = ex_v->begin(); it - startPoint != k; ++it){
+		prefix.push_back(*it);
+	}
+
+	return true;
+   }
+
+   // returns the suffix of length k of a given expression vector
+   bool theory_str::get_suffix(expr_ref_vector * ex_v, unsigned k, expr_ref_vector & suffix){
+	if (k > ex_v->size()){
+		return false;
+	}
+
+	expr_ref_vector::iterator startPoint = (ex_v->begin()+(ex_v->size()-k));
+	for(expr_ref_vector::iterator it = ex_v->begin()+(ex_v->size()-k); it - startPoint != k; ++it){
+		suffix.push_back(*it);
+	}
+	return true;
+   }
+
+   void theory_str::modify_parikh_image(expr * ex, obj_map<expr,int> & p){
+	int old_v;
+	if (p.find(ex, old_v)) {
+		old_v++;
+		p.insert(ex, old_v);
+	} else {
+		old_v = 1;
+		p.insert(ex, old_v);
+	}
+   }
+
+   // Gives us a map where each character is mapped to it's occurrence count inside the expression vector
+   void theory_str::get_parikh_image(expr_ref_vector * ex_v, obj_map<expr,int> & p_letters, obj_map<expr,int> & p_variables){
+	for(expr_ref_vector::iterator it = ex_v->begin(); it != ex_v->end(); ++it){
+		expr * ex = *it;
+		if (u.str.is_string(ex)){
+			modify_parikh_image(ex,p_letters);
+		} else if (u.str.is_concat(ex)) {
+			// We should never reach this entry!
+			NOT_IMPLEMENTED_YET();
+		} else {
+			modify_parikh_image(ex,p_variables);
+		}
+	}
+   }
+
+   // Gives us an object map where for each character x in the equation the count of its left hand side occurrence is subtracted by
+   // it's right hand side occurrence.
+   void theory_str::get_substracted_parikh_image(expr_ref_vector * lhs, expr_ref_vector * rhs, std::set<expr*> * letter_alphabet, std::set<expr*> * variable_alphabet, obj_map<expr,int> & p_letters, obj_map<expr,int> & p_variables){
+	obj_map<expr,int> l_variables;
+	obj_map<expr,int> l_letters;
+	obj_map<expr,int> r_variables;
+	obj_map<expr,int> r_letters;
+
+	get_parikh_image(lhs,l_letters,l_variables);
+	get_parikh_image(rhs,r_letters,r_variables);
+
+	// process letters
+	calculate_substraced_parikh_image(& r_letters, & l_letters,letter_alphabet,p_letters);
+	// process variables
+	calculate_substraced_parikh_image(& r_variables,& l_variables,variable_alphabet,p_variables);
+	return;
+   }
+
+   void theory_str::calculate_substraced_parikh_image(obj_map<expr,int> * r_parikh,obj_map<expr,int> * l_parikh, std::set<expr*> * alphabet, obj_map<expr,int> & s_parikh){
+	for(auto it = alphabet->begin(); it != alphabet->end(); ++it){
+		expr * ex = *it;
+		int v_r;
+		int v_l;
+		if (l_parikh->find(ex, v_l) && r_parikh->find(ex, v_r)) {
+			s_parikh.insert(ex,v_l-v_r);
+		} else if (l_parikh->find(ex, v_l)) {
+			s_parikh.insert(ex,v_l);
+		} else if (r_parikh->find(ex, v_r)) {
+			s_parikh.insert(ex,-v_r);
+		} else {
+			// character is not in the equation any more.
+			// We should never reach this place...
+		}
+	}
+	return;
+   }
+
+   void theory_str::assert_parikh_axioms(expr * lhs, expr * rhs,expr_ref_vector * lhs_v, expr_ref_vector * rhs_v, std::set<expr*> * letter_alphabet, std::set<expr*> * variable_alphabet, std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> & process_fun){
+		// ALERT!!!
+		// this implementation is really naive right now ;/
+		// since we do not modify the equation here its suitable to only store pointers to matching factors of lhs/rhs<
+		// ALERT!!!
+		ast_manager & m = get_manager();
+		context & ctx = get_context();
+		th_rewriter m_rw(m);
+		unsigned k = 1;
+		bool processValid = true;
+		expr_ref globalPremise(ctx.mk_eq_atom(lhs, rhs), m);
+
+		obj_map<expr,int> f_variables;
+		obj_map<expr,int> f_letters;
+		get_substracted_parikh_image(lhs_v, rhs_v, letter_alphabet, variable_alphabet, f_letters, f_variables);
+		build_parkih_equation_system(&f_variables, &f_letters, globalPremise);
+
+		while(true){
+			obj_map<expr,int> p_variables;
+			obj_map<expr,int> p_letters;
+			expr_ref_vector p_lhs_v(m);
+			expr_ref_vector p_rhs_v(m);
+
+			// check whether there is something to process
+			processValid = process_fun(lhs_v,k,p_lhs_v) &&  process_fun(rhs_v,k,p_rhs_v);
+
+			if (!(processValid))
+				break;
+
+			get_substracted_parikh_image(& p_lhs_v, & p_rhs_v, letter_alphabet, variable_alphabet, p_letters, p_variables);
+			if(parikh_Image_all_zero(& p_variables) && parikh_letters_linup(& p_letters)) {
+				expr * p_lhs;
+				expr * p_rhs;
+				expr_vector_to_expr(&p_lhs_v, p_lhs);
+				expr_vector_to_expr(&p_rhs_v, p_rhs);
+				if(parikh_multiset_mismatch(&p_variables, &p_letters) || parkih_one_sided_mismatch(&p_variables,&p_letters)){
+					// TODO: How to do this properly? If I reach this point, the COMPLETE equation has no solution!
+					expr_ref premise(m.mk_not(ctx.mk_eq_atom(lhs, rhs)), m);
+					m_rw(premise);
+					assert_axiom(premise);
+					//expr_ref conflict(m.mk_false(), m);
+					//assert_implication(premise, conflict);
+				} else {
+					expr_ref globalPremise(ctx.mk_eq_atom(p_lhs, p_rhs), m);
+					build_parkih_equation_system(&p_variables, &p_letters, globalPremise);
+				}
+			}
+			k++;
+		}
+   }
+
+   // removes equal pre-/suffixes from a given equation
+   void theory_str::remove_equal_pre_and_suffix(expr_ref_vector & lhs_v, expr_ref_vector & rhs_v){
+	   unsigned lhs_s = lhs_v.size()-1;
+	   unsigned rhs_s = rhs_v.size()-1;
+	   unsigned minLength = std::min(lhs_s+1,rhs_s+1);
+	   unsigned equal_suffix_ID = 0;
+	   unsigned equal_prefix_ID = 0;
+	   bool missmatch_prefix = false;
+	   bool missmatch_suffix = false;
+	   expr * lhs_value;
+	   expr * rhs_value;
+
+	   for(unsigned i=0;i<minLength;i++){
+		   if(!missmatch_suffix && !(in_same_eqc(lhs_v.get(lhs_s-i),rhs_v.get(rhs_s-i)))){
+			   missmatch_suffix = true;
+			   equal_suffix_ID = i;
+		   }
+
+		   if(!missmatch_prefix && !(in_same_eqc(lhs_v.get(i),rhs_v.get(i)))){
+			   missmatch_prefix = true;
+			   equal_prefix_ID = i;
+		   }
+		   if (missmatch_prefix && missmatch_suffix)
+			   break;
+	   }
+
+	   if (!missmatch_prefix)
+		   equal_prefix_ID = minLength;
+
+	   if(!missmatch_suffix)
+		   equal_suffix_ID = minLength;
+
+	   // strip the suffix
+	   if (equal_suffix_ID > 0){
+		   lhs_v.resize((lhs_s+1)-(equal_suffix_ID));
+		   rhs_v.resize((rhs_s+1)-(equal_suffix_ID));
+	   }
+
+	   // strip the prefix
+	   if (equal_prefix_ID > 0){
+		  unsigned eraseID = 0;
+		  for (unsigned i=0; i<equal_prefix_ID;i++){
+			   if(lhs_v.size() == 0 || rhs_v.size() == 0){
+				   break;
+			   }
+			   lhs_v.erase(eraseID);
+			   rhs_v.erase(eraseID);
+		   }
+	   }
+	   if(lhs_v.size() == 0){
+		   lhs_v.push_back(mk_string(""));
+	   }
+	   if(rhs_v.size() == 0){
+		   rhs_v.push_back(mk_string(""));
+	   }
+	   return;
+   }
+
+   // completely balanced equation based on a parikh image
+   bool theory_str::parikh_Image_all_zero(obj_map<expr,int> * parikh){
+	for (auto it = parikh->begin(); it != parikh->end(); ++it){
+		if(it->m_value != 0){
+			return false;
+		}
+	}
+	return true;
+   }
+
+   // check if left and right hand side have the same amount of characters
+   bool theory_str::parikh_letters_linup(obj_map<expr,int> * parikh){
+	int value = 0;
+	for (auto it = parikh->begin(); it != parikh->end(); ++it){
+		value+=it->m_value;
+	}
+	return value == 0;
+   }
+
+   // Variables/letters have more occurrences on one side and we can not make them equal
+   bool theory_str::parkih_one_sided_mismatch(obj_map<expr,int> * p_variable, obj_map<expr,int> * p_letter){
+	   if (p_variable->size() == 0 || p_letter->size() == 0){
+		   return false;
+	   }
+	   for (auto l_it = p_letter->begin(); l_it != p_letter->end(); ++l_it){
+		   for (auto v_it = p_variable->begin(); v_it != p_variable->end(); ++v_it){
+			   if(l_it->m_value * v_it->m_value <= 0){
+				  return false;
+			  }
+		   }
+	   }
+	  return true;
+   }
+
+   bool theory_str::parikh_multiset_mismatch(obj_map<expr,int> * p_variable, obj_map<expr,int> * p_letter){
+	  if (parikh_Image_all_zero(p_variable)){
+		  return !(parikh_Image_all_zero(p_letter));
+	  }
+	  return false;
+   }
+
+   // Build variable part of the system based on the parikh image
+   // for an equation aXYb = aYZ, we build 1*X_a + 0*Y_a - 1*Z_a and 1*X_b + 0*Y_b - 1*Z_b
+   void theory_str::get_parikh_variable_constraint(obj_map<expr,int> * p_variables, expr *& ex){
+	   auto iStart = p_variables->begin();
+	   ex = m_autil.mk_mul(mk_int(iStart->m_value),mk_int_var("X"));
+	   iStart++;
+	   for (auto it = iStart; it != p_variables->end(); ++it){
+		   ex = m_autil.mk_add(ex,m_autil.mk_mul(mk_int(it->m_value),mk_int_var("X")));
+	   }
+	   return;
+   }
+
+   void theory_str::build_parkih_equation_system(obj_map<expr,int> * p_variables, obj_map<expr,int> * p_letters, expr_ref globalPremise){
+	   ast_manager & m = get_manager();
+	   th_rewriter m_rw(m);
+	   context & ctx = get_context();
+	   expr * variableConstraints;
+	   expr * true_expr = m.mk_true();
+
+	   for(auto it = p_letters->begin();it != p_letters->end();++it){
+		   expr * lhsEquation;
+		   if (p_variables->size() == 0){
+			   lhsEquation = m_autil.mk_sub(m_autil.mk_int(0),m_autil.mk_int(it->m_value));
+		   } else {
+			   get_parikh_variable_constraint(p_variables,variableConstraints);
+			   lhsEquation = m_autil.mk_sub(variableConstraints,m_autil.mk_int(it->m_value));
+		   }
+		   expr_ref conclusion(ctx.mk_eq_atom(lhsEquation, m_autil.mk_int(0)),m);
+		   m_rw(conclusion);
+		   // we only need the axiom if it gives us information about a mismatch
+		   if (!in_same_eqc(conclusion,true_expr)){
+			   // lhs == rhs -> m_1*X_a + m_2*Y_a + m_3*Z_a ... + |a| = 0
+			   assert_implication(globalPremise, conclusion);
+		   }
+	   }
+   }
+
+   // aX.. = a.. -> x \in a^*
+   void theory_str::add_aX_constraint(expr_ref_vector & lhs, expr_ref_vector & rhs, expr_ref premise){
+	   unsigned lhs_size = lhs.size(),rhs_size = rhs.size();
+	   if(lhs_size < 2 || rhs_size< 2)
+		   return;
+	   expr_ref axiom(get_manager());
+
+	   //TODO: AXIOMS NOT WORKING!!!
+	   if (verify_and_add_aX_constraint(lhs.get(0),rhs.get(1),rhs.get(0),axiom))
+		   assert_implication(premise, axiom);
+	   if (verify_and_add_aX_constraint(rhs.get(0),lhs.get(1),lhs.get(0),axiom))
+		   assert_implication(premise, axiom);
+	   if (verify_and_add_aX_constraint(lhs.get(lhs_size-1),rhs.get(rhs_size-2),rhs.get(rhs_size-1),axiom))
+		   assert_implication(premise, axiom);
+	   if (verify_and_add_aX_constraint(rhs.get(rhs_size-1),lhs.get(lhs_size-2),lhs.get(lhs_size-1),axiom))
+		   assert_implication(premise, axiom);
+   }
+
+   bool theory_str::verify_and_add_aX_constraint(expr * varFirst, expr * varSecond, expr * letter, expr_ref & axiom){
+	   if (u.str.is_string(varFirst) || u.str.is_string(varSecond) || !u.str.is_string(letter))
+		   return false;
+
+	   if (in_same_eqc(varFirst,varSecond)){
+		   axiom = u.re.mk_in_re(varFirst, u.re.mk_star(letter)); // mk_RegexIn(varFirst, u.re.mk_star(letter));
+
+		   //get_context().internalize(axiom, false);
+		   //set_up_axioms(axiom);
+
+
+		   return true;
+	   }
+
+	   return false;
+   }
+
+   // REMOVE ME LATER
+   void theory_str::print_expr_vector(expr_ref_vector * ex_v){
+	for (auto it = ex_v->begin();it != ex_v->end();++it){
+		expr * ex = *it;
+		std::cout << mk_ismt2_pp(ex, get_manager());
+	}
+	std::cout << std::endl;
+   }
+
 }; /* namespace smt */

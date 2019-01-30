@@ -36,6 +36,7 @@
 #include<stack>
 #include<vector>
 #include<map>
+#include<functional>
 
 namespace smt {
 
@@ -697,6 +698,30 @@ protected:
     expr_ref aut_path_rewrite_constraint(expr * cond, expr * ch_var);
     void regex_inc_counter(obj_map<expr, unsigned> & counter_map, expr * key);
     unsigned regex_get_counter(obj_map<expr, unsigned> & counter_map, expr * key);
+
+
+    // @mku
+    void expr_to_expr_vector(expr * ex, expr_ref_vector & ex_v, std::set<expr*> & letter_alphabet, std::set<expr*> & variable_alphabet);
+    void expr_vector_to_expr(expr_ref_vector * ex_v, expr*& ex);
+    void split_letter_expression(zstring & strConst, expr_ref_vector & ex_v,std::set<expr*> & alphabet);
+    bool get_suffix(expr_ref_vector * ex_v, unsigned k, expr_ref_vector & suffix);
+    bool get_prefix(expr_ref_vector * ex_v, unsigned k, expr_ref_vector & prefix);
+    void modify_parikh_image(expr * ex, obj_map<expr,int> & p);
+    void get_parikh_image(expr_ref_vector * ex_v, obj_map<expr,int> & p_letters, obj_map<expr,int> & p_variables);
+    void get_substracted_parikh_image(expr_ref_vector * lhs, expr_ref_vector * rhs, std::set<expr*> * letter_alphabet, std::set<expr*> * variable_alphabet, obj_map<expr,int> & p_letters, obj_map<expr,int> & p_variables);
+    void calculate_substraced_parikh_image(obj_map<expr,int> * r_parikh,obj_map<expr,int> * l_parikh, std::set<expr*> * alphabet, obj_map<expr,int> & s_parikh);
+    void assert_parikh_axioms(expr * lhs, expr * rhs,expr_ref_vector * lhs_v, expr_ref_vector * rhs_v, std::set<expr*> * letter_alphabet, std::set<expr*> * variable_alphabet, std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> & process_fun);
+    bool parikh_letters_linup(obj_map<expr,int> * parikh);
+    bool parikh_Image_all_zero(obj_map<expr,int> * parikh);
+    bool parkih_one_sided_mismatch(obj_map<expr,int> * p_variable, obj_map<expr,int> * p_letter);
+    bool parikh_multiset_mismatch(obj_map<expr,int> * p_variable, obj_map<expr,int> * p_letter);
+    void remove_equal_pre_and_suffix(expr_ref_vector & lhs_v, expr_ref_vector & rhs_v);
+    void get_parikh_variable_constraint(obj_map<expr,int> * p_variables, expr *& ex);
+    void build_parkih_equation_system(obj_map<expr,int> * p_variables, obj_map<expr,int> * p_letters, expr_ref globalPremise);
+    void add_aX_constraint(expr_ref_vector & lhs, expr_ref_vector & rhs, expr_ref premise);
+    bool verify_and_add_aX_constraint(expr * varFirst, expr * varSecond, expr * letter, expr_ref & axiom);
+    void print_expr_vector(expr_ref_vector * ex_v);
+
 
     void set_up_axioms(expr * ex);
     void handle_equality(expr * lhs, expr * rhs);
