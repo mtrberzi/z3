@@ -8242,27 +8242,29 @@ namespace smt {
             }
         }
 
-        expr_ref_vector lhs_v(m);
-		expr_ref_vector rhs_v(m);
-		std::set<expr*> letter_alphabet;
-		std::set<expr*> variable_alphabet;
-        expr_to_expr_vector(lhs, lhs_v, letter_alphabet, variable_alphabet);
-        expr_to_expr_vector(rhs, rhs_v, letter_alphabet, variable_alphabet);
+        if(m_params.m_inProcessingLemmas){
+			expr_ref_vector lhs_v(m);
+			expr_ref_vector rhs_v(m);
+			std::set<expr*> letter_alphabet;
+			std::set<expr*> variable_alphabet;
+			expr_to_expr_vector(lhs, lhs_v, letter_alphabet, variable_alphabet);
+			expr_to_expr_vector(rhs, rhs_v, letter_alphabet, variable_alphabet);
 
-        // Functions
-		std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> f_prefix = [=](expr_ref_vector* ex_v,unsigned k,expr_ref_vector& prefix) {return this->get_prefix(ex_v, k, prefix);};
-		std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> f_suffix = [=](expr_ref_vector* ex_v,unsigned k,expr_ref_vector& suffix) {return this->get_suffix(ex_v, k, suffix);};
+			// Functions
+			std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> f_prefix = [=](expr_ref_vector* ex_v,unsigned k,expr_ref_vector& prefix) {return this->get_prefix(ex_v, k, prefix);};
+			std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> f_suffix = [=](expr_ref_vector* ex_v,unsigned k,expr_ref_vector& suffix) {return this->get_suffix(ex_v, k, suffix);};
 
-        remove_equal_pre_and_suffix(lhs_v,rhs_v);
-        assert_parikh_axioms(lhs,rhs,&lhs_v,&rhs_v,&letter_alphabet,&variable_alphabet,f_prefix);
-        assert_parikh_axioms(lhs,rhs,&lhs_v,&rhs_v,&letter_alphabet,&variable_alphabet,f_suffix);
+			remove_equal_pre_and_suffix(lhs_v,rhs_v);
+			assert_parikh_axioms(lhs,rhs,&lhs_v,&rhs_v,&letter_alphabet,&variable_alphabet,f_prefix);
+			assert_parikh_axioms(lhs,rhs,&lhs_v,&rhs_v,&letter_alphabet,&variable_alphabet,f_suffix);
 
-        expr_vector_to_expr(&lhs_v,lhs);
-        expr_vector_to_expr(&rhs_v,rhs);
+			expr_vector_to_expr(&lhs_v,lhs);
+			expr_vector_to_expr(&rhs_v,rhs);
 
-        // TODO AXIOMS NOT WORKING!!!
-        expr_ref premise(ctx.mk_eq_atom(lhs, rhs), m);
-        add_aX_constraint(lhs_v, rhs_v,premise);
+			// TODO AXIOMS NOT WORKING!!!
+			//expr_ref premise(ctx.mk_eq_atom(lhs, rhs), m);
+			//add_aX_constraint(lhs_v, rhs_v,premise);
+        }
     }
 
     // Check that a string's length can be 0 iff it is the empty string.
