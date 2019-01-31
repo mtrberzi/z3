@@ -8242,6 +8242,33 @@ namespace smt {
             }
         }
 
+        expr_ref_vector lhs_v(m);
+		expr_ref_vector rhs_v(m);
+		std::set<expr*> letter_alphabet;
+		std::set<expr*> variable_alphabet;
+        expr_to_expr_vector(lhs, lhs_v, letter_alphabet, variable_alphabet);
+        expr_to_expr_vector(rhs, rhs_v, letter_alphabet, variable_alphabet);
+
+        // Functions
+		std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> f_prefix = [=](expr_ref_vector* ex_v,unsigned k,expr_ref_vector& prefix) {return this->get_prefix(ex_v, k, prefix);};
+		std::function<bool(expr_ref_vector*,unsigned,expr_ref_vector&)> f_suffix = [=](expr_ref_vector* ex_v,unsigned k,expr_ref_vector& suffix) {return this->get_suffix(ex_v, k, suffix);};
+
+        remove_equal_pre_and_suffix(lhs_v,rhs_v);
+        assert_parikh_axioms(lhs,rhs,&lhs_v,&rhs_v,&letter_alphabet,&variable_alphabet,f_prefix);
+        assert_parikh_axioms(lhs,rhs,&lhs_v,&rhs_v,&letter_alphabet,&variable_alphabet,f_suffix);
+
+        expr_vector_to_expr(&lhs_v,lhs);
+        expr_vector_to_expr(&rhs_v,rhs);
+
+        // TODO AXIOMS NOT WORKING!!!
+        expr_ref premise(ctx.mk_eq_atom(lhs, rhs), m);
+        add_aX_constraint(lhs_v, rhs_v,premise);
+
+
+
+        //print_expr_vector(&lhs_v);
+        //print_expr_vector(&rhs_v);
+
     }
 
     // Check that a string's length can be 0 iff it is the empty string.
@@ -13794,7 +13821,6 @@ namespace smt {
     // Transfer an expr to expr vector
    // preparation for n-ary concat; build an interface like this...
    void theory_str::expr_to_expr_vector(expr * ex, expr_ref_vector & ex_v, std::set<expr*> & letter_alphabet, std::set<expr*> & variable_alphabet){
-	ast_manager & m = get_manager();
 	zstring strConst;
 	expr * lhs;
 	expr * rhs;
@@ -13831,6 +13857,7 @@ namespace smt {
    // returns the prefix of length k of a given expression vector
    bool theory_str::get_prefix(expr_ref_vector * ex_v, unsigned k, expr_ref_vector & prefix){
 	if (k > ex_v->size()){
+		TRACE("str", tout << "Requested expression is too short. Request " << k << " of length " << ex_v->size() << "." << std::endl;);
 		return false;
 	}
 
@@ -13838,6 +13865,8 @@ namespace smt {
 	for(expr_ref_vector::iterator it = ex_v->begin(); it - startPoint != k; ++it){
 		prefix.push_back(*it);
 	}
+	TRACE("str", tout << "Got the prefix: ";);
+	print_expr_vector(&prefix);
 
 	return true;
    }
@@ -13845,6 +13874,7 @@ namespace smt {
    // returns the suffix of length k of a given expression vector
    bool theory_str::get_suffix(expr_ref_vector * ex_v, unsigned k, expr_ref_vector & suffix){
 	if (k > ex_v->size()){
+		TRACE("str", tout << "Requested expression is too short. Request " << k << " of length " << ex_v->size() << "." << std::endl;);
 		return false;
 	}
 
@@ -13852,6 +13882,8 @@ namespace smt {
 	for(expr_ref_vector::iterator it = ex_v->begin()+(ex_v->size()-k); it - startPoint != k; ++it){
 		suffix.push_back(*it);
 	}
+	TRACE("str", tout << "Got the suffix: ";);
+	print_expr_vector(&suffix);
 	return true;
    }
 
@@ -13954,6 +13986,10 @@ namespace smt {
 				expr_vector_to_expr(&p_lhs_v, p_lhs);
 				expr_vector_to_expr(&p_rhs_v, p_rhs);
 				if(parikh_multiset_mismatch(&p_variables, &p_letters) || parkih_one_sided_mismatch(&p_variables,&p_letters)){
+					TRACE("str", tout << "Found a mismatch within the equation: " << std::endl;);
+					print_expr_vector(&p_lhs_v);
+					print_expr_vector(&p_rhs_v);
+
 					// TODO: How to do this properly? If I reach this point, the COMPLETE equation has no solution!
 					expr_ref premise(m.mk_not(ctx.mk_eq_atom(lhs, rhs)), m);
 					m_rw(premise);
@@ -13978,28 +14014,32 @@ namespace smt {
 	   unsigned equal_prefix_ID = 0;
 	   bool missmatch_prefix = false;
 	   bool missmatch_suffix = false;
-	   expr * lhs_value;
-	   expr * rhs_value;
 
 	   for(unsigned i=0;i<minLength;i++){
 		   if(!missmatch_suffix && !(in_same_eqc(lhs_v.get(lhs_s-i),rhs_v.get(rhs_s-i)))){
 			   missmatch_suffix = true;
 			   equal_suffix_ID = i;
+			   TRACE("str", tout << "Suffix is equal up to index " << i << "." << std::endl;);
 		   }
 
 		   if(!missmatch_prefix && !(in_same_eqc(lhs_v.get(i),rhs_v.get(i)))){
 			   missmatch_prefix = true;
 			   equal_prefix_ID = i;
+			   TRACE("str", tout << "Prefix is equal up to index " << i << "." << std::endl;);
 		   }
 		   if (missmatch_prefix && missmatch_suffix)
 			   break;
 	   }
 
-	   if (!missmatch_prefix)
+	   if (!missmatch_prefix){
 		   equal_prefix_ID = minLength;
+		   TRACE("str", tout << "Prefix is equal up to index " << minLength << " (minimal length)." << std::endl;);
+	   }
 
-	   if(!missmatch_suffix)
+	   if(!missmatch_suffix){
 		   equal_suffix_ID = minLength;
+		   TRACE("str", tout << "Suffix is equal up to index " << minLength << " (minimal length)." << std::endl;);
+	   }
 
 	   // strip the suffix
 	   if (equal_suffix_ID > 0){
@@ -14024,6 +14064,11 @@ namespace smt {
 	   if(rhs_v.size() == 0){
 		   rhs_v.push_back(mk_string(""));
 	   }
+
+	   TRACE("str", tout << "Finished stripping with equation : " << std::endl;);
+	   print_expr_vector(&lhs_v);
+	   print_expr_vector(&rhs_v);
+
 	   return;
    }
 
@@ -14099,6 +14144,7 @@ namespace smt {
 		   m_rw(conclusion);
 		   // we only need the axiom if it gives us information about a mismatch
 		   if (!in_same_eqc(conclusion,true_expr)){
+			   TRACE("str", tout << "Add axiom " <<  mk_pp(globalPremise, m) << " -> " << mk_pp(conclusion,m)  << std::endl;);
 			   // lhs == rhs -> m_1*X_a + m_2*Y_a + m_3*Z_a ... + |a| = 0
 			   assert_implication(globalPremise, conclusion);
 		   }
@@ -14129,7 +14175,7 @@ namespace smt {
 
 	   if (in_same_eqc(varFirst,varSecond)){
 		   axiom = u.re.mk_in_re(varFirst, u.re.mk_star(letter)); // mk_RegexIn(varFirst, u.re.mk_star(letter));
-
+		   TRACE("str", tout << "Add axiom " <<  mk_pp(axiom, get_manager()) << std::endl;);
 		   //get_context().internalize(axiom, false);
 		   //set_up_axioms(axiom);
 
@@ -14142,11 +14188,12 @@ namespace smt {
 
    // REMOVE ME LATER
    void theory_str::print_expr_vector(expr_ref_vector * ex_v){
+	ast_manager & m = get_manager();
 	for (auto it = ex_v->begin();it != ex_v->end();++it){
 		expr * ex = *it;
-		std::cout << mk_ismt2_pp(ex, get_manager());
+		TRACE("str", tout << mk_ismt2_pp(ex, m););
 	}
-	std::cout << std::endl;
+	TRACE("str", tout << std::endl;);
    }
 
 }; /* namespace smt */
