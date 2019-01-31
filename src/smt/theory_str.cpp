@@ -8263,12 +8263,6 @@ namespace smt {
         // TODO AXIOMS NOT WORKING!!!
         expr_ref premise(ctx.mk_eq_atom(lhs, rhs), m);
         add_aX_constraint(lhs_v, rhs_v,premise);
-
-
-
-        //print_expr_vector(&lhs_v);
-        //print_expr_vector(&rhs_v);
-
     }
 
     // Check that a string's length can be 0 iff it is the empty string.
@@ -13865,8 +13859,6 @@ namespace smt {
 	for(expr_ref_vector::iterator it = ex_v->begin(); it - startPoint != k; ++it){
 		prefix.push_back(*it);
 	}
-	TRACE("str", tout << "Got the prefix: ";);
-	print_expr_vector(&prefix);
 
 	return true;
    }
@@ -13882,8 +13874,6 @@ namespace smt {
 	for(expr_ref_vector::iterator it = ex_v->begin()+(ex_v->size()-k); it - startPoint != k; ++it){
 		suffix.push_back(*it);
 	}
-	TRACE("str", tout << "Got the suffix: ";);
-	print_expr_vector(&suffix);
 	return true;
    }
 
@@ -13986,13 +13976,12 @@ namespace smt {
 				expr_vector_to_expr(&p_lhs_v, p_lhs);
 				expr_vector_to_expr(&p_rhs_v, p_rhs);
 				if(parikh_multiset_mismatch(&p_variables, &p_letters) || parkih_one_sided_mismatch(&p_variables,&p_letters)){
-					TRACE("str", tout << "Found a mismatch within the equation: " << std::endl;);
-					print_expr_vector(&p_lhs_v);
-					print_expr_vector(&p_rhs_v);
+					TRACE("str", tout << "Found a mismatch within the equation" << std::endl;);
 
 					// TODO: How to do this properly? If I reach this point, the COMPLETE equation has no solution!
 					expr_ref premise(m.mk_not(ctx.mk_eq_atom(lhs, rhs)), m);
 					m_rw(premise);
+					TRACE("str", tout << "Assert axiom " << mk_pp(premise,get_manager()) << std::endl;);
 					assert_axiom(premise);
 					//expr_ref conflict(m.mk_false(), m);
 					//assert_implication(premise, conflict);
@@ -14064,11 +14053,6 @@ namespace smt {
 	   if(rhs_v.size() == 0){
 		   rhs_v.push_back(mk_string(""));
 	   }
-
-	   TRACE("str", tout << "Finished stripping with equation : " << std::endl;);
-	   print_expr_vector(&lhs_v);
-	   print_expr_vector(&rhs_v);
-
 	   return;
    }
 
@@ -14188,12 +14172,13 @@ namespace smt {
 
    // REMOVE ME LATER
    void theory_str::print_expr_vector(expr_ref_vector * ex_v){
-	ast_manager & m = get_manager();
-	for (auto it = ex_v->begin();it != ex_v->end();++it){
+	//ast_manager & m = get_manager();
+	/*for (auto it = ex_v->begin();it != ex_v->end();++it){
 		expr * ex = *it;
+		vec_string+=mk_ismt2_pp(ex, m);
 		TRACE("str", tout << mk_ismt2_pp(ex, m););
-	}
-	TRACE("str", tout << std::endl;);
+	}*/
+	TRACE("str", tout << ex_v << std::endl;);
    }
 
 }; /* namespace smt */
