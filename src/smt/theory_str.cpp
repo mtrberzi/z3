@@ -10614,7 +10614,8 @@ namespace smt {
         if (m_params.m_FixedLengthPreprocessing) {
             TRACE("str", tout << "preprocessing in final check, iteration " << preprocessing_iteration_count << std::endl;);
             candidate_model.reset();
-            arith_value v(ctx);
+            arith_value v(get_manager());
+            v.init(&get_context());
             final_check_status arith_fc_status = v.final_check();
             if (arith_fc_status != FC_DONE) {
                 TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
@@ -11071,7 +11072,8 @@ namespace smt {
             // that work might be useless
             TRACE("str", tout << "using fixed-length model construction" << std::endl;);
 
-            arith_value v(ctx);
+            arith_value v(get_manager());
+            v.init(&get_context());
             final_check_status arith_fc_status = v.final_check();
             if (arith_fc_status != FC_DONE) {
                 TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
@@ -11284,7 +11286,8 @@ namespace smt {
             // (str.substr Base Pos Len)
             ptr_vector<expr> baseChars;
             fixed_length_reduce_string_term(subsolver, arg0, baseChars);
-            arith_value v(ctx);
+            arith_value v(get_manager());
+            v.init(&get_context());
             rational pos, len;
             bool pos_exists = v.get_value(arg1, pos);
             bool len_exists = v.get_value(arg2, len);
@@ -11430,7 +11433,8 @@ namespace smt {
             }
             else {
                 len = mk_strlen(c);
-                arith_value v(ctx);
+                arith_value v(get_manager());
+                v.init(&get_context());
                 if (v.get_value(len, val1)) {
                     val += val1;
                 } else {
@@ -13587,7 +13591,8 @@ namespace smt {
             expr* substrBase = nullptr;
             expr* substrPos = nullptr;
             u.str.is_at(ex, substrBase, substrPos);
-            arith_value v(ctx);
+            arith_value v(get_manager());
+            v.init(&get_context());
             rational pos;
             bool pos_exists = v.get_value(substrPos, pos);
 
@@ -13600,7 +13605,8 @@ namespace smt {
             expr* substrPos = nullptr;
             expr* substrLen = nullptr;
             u.str.is_extract(ex, substrBase, substrPos, substrLen);
-            arith_value v(ctx);
+            arith_value v(get_manager());
+            v.init(&get_context());
             rational len, pos;
             bool len_exists = v.get_value(substrLen, len);
             bool pos_exists = v.get_value(substrPos, pos);

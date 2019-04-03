@@ -284,7 +284,8 @@ int zstring::count(zstring const& other) const {
         }
     }
     return count;
-
+}
+    
 int zstring::last_indexof(zstring const& other) const {
     if (other.length() == 0) return length();
     if (other.length() > length()) return -1;
@@ -697,8 +698,6 @@ func_decl * seq_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, 
     case OP_SEQ_UNIT:
     case OP_STRING_ITOS:
     case OP_STRING_STOI:
-
-    case OP_RE_COMPLEMENT:
     case OP_STRING_COUNT:
 
         match(*m_sigs[k], arity, domain, range, rng);
