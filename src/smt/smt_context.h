@@ -106,6 +106,8 @@ namespace smt {
 
         unsigned                    m_final_check_idx; // circular counter used for implementing fairness
 
+        bool                        m_is_auxiliary; // used to prevent unwanted information from being logged.
+
         // -----------------------------------
         //
         // Equality & Uninterpreted functions
@@ -412,8 +414,17 @@ namespace smt {
             return m_activity[v];
         }
 
-        void set_activity(bool_var v, double & act) {
+        void set_activity(bool_var v, double const & act) {
             m_activity[v] = act;
+        }
+
+        void activity_changed(bool_var v, bool increased) {
+            if (increased) {
+                m_case_split_queue->activity_increased_eh(v);
+            }
+            else {
+                m_case_split_queue->activity_decreased_eh(v);
+            }
         }
 
         bool is_assumption(bool_var v) const {
@@ -912,6 +923,7 @@ namespace smt {
         failure            m_last_search_failure;
         ptr_vector<theory> m_incomplete_theories; //!< theories that failed to produce a model
         bool               m_searching;
+        bool               m_propagating;
         unsigned           m_num_conflicts;
         unsigned           m_num_conflicts_since_restart;
         unsigned           m_num_conflicts_since_lemma_gc;
@@ -1358,7 +1370,7 @@ namespace smt {
 
         void display_profile(std::ostream & out) const;
 
-        void display(std::ostream& out, b_justification j) const;
+        std::ostream& display(std::ostream& out, b_justification j) const;
 
         // -----------------------------------
         //
@@ -1574,6 +1586,10 @@ namespace smt {
         expr * get_unsat_core_expr(unsigned idx) const {
             return m_unsat_core.get(idx);
         }
+
+        void get_levels(ptr_vector<expr> const& vars, unsigned_vector& depth);
+
+        expr_ref_vector get_trail();
 
         void get_model(model_ref & m) const;
 

@@ -33,6 +33,7 @@ Revision History:
 #include "smt/theory_dl.h"
 #include "smt/theory_seq_empty.h"
 #include "smt/theory_seq.h"
+#include "smt/theory_special_relations.h"
 #include "smt/theory_pb.h"
 #include "smt/theory_fpa.h"
 #include "smt/theory_str.h"
@@ -209,7 +210,7 @@ namespace smt {
 
     static void check_no_arithmetic(static_features const & st, char const * logic) {
         if (st.m_num_arith_ineqs > 0 || st.m_num_arith_terms > 0 || st.m_num_arith_eqs > 0) 
-            throw default_exception("Benchmark constains arithmetic, but specified logic does not support it.");
+            throw default_exception("Benchmark constrains arithmetic, but specified logic does not support it.");
     }
 
     void setup::setup_QF_UF() {
@@ -753,6 +754,7 @@ namespace smt {
     }
 
     void setup::setup_lra_arith() {
+        // m_context.register_plugin(alloc(smt::theory_mi_arith, m_manager, m_params));
         m_context.register_plugin(alloc(smt::theory_lra, m_manager, m_params));
     }
 
@@ -934,6 +936,10 @@ namespace smt {
         m_context.register_plugin(alloc(smt::theory_jobscheduler, m_manager));
     }
 
+    void setup::setup_special_relations() {
+        m_context.register_plugin(alloc(smt::theory_special_relations, m_manager));
+    }
+
     void setup::setup_unknown() {
         static_features st(m_manager);
         ptr_vector<expr> fmls;
@@ -949,6 +955,7 @@ namespace smt {
         setup_seq_str(st);
         setup_card();
         setup_fpa();
+        if (st.m_has_sr) setup_special_relations();
     }
 
     void setup::setup_unknown(static_features & st) {
@@ -965,6 +972,7 @@ namespace smt {
             setup_card();
             setup_fpa();
             setup_recfuns();
+            if (st.m_has_sr) setup_special_relations();
             return;
         }
 

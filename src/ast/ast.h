@@ -962,7 +962,8 @@ class ast_translation;
 
 class ast_table : public chashtable<ast*, obj_ptr_hash<ast>, ast_eq_proc> {
 public:
-    void erase(ast * n);
+    void push_erase(ast * n);
+    ast* pop_erase();
 };
 
 // -----------------------------------
@@ -996,6 +997,17 @@ protected:
     }
 
     virtual void inherit(decl_plugin* other_p, ast_translation& ) { }
+
+    /**
+       \brief Checks wether a log is being generated and, if necessary, adds the beginning of an "[attach-meaning]" line
+       to that log. The theory solver should add some description of the meaning of the term in terms of the theory's
+       internal reasoning to the end of the line and insert a line break.
+       
+       \param a the term that should be described.
+
+       \return true if a log is being generated, false otherwise.
+    */
+    bool log_constant_meaning_prelude(app * a);
 
     friend class ast_manager;
 
@@ -1562,7 +1574,7 @@ public:
 
     // Equivalent to throw ast_exception(msg)
     Z3_NORETURN void raise_exception(char const * msg);
-    Z3_NORETURN void raise_exception(std::string const& s);
+    Z3_NORETURN void raise_exception(std::string && s);
 
     std::ostream& display(std::ostream& out, parameter const& p);
 
@@ -2110,6 +2122,7 @@ public:
     app * mk_or(expr * arg1, expr * arg2) { return mk_app(m_basic_family_id, OP_OR, arg1, arg2); }
     app * mk_and(expr * arg1, expr * arg2) { return mk_app(m_basic_family_id, OP_AND, arg1, arg2); }
     app * mk_or(expr * arg1, expr * arg2, expr * arg3) { return mk_app(m_basic_family_id, OP_OR, arg1, arg2, arg3); }
+    app * mk_or(expr* a, expr* b, expr* c, expr* d) { expr* args[4] = { a, b, c, d }; return mk_app(m_basic_family_id, OP_OR, 4, args); }
     app * mk_and(expr * arg1, expr * arg2, expr * arg3) { return mk_app(m_basic_family_id, OP_AND, arg1, arg2, arg3); }
     app * mk_implies(expr * arg1, expr * arg2) { return mk_app(m_basic_family_id, OP_IMPLIES, arg1, arg2); }
     app * mk_not(expr * n) { return mk_app(m_basic_family_id, OP_NOT, n); }
@@ -2297,17 +2310,17 @@ protected:
     bool check_nnf_proof_parents(unsigned num_proofs, proof * const * proofs) const;
 
 private:
-    void dec_ref(ptr_buffer<ast> & worklist, ast * n) {
+    void push_dec_ref(ast * n) {
         n->dec_ref();
         if (n->get_ref_count() == 0) {
-            worklist.push_back(n);
+            m_ast_table.push_erase(n);
         }
     }
 
     template<typename T>
-    void dec_array_ref(ptr_buffer<ast> & worklist, unsigned sz, T * const * a) {
+    void push_dec_array_ref(unsigned sz, T * const * a) {
         for(unsigned i = 0; i < sz; i++) {
-            dec_ref(worklist, a[i]);
+            push_dec_ref(a[i]);
         }
     }
 };

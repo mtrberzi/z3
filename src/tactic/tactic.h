@@ -79,7 +79,6 @@ protected:
     friend class nary_tactical;
     friend class binary_tactical;
     friend class unary_tactical;
-    friend class nl_purify_tactic;
 
 };
 

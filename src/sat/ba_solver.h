@@ -101,6 +101,7 @@ namespace sat {
             bool is_clear() const { return m_watch == null_literal && m_lit != null_literal; }
             bool is_pure() const { return m_pure; }
             void set_pure() { m_pure = true; }
+            unsigned fold_max_var(unsigned w) const;
 
             size_t obj_size() const { return m_obj_size; }
             card& to_card();
@@ -546,12 +547,14 @@ namespace sat {
         void flush_roots() override;
         std::ostream& display(std::ostream& out) const override;
         std::ostream& display_justification(std::ostream& out, ext_justification_idx idx) const override;
+        std::ostream& display_constraint(std::ostream& out, ext_constraint_idx idx) const override;
         void collect_statistics(statistics& st) const override;
         extension* copy(solver* s) override;
         extension* copy(lookahead* s, bool learned) override;
         void find_mutexes(literal_vector& lits, vector<literal_vector> & mutexes) override;
         void pop_reinit() override;
         void gc() override;
+        unsigned max_var(unsigned w) const override;
         double get_reward(literal l, ext_justification_idx idx, literal_occs_fun& occs) const override;
         bool is_extended_binary(ext_justification_idx idx, literal_vector & r) override;
         void init_use_list(ext_use_list& ul) override;

@@ -694,7 +694,8 @@ namespace eq {
                 if (m.proofs_enabled() && r != q) {
                     pr = m.mk_transitivity(pr, curr_pr);
                 }
-            } while (q != r && is_quantifier(r));
+            } 
+            while (q != r && is_quantifier(r));
 
             m_new_exprs.reset();
         }
@@ -2370,6 +2371,7 @@ void qe_lite::operator()(uint_set const& index_set, bool index_of_bound, expr_re
     (*m_impl)(index_set, index_of_bound, fmls);
 }
 
+namespace {
 class qe_lite_tactic : public tactic {
 
     struct imp {
@@ -2428,7 +2430,6 @@ class qe_lite_tactic : public tactic {
             tactic_report report("qe-lite", *g);
             proof_ref new_pr(m);
             expr_ref new_f(m);
-            bool produce_proofs = g->proofs_enabled();
 
             unsigned sz = g->size();
             for (unsigned i = 0; i < sz; i++) {
@@ -2440,7 +2441,7 @@ class qe_lite_tactic : public tactic {
                     continue;
                 new_f = f;
                 m_qe(new_f, new_pr);
-                if (produce_proofs) {
+                if (new_pr) {
                     expr* fact = m.get_fact(new_pr);
                     if (to_app(fact)->get_arg(0) != to_app(fact)->get_arg(1)) {
                         new_pr = m.mk_modus_ponens(g->pr(i), new_pr);
@@ -2494,7 +2495,6 @@ public:
         (*m_imp)(in, result);
     }
 
-
     void collect_statistics(statistics & st) const override {
         // m_imp->collect_statistics(st);
     }
@@ -2503,14 +2503,14 @@ public:
         // m_imp->reset_statistics();
     }
 
-
     void cleanup() override {
         ast_manager & m = m_imp->m;
-        dealloc(m_imp);
-        m_imp = alloc(imp, m, m_params);
+        m_imp->~imp();
+        m_imp = new (m_imp) imp(m, m_params);
     }
 
 };
+}
 
 tactic * mk_qe_lite_tactic(ast_manager & m, params_ref const & p) {
     return alloc(qe_lite_tactic, m, p);

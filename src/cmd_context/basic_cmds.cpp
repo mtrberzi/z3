@@ -137,7 +137,7 @@ ATOMIC_CMD(get_assignment_cmd, "get-assignment", "retrieve assignment", {
         symbol const & name = kv.m_key;
         macro_decls const & _m    = kv.m_value;
         for (auto md : _m) {
-            if (md.m_domain.size() == 0 && ctx.m().is_bool(md.m_body)) {
+            if (md.m_domain.empty() && ctx.m().is_bool(md.m_body)) {
                 model::scoped_model_completion _scm(*m, true);
                 expr_ref val = (*m)(md.m_body);
                 if (ctx.m().is_true(val) || ctx.m().is_false(val)) {
@@ -309,7 +309,6 @@ protected:
     symbol      m_produce_unsat_assumptions;
     symbol      m_produce_models;
     symbol      m_produce_assignments;
-    symbol      m_produce_interpolants;
     symbol      m_produce_assertions;
     symbol      m_regular_output_channel;
     symbol      m_diagnostic_output_channel;
@@ -326,7 +325,7 @@ protected:
         return
             s == m_print_success || s == m_print_warning || s == m_expand_definitions ||
             s == m_interactive_mode || s == m_produce_proofs || s == m_produce_unsat_cores || s == m_produce_unsat_assumptions ||
-            s == m_produce_models || s == m_produce_assignments || s == m_produce_interpolants ||
+            s == m_produce_models || s == m_produce_assignments ||
             s == m_regular_output_channel || s == m_diagnostic_output_channel ||
             s == m_random_seed || s == m_verbosity || s == m_global_decls || s == m_global_declarations ||
             s == m_produce_assertions || s == m_reproducible_resource_limit;
@@ -346,7 +345,6 @@ public:
         m_produce_unsat_assumptions(":produce-unsat-assumptions"),
         m_produce_models(":produce-models"),
         m_produce_assignments(":produce-assignments"),
-        m_produce_interpolants(":produce-interpolants"),
         m_produce_assertions(":produce-assertions"),
         m_regular_output_channel(":regular-output-channel"),
         m_diagnostic_output_channel(":diagnostic-output-channel"),
@@ -417,10 +415,6 @@ class set_option_cmd : public set_get_option_cmd {
         else if (m_option == m_produce_proofs) {
             check_not_initialized(ctx, m_produce_proofs);
             ctx.set_produce_proofs(to_bool(value));
-        }
-        else if (m_option == m_produce_interpolants) {
-            check_not_initialized(ctx, m_produce_interpolants);
-            ctx.set_produce_interpolants(to_bool(value));
         }
         else if (m_option == m_produce_unsat_cores) {
             check_not_initialized(ctx, m_produce_unsat_cores);
@@ -577,9 +571,6 @@ public:
         else if (opt == m_produce_proofs) {
             print_bool(ctx, ctx.produce_proofs());
         }
-        else if (opt == m_produce_interpolants) {
-            print_bool(ctx, ctx.produce_interpolants());
-        }
         else if (opt == m_produce_unsat_cores) {
             print_bool(ctx, ctx.produce_unsat_cores());
         }
@@ -638,6 +629,7 @@ class get_info_cmd : public cmd {
     symbol   m_reason_unknown;
     symbol   m_all_statistics;
     symbol   m_assertion_stack_levels;
+    symbol   m_rlimit;
 public:
     get_info_cmd():
         cmd("get-info"),
@@ -648,7 +640,8 @@ public:
         m_status(":status"),
         m_reason_unknown(":reason-unknown"),
         m_all_statistics(":all-statistics"),
-        m_assertion_stack_levels(":assertion-stack-levels") {
+        m_assertion_stack_levels(":assertion-stack-levels"),
+        m_rlimit(":rlimit") {
     }
     char const * get_usage() const override { return "<keyword>"; }
     char const * get_descr(cmd_context & ctx) const override { return "get information."; }
@@ -679,6 +672,9 @@ public:
         }
         else if (opt == m_reason_unknown) {
             ctx.regular_stream() << "(:reason-unknown \"" << escaped(ctx.reason_unknown().c_str()) << "\")" << std::endl;
+        }
+        else if (opt == m_rlimit) {
+            ctx.regular_stream() << "(:rlimit " << ctx.m().limit().count() << ")" << std::endl;
         }
         else if (opt == m_all_statistics) {
             ctx.display_statistics();

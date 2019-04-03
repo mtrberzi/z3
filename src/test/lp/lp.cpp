@@ -1091,7 +1091,7 @@ void lp_solver_test() {
 
 bool get_int_from_args_parser(const char * option, argument_parser & args_parser, unsigned & n) {
     std::string s = args_parser.get_option_value(option);
-    if (s.size() > 0) {
+    if (!s.empty()) {
         n = atoi(s.c_str());
         return true;
     }
@@ -1100,7 +1100,7 @@ bool get_int_from_args_parser(const char * option, argument_parser & args_parser
 
 bool get_double_from_args_parser(const char * option, argument_parser & args_parser, double & n) {
     std::string s = args_parser.get_option_value(option);
-    if (s.size() > 0) {
+    if (!s.empty()) {
         n = atof(s.c_str());
         return true;
     }
@@ -1830,7 +1830,7 @@ std::unordered_map<std::string, double> * get_solution_from_glpsol_output(std::s
             return nullptr;
         }
         auto split = string_split(s, " \t", false);
-        if (split.size() == 0) {
+        if (split.empty()) {
             return ret;
         }
 
@@ -2050,14 +2050,14 @@ void finalize(unsigned ret) {
 
 void get_time_limit_and_max_iters_from_parser(argument_parser & args_parser, unsigned & time_limit, unsigned & max_iters) {
     std::string s = args_parser.get_option_value("--max_iters");
-    if (s.size() > 0) {
+    if (!s.empty()) {
         max_iters = atoi(s.c_str());
     } else {
         max_iters = 0;
     }
 
     std::string time_limit_string = args_parser.get_option_value("--time_limit");
-    if (time_limit_string.size() > 0) {
+    if (!time_limit_string.empty()) {
         time_limit = atoi(time_limit_string.c_str());
     } else {
         time_limit = 0;
@@ -2156,7 +2156,7 @@ double get_lp_tst_cost(std::string file_name) {
             cost_string = str;
         }
     }
-    if (cost_string.size() == 0) {
+    if (cost_string.empty()) {
         std::cout << "cannot find the cost line in " << file_name << std::endl;
         throw 0;
     }
@@ -2377,7 +2377,7 @@ std::unordered_map<std::string, lp::mpq> get_solution_map(lp_solver<lp::mpq, lp:
 
 void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_reader<lp::mpq, lp::mpq> * reader) {
     std::string maxng = args_parser.get_option_value("--maxng");
-    if (maxng.size() > 0) {
+    if (!maxng.empty()) {
         solver->settings().max_number_of_iterations_with_no_improvements = atoi(maxng.c_str());
     }
     if (args_parser.option_is_used("-pd")){
@@ -2385,7 +2385,7 @@ void run_lar_solver(argument_parser & args_parser, lar_solver * solver, mps_read
     }
     
     std::string iter = args_parser.get_option_value("--max_iters");
-    if (iter.size() > 0) {
+    if (!iter.empty()) {
         solver->settings().max_total_number_of_iterations = atoi(iter.c_str());
     }
     if (args_parser.option_is_used("--compare_with_primal")){
@@ -2470,7 +2470,7 @@ vector<std::string> get_file_names_from_file_list(std::string filelist) {
         std::string s = read_line(end, file);
         if (end)
             break;
-        if (s.size() == 0)
+        if (s.empty())
             break;
         ret.push_back(s);
     } while (true);
@@ -2480,13 +2480,13 @@ vector<std::string> get_file_names_from_file_list(std::string filelist) {
 void test_lar_solver(argument_parser & args_parser) {
 
     std::string file_name = args_parser.get_option_value("--file");
-    if (file_name.size() > 0) {
+    if (!file_name.empty()) {
         test_lar_on_file(file_name, args_parser);
         return;
     }
 
     std::string file_list = args_parser.get_option_value("--filelist");
-    if (file_list.size() > 0) {
+    if (!file_list.empty()) {
         for (const std::string & fn : get_file_names_from_file_list(file_list))
             test_lar_on_file(fn, args_parser);
         return;
@@ -2673,25 +2673,25 @@ void test_term() {
     var_index one = solver.add_var(_one, false);
 
     vector<std::pair<mpq, var_index>> term_one;
-    term_one.push_back(std::make_pair((int)1, one));
+    term_one.push_back(std::make_pair(mpq(1), one));
     solver.add_constraint(term_one, lconstraint_kind::EQ, mpq(0));
 
     vector<std::pair<mpq, var_index>> term_ls;
-    term_ls.push_back(std::pair<mpq, var_index>((int)1, x));
-    term_ls.push_back(std::pair<mpq, var_index>((int)1, y));
-    term_ls.push_back(std::make_pair((int)3, one));
+    term_ls.push_back(std::pair<mpq, var_index>(mpq(1), x));
+    term_ls.push_back(std::pair<mpq, var_index>(mpq(1), y));
+    term_ls.push_back(std::make_pair(mpq(3), one));
     var_index z = solver.add_term(term_ls);
 
     vector<std::pair<mpq, var_index>> ls;
-    ls.push_back(std::pair<mpq, var_index>((int)1, x));
-    ls.push_back(std::pair<mpq, var_index>((int)1, y));
-    ls.push_back(std::pair<mpq, var_index>((int)1, z));
+    ls.push_back(std::pair<mpq, var_index>(mpq(1), x));
+    ls.push_back(std::pair<mpq, var_index>(mpq(1), y));
+    ls.push_back(std::pair<mpq, var_index>(mpq(1), z));
     
     solver.add_constraint(ls, lconstraint_kind::EQ, mpq(0));
     ls.clear();
-    ls.push_back(std::pair<mpq, var_index>((int)1, x));
+    ls.push_back(std::pair<mpq, var_index>(mpq(1), x));
     solver.add_constraint(ls, lconstraint_kind::LT, mpq(0));
-    ls.push_back(std::pair<mpq, var_index>((int)2, y));
+    ls.push_back(std::pair<mpq, var_index>(mpq(2), y));
     solver.add_constraint(ls, lconstraint_kind::GT, mpq(0));
     auto status = solver.solve();
     std::cout << lp_status_to_string(status) << std::endl;
@@ -2711,15 +2711,15 @@ void test_evidence_for_total_inf_simple(argument_parser & args_parser) {
     lar_solver solver;
     var_index x = solver.add_var(0, false);
     var_index y = solver.add_var(1, false);
-    solver.add_var_bound(x, LE, -mpq(1));
+    solver.add_var_bound(x, LE, mpq(-1));
     solver.add_var_bound(y, GE, mpq(0));
     vector<std::pair<mpq, var_index>> ls;
     
-    ls.push_back(std::pair<mpq, var_index>((int)1, x));
-    ls.push_back(std::pair<mpq, var_index>((int)1, y));
+    ls.push_back(std::pair<mpq, var_index>(mpq(1), x));
+    ls.push_back(std::pair<mpq, var_index>(mpq(1), y));
     solver.add_constraint(ls, GE, mpq(1));
     ls.pop_back();
-    ls.push_back(std::pair<mpq, var_index>(-(int)1, y));
+    ls.push_back(std::pair<mpq, var_index>(- mpq(1), y));
     solver.add_constraint(ls, lconstraint_kind::GE, mpq(0));
     auto status = solver.solve();
     std::cout << lp_status_to_string(status) << std::endl;
@@ -2748,19 +2748,20 @@ void test_bound_propagation_one_small_sample1() {
     unsigned b = ls.add_var(1, false);
     unsigned c = ls.add_var(2, false);
     vector<std::pair<mpq, var_index>> coeffs;
-    coeffs.push_back(std::pair<mpq, var_index>(1, a));
-    coeffs.push_back(std::pair<mpq, var_index>(-1, c));
+    coeffs.push_back(std::pair<mpq, var_index>(mpq(1), a));
+    coeffs.push_back(std::pair<mpq, var_index>(mpq(-1), c));
+    
     ls.add_term(coeffs);
     coeffs.pop_back();
-    coeffs.push_back(std::pair<mpq, var_index>(-1, b));
+    coeffs.push_back(std::pair<mpq, var_index>(mpq(-1), b));
     ls.add_term(coeffs);
     coeffs.clear();
-    coeffs.push_back(std::pair<mpq, var_index>(1, a));
-    coeffs.push_back(std::pair<mpq, var_index>(-1, b));
+    coeffs.push_back(std::pair<mpq, var_index>(mpq(1), a));
+    coeffs.push_back(std::pair<mpq, var_index>(mpq(-1), b));
     ls.add_constraint(coeffs, LE, zero_of_type<mpq>());
     coeffs.clear();
-    coeffs.push_back(std::pair<mpq, var_index>(1, b));
-    coeffs.push_back(std::pair<mpq, var_index>(-1, c));
+    coeffs.push_back(std::pair<mpq, var_index>(mpq(1), b));
+    coeffs.push_back(std::pair<mpq, var_index>(mpq(-1), c));
     ls.add_constraint(coeffs, LE, zero_of_type<mpq>());
     vector<implied_bound> ev;
     ls.add_var_bound(a, LE, mpq(1));
@@ -2812,8 +2813,8 @@ void test_bound_propagation_one_row() {
     unsigned x0 = ls.add_var(0, false);
     unsigned x1 = ls.add_var(1, false);
     vector<std::pair<mpq, var_index>> c;
-    c.push_back(std::pair<mpq, var_index>(1, x0));
-    c.push_back(std::pair<mpq, var_index>(-1, x1));
+    c.push_back(std::pair<mpq, var_index>(mpq(1), x0));
+    c.push_back(std::pair<mpq, var_index>(mpq(-1), x1));
     ls.add_constraint(c, EQ, one_of_type<mpq>());
     vector<implied_bound> ev;
     ls.add_var_bound(x0, LE, mpq(1));
@@ -2826,8 +2827,8 @@ void test_bound_propagation_one_row_with_bounded_vars() {
     unsigned x0 = ls.add_var(0, false);
     unsigned x1 = ls.add_var(1, false);
     vector<std::pair<mpq, var_index>> c;
-    c.push_back(std::pair<mpq, var_index>(1, x0));
-    c.push_back(std::pair<mpq, var_index>(-1, x1));
+    c.push_back(std::pair<mpq, var_index>(mpq(1), x0));
+    c.push_back(std::pair<mpq, var_index>(mpq(-1), x1));
     ls.add_constraint(c, EQ, one_of_type<mpq>());
     vector<implied_bound> ev;
     ls.add_var_bound(x0, GE, mpq(-3));
@@ -2842,8 +2843,8 @@ void test_bound_propagation_one_row_mixed() {
     unsigned x0 = ls.add_var(0, false);
     unsigned x1 = ls.add_var(1, false);
     vector<std::pair<mpq, var_index>> c;
-    c.push_back(std::pair<mpq, var_index>(1, x0));
-    c.push_back(std::pair<mpq, var_index>(-1, x1));
+    c.push_back(std::pair<mpq, var_index>(mpq(1), x0));
+    c.push_back(std::pair<mpq, var_index>(mpq(-1), x1));
     ls.add_constraint(c, EQ, one_of_type<mpq>());
     vector<implied_bound> ev;
     ls.add_var_bound(x1, LE, mpq(1));
@@ -2858,14 +2859,14 @@ void test_bound_propagation_two_rows() {
     unsigned y = ls.add_var(1, false);
     unsigned z = ls.add_var(2, false);
     vector<std::pair<mpq, var_index>> c;
-    c.push_back(std::pair<mpq, var_index>(1, x));
-    c.push_back(std::pair<mpq, var_index>(2, y));
-    c.push_back(std::pair<mpq, var_index>(3, z));
+    c.push_back(std::pair<mpq, var_index>(mpq(1), x));
+    c.push_back(std::pair<mpq, var_index>(mpq(2), y));
+    c.push_back(std::pair<mpq, var_index>(mpq(3), z));
     ls.add_constraint(c, GE, one_of_type<mpq>());
     c.clear();
-    c.push_back(std::pair<mpq, var_index>(3, x));
-    c.push_back(std::pair<mpq, var_index>(2, y));
-    c.push_back(std::pair<mpq, var_index>(1, z));
+    c.push_back(std::pair<mpq, var_index>(mpq(3), x));
+    c.push_back(std::pair<mpq, var_index>(mpq(2), y));
+    c.push_back(std::pair<mpq, var_index>(mpq(y), z));
     ls.add_constraint(c, GE, one_of_type<mpq>());
     ls.add_var_bound(x, LE, mpq(2));
     vector<implied_bound> ev;
@@ -2882,9 +2883,9 @@ void test_total_case_u() {
     unsigned y = ls.add_var(1, false);
     unsigned z = ls.add_var(2, false);
     vector<std::pair<mpq, var_index>> c;
-    c.push_back(std::pair<mpq, var_index>(1, x));
-    c.push_back(std::pair<mpq, var_index>(2, y));
-    c.push_back(std::pair<mpq, var_index>(3, z));
+    c.push_back(std::pair<mpq, var_index>(mpq(1), x));
+    c.push_back(std::pair<mpq, var_index>(mpq(2), y));
+    c.push_back(std::pair<mpq, var_index>(mpq(3), z));
     ls.add_constraint(c, LE, one_of_type<mpq>());
     ls.add_var_bound(x, GE, zero_of_type<mpq>());
     ls.add_var_bound(y, GE, zero_of_type<mpq>());
@@ -2908,9 +2909,9 @@ void test_total_case_l(){
     unsigned y = ls.add_var(1, false);
     unsigned z = ls.add_var(2, false);
     vector<std::pair<mpq, var_index>> c;
-    c.push_back(std::pair<mpq, var_index>(1, x));
-    c.push_back(std::pair<mpq, var_index>(2, y));
-    c.push_back(std::pair<mpq, var_index>(3, z));
+    c.push_back(std::pair<mpq, var_index>(mpq(1), x));
+    c.push_back(std::pair<mpq, var_index>(mpq(2), y));
+    c.push_back(std::pair<mpq, var_index>(mpq(3), z));
     ls.add_constraint(c, GE, one_of_type<mpq>());
     ls.add_var_bound(x, LE, one_of_type<mpq>());
     ls.add_var_bound(y, LE, one_of_type<mpq>());
@@ -3490,16 +3491,16 @@ void test_maximize_term() {
     var_index x = solver.add_var(_x, false);
     var_index y = solver.add_var(_y, true);
     vector<std::pair<mpq, var_index>> term_ls;
-    term_ls.push_back(std::pair<mpq, var_index>((int)1, x));
-    term_ls.push_back(std::pair<mpq, var_index>((int)-1, y));
+    term_ls.push_back(std::pair<mpq, var_index>(mpq(1), x));
+    term_ls.push_back(std::pair<mpq, var_index>(mpq(-1), y));
     unsigned term_x_min_y = solver.add_term(term_ls);
     term_ls.clear();
-    term_ls.push_back(std::pair<mpq, var_index>((int)2, x));
-    term_ls.push_back(std::pair<mpq, var_index>((int)2, y));
+    term_ls.push_back(std::pair<mpq, var_index>(mpq(2), x));
+    term_ls.push_back(std::pair<mpq, var_index>(mpq(2), y));
     
     unsigned term_2x_pl_2y = solver.add_term(term_ls);
     solver.add_var_bound(term_x_min_y,  LE, zero_of_type<mpq>());
-    solver.add_var_bound(term_2x_pl_2y, LE, mpq((int)5));
+    solver.add_var_bound(term_2x_pl_2y, LE, mpq(5));
     solver.find_feasible_solution();
     lp_assert(solver.get_status() == lp_status::OPTIMAL);
     solver.print_constraints(std::cout);
@@ -3600,7 +3601,7 @@ void test_lp_local(int argn, char**argv) {
         
     
     std::string lufile = args_parser.get_option_value("--checklu");
-    if (lufile.size()) {
+    if (!lufile.empty()) {
         check_lu_from_file(lufile);
         return finalize(0);
     }
@@ -3623,7 +3624,7 @@ void test_lp_local(int argn, char**argv) {
         return finalize(0);
     }
     std::string file_list = args_parser.get_option_value("--filelist");
-    if (file_list.size() > 0) {
+    if (!file_list.empty()) {
         for (const std::string & fn : get_file_names_from_file_list(file_list))
             solve_mps(fn, args_parser);
         return finalize(0);
@@ -3704,7 +3705,7 @@ void test_lp_local(int argn, char**argv) {
     bool dual = args_parser.option_is_used("--dual");
     bool solve_for_rational = args_parser.option_is_used("--mpq");
     std::string file_name = args_parser.get_option_value("--file");
-    if (file_name.size() > 0) {
+    if (!file_name.empty()) {
         solve_mps(file_name, args_parser.option_is_used("--min"), max_iters, time_limit, solve_for_rational, dual, args_parser.option_is_used("--compare_with_primal"), args_parser);
         ret = 0;
         return finalize(ret);

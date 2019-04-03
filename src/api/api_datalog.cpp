@@ -24,6 +24,7 @@ Revision History:
 #include "api/api_stats.h"
 #include "muz/fp/datalog_parser.h"
 #include "util/cancel_eh.h"
+#include "util/scoped_ctrl_c.h"
 #include "util/scoped_timer.h"
 #include "muz/fp/dl_cmds.h"
 #include "cmd_context/cmd_context.h"
@@ -199,23 +200,23 @@ extern "C" {
         Z3_CATCH_RETURN(nullptr);
     }
 
-    Z3_bool Z3_API Z3_get_finite_domain_sort_size(Z3_context c, Z3_sort s, uint64_t * out) {
+    bool Z3_API Z3_get_finite_domain_sort_size(Z3_context c, Z3_sort s, uint64_t * out) {
         Z3_TRY;
         if (out) {
             *out = 0;
         }
         if (Z3_get_sort_kind(c, s) != Z3_FINITE_DOMAIN_SORT) {
-            return Z3_FALSE;
+            return false;
         }
         if (!out) {
-            return Z3_FALSE;
+            return false;
         }
         // must start logging here, since function uses Z3_get_sort_kind above
         LOG_Z3_get_finite_domain_sort_size(c, s, out);
         RESET_ERROR_CODE();  
         VERIFY(mk_c(c)->datalog_util().try_get_size(to_sort(s), *out));
-        return Z3_TRUE;
-        Z3_CATCH_RETURN(Z3_FALSE);
+        return true;
+        Z3_CATCH_RETURN(false);
     }
 
     Z3_fixedpoint Z3_API Z3_mk_fixedpoint(Z3_context c) {
@@ -280,11 +281,13 @@ extern "C" {
         lbool r = l_undef;
         unsigned timeout = to_fixedpoint(d)->m_params.get_uint("timeout", mk_c(c)->get_timeout());
         unsigned rlimit  = to_fixedpoint(d)->m_params.get_uint("rlimit", mk_c(c)->get_rlimit());
+        bool     use_ctrl_c  = to_fixedpoint(d)->m_params.get_bool("ctrl_c", true);
         {
             scoped_rlimit _rlimit(mk_c(c)->m().limit(), rlimit);
             cancel_eh<reslimit> eh(mk_c(c)->m().limit());
             api::context::set_interruptable si(*(mk_c(c)), eh);        
             scoped_timer timer(timeout, &eh);
+            scoped_ctrl_c ctrlc(eh, false, use_ctrl_c);
             try {
                 r = to_fixedpoint_ref(d)->ctx().query(to_expr(q));
             }

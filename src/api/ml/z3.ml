@@ -717,7 +717,7 @@ struct
     else
       mk_exists ctx sorts names body weight patterns nopatterns quantifier_id skolem_id
 
-  let mk_quantifier (ctx:context) (universal:bool) (bound_constants:expr list) (body:expr) (weight:int option) (patterns:Pattern.pattern list) (nopatterns:expr list) (quantifier_id:Symbol.symbol option) (skolem_id:Symbol.symbol option) =
+  let mk_quantifier_const (ctx:context) (universal:bool) (bound_constants:expr list) (body:expr) (weight:int option) (patterns:Pattern.pattern list) (nopatterns:expr list) (quantifier_id:Symbol.symbol option) (skolem_id:Symbol.symbol option) =
     if universal then
       mk_forall_const ctx bound_constants body weight patterns nopatterns quantifier_id skolem_id
     else
@@ -2023,3 +2023,7 @@ let toggle_warning_messages = Z3native.toggle_warning_messages
 let enable_trace = Z3native.enable_trace
 
 let disable_trace = Z3native.enable_trace
+
+module Memory = struct
+  let reset = Z3native.reset_memory
+end

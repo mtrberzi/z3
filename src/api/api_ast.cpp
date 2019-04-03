@@ -34,6 +34,7 @@ Revision History:
 #include "ast/rewriter/var_subst.h"
 #include "ast/rewriter/expr_safe_replace.h"
 #include "ast/rewriter/recfun_replace.h"
+#include "ast/rewriter/seq_rewriter.h"
 #include "ast/pp.h"
 #include "util/scoped_ctrl_c.h"
 #include "util/cancel_eh.h"
@@ -73,7 +74,7 @@ extern "C" {
         Z3_CATCH_RETURN(nullptr);
     }
 
-    Z3_bool Z3_API Z3_is_eq_sort(Z3_context c, Z3_sort s1, Z3_sort s2) {
+    bool Z3_API Z3_is_eq_sort(Z3_context c, Z3_sort s1, Z3_sort s2) {
         RESET_ERROR_CODE();
         return s1 == s2;
     }
@@ -88,12 +89,12 @@ extern "C" {
         Z3_CATCH_RETURN(nullptr);
     }
 
-    Z3_bool Z3_API Z3_is_eq_ast(Z3_context c, Z3_ast s1, Z3_ast s2) {
+    bool Z3_API Z3_is_eq_ast(Z3_context c, Z3_ast s1, Z3_ast s2) {
         RESET_ERROR_CODE();
         return s1 == s2;
     }
 
-    Z3_bool Z3_API Z3_is_eq_func_decl(Z3_context c, Z3_func_decl s1, Z3_func_decl s2) {
+    bool Z3_API Z3_is_eq_func_decl(Z3_context c, Z3_func_decl s1, Z3_func_decl s2) {
         RESET_ERROR_CODE();
         return s1 == s2;
     }
@@ -308,12 +309,12 @@ extern "C" {
         return to_sort(s)->get_id();
     }
 
-    Z3_bool Z3_API Z3_is_well_sorted(Z3_context c, Z3_ast t) {
+    bool Z3_API Z3_is_well_sorted(Z3_context c, Z3_ast t) {
         Z3_TRY;
         LOG_Z3_is_well_sorted(c, t);
         RESET_ERROR_CODE();
         return is_well_sorted(mk_c(c)->m(), to_expr(t));
-        Z3_CATCH_RETURN(Z3_FALSE);
+        Z3_CATCH_RETURN(false);
     }
 
     Z3_symbol_kind Z3_API Z3_get_symbol_kind(Z3_context c, Z3_symbol s) {
@@ -383,7 +384,7 @@ extern "C" {
         return to_ast(a)->hash();
     }
 
-    Z3_bool Z3_API Z3_is_app(Z3_context c, Z3_ast a) {
+    bool Z3_API Z3_is_app(Z3_context c, Z3_ast a) {
         LOG_Z3_is_app(c, a);
         RESET_ERROR_CODE();
         return a != nullptr && is_app(reinterpret_cast<ast*>(a));
@@ -733,6 +734,7 @@ extern "C" {
         Z3_CATCH_RETURN(Z3_L_UNDEF);
     }
 
+
     static Z3_ast simplify(Z3_context c, Z3_ast _a, Z3_params _p) {
         Z3_TRY;
         RESET_ERROR_CODE();
@@ -742,6 +744,7 @@ extern "C" {
         unsigned timeout     = p.get_uint("timeout", mk_c(c)->get_timeout());
         bool     use_ctrl_c  = p.get_bool("ctrl_c", false);
         th_rewriter m_rw(m, p);
+        m_rw.set_solver(alloc(api::seq_expr_solver, m, p));
         expr_ref    result(m);
         cancel_eh<reslimit> eh(m.limit());
         api::context::set_interruptable si(*(mk_c(c)), eh);
@@ -1049,6 +1052,17 @@ extern "C" {
             }
         }
 
+        if (mk_c(c)->get_special_relations_fid() == _d->get_family_id()) {
+            switch(_d->get_decl_kind()) {
+            case OP_SPECIAL_RELATION_LO : return Z3_OP_SPECIAL_RELATION_LO;
+            case OP_SPECIAL_RELATION_PO : return Z3_OP_SPECIAL_RELATION_PO;
+            case OP_SPECIAL_RELATION_PLO: return Z3_OP_SPECIAL_RELATION_PLO;
+            case OP_SPECIAL_RELATION_TO : return Z3_OP_SPECIAL_RELATION_TO;
+            default: UNREACHABLE();
+            }
+        }
+
+
         if (mk_c(c)->get_bv_fid() == _d->get_family_id()) {
             switch(_d->get_decl_kind()) {
             case OP_BV_NUM: return Z3_OP_BNUM;
@@ -1159,6 +1173,7 @@ extern "C" {
             case OP_SEQ_EXTRACT: return Z3_OP_SEQ_EXTRACT;
             case OP_SEQ_REPLACE: return Z3_OP_SEQ_REPLACE;
             case OP_SEQ_AT: return Z3_OP_SEQ_AT;
+            case OP_SEQ_NTH: return Z3_OP_SEQ_NTH;
             case OP_SEQ_LENGTH: return Z3_OP_SEQ_LENGTH;
             case OP_SEQ_INDEX: return Z3_OP_SEQ_INDEX;
             case OP_SEQ_TO_RE: return Z3_OP_SEQ_TO_RE;
@@ -1190,8 +1205,8 @@ extern "C" {
             case OP_RE_UNION: return Z3_OP_RE_UNION;
             case OP_RE_INTERSECT: return Z3_OP_RE_INTERSECT;
             case OP_RE_LOOP: return Z3_OP_RE_LOOP;
-            // case OP_RE_FULL_SEQ_SET: return Z3_OP_RE_FULL_SET;
-            case OP_RE_FULL_CHAR_SET: return Z3_OP_RE_FULL_SET;
+            case OP_RE_FULL_SEQ_SET: return Z3_OP_RE_FULL_SET;
+            //case OP_RE_FULL_CHAR_SET: return Z3_OP_RE_FULL_SET;
             case OP_RE_EMPTY_SET: return Z3_OP_RE_EMPTY_SET;
             default:
                 return Z3_OP_INTERNAL;

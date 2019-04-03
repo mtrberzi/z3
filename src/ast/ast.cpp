@@ -28,6 +28,7 @@ Revision History:
 #include "ast/ast_smt2_pp.h"
 #include "ast/array_decl_plugin.h"
 #include "ast/ast_translation.h"
+#include "util/z3_version.h"
 
 
 // -----------------------------------
@@ -595,8 +596,7 @@ unsigned get_node_hash(ast const * n) {
     return 0;
 }
 
-void ast_table::erase(ast * n) {
-    // Customized erase method
+void ast_table::push_erase(ast * n) {
     // It uses two important properties:
     // 1. n is known to be in the table.
     // 2. operator== can be used instead of compare_nodes (big savings)
@@ -604,41 +604,81 @@ void ast_table::erase(ast * n) {
     unsigned h    = n->hash();
     unsigned idx  = h & mask;
     cell * c      = m_table + idx;
-    SASSERT(!c->is_free());
     cell * prev = nullptr;
     while (true) {
+        SASSERT(!c->is_free());
+        cell * next = c->m_next;
         if (c->m_data == n) {
             m_size--;
             if (prev == nullptr) {
-                cell * next = c->m_next;
                 if (next == nullptr) {
                     m_used_slots--;
+                    push_recycle_cell(c);
                     c->mark_free();
                     SASSERT(c->is_free());
                 }
                 else {
                     *c = *next;
-                    recycle_cell(next);
+                    next->m_data = n;
+                    push_recycle_cell(next);
                 }
             }
             else {
-                prev->m_next = c->m_next;
-                recycle_cell(c);
+                prev->m_next = next;
+                push_recycle_cell(c);
             }
             return;
         }
         CHS_CODE(m_collisions++;);
         prev = c;
-        c = c->m_next;
+        c = next;
         SASSERT(c);
     }
 }
+
+ast* ast_table::pop_erase() {
+    cell* c = m_tofree_cell;
+    if (c == nullptr) {
+        return nullptr;
+    }
+    if (c->is_free()) {
+        // cell was marked free, should not be recycled.
+        c->unmark_free();
+        m_tofree_cell = c->m_next;
+        c->mark_free();
+    }
+    else {
+        // cell should be recycled with m_free_cell
+        m_tofree_cell = c->m_next;
+        recycle_cell(c);
+    }        
+    return c->m_data;
+}
+
+
 
 // -----------------------------------
 //
 // decl_plugin
 //
 // -----------------------------------
+
+/**
+     \brief Checks wether a log is being generated and, if necessary, adds the beginning of an "[attach-meaning]" line
+    to that log. The theory solver should add some description of the meaning of the term in terms of the theory's
+    internal reasoning to the end of the line and insert a line break.
+    
+    \param a the term that should be described.
+
+    \return true if a log is being generated, false otherwise.
+*/
+bool decl_plugin::log_constant_meaning_prelude(app * a) {
+    if (m_manager->has_trace_stream()) {
+        m_manager->trace_stream() << "[attach-meaning] #" << a->get_id() << " " << m_manager->get_family_name(m_family_id).str() << " ";
+        return true;
+    }
+    return false;
+}
 
 func_decl * decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, parameter const * parameters,
                                         unsigned num_args, expr * const * args, sort * range) {
@@ -1325,6 +1365,7 @@ ast_manager::ast_manager(proof_gen_mode m, char const * trace_file, bool is_form
     if (trace_file) {
         m_trace_stream       = alloc(std::fstream, trace_file, std::ios_base::out);
         m_trace_stream_owner = true;
+        *m_trace_stream << "[tool-version] Z3 " << Z3_MAJOR_VERSION << "." << Z3_MINOR_VERSION << "." << Z3_BUILD_NUMBER << "\n";
     }
 
     if (!is_format_manager)
@@ -1366,6 +1407,7 @@ ast_manager::ast_manager(ast_manager const & src, bool disable_proofs):
     m_format_manager = alloc(ast_manager, PGM_DISABLED, m_trace_stream, true);
     init();
     copy_families_plugins(src);
+    update_fresh_id(src);
 }
 
 void ast_manager::update_fresh_id(ast_manager const& m) {
@@ -1542,8 +1584,8 @@ void ast_manager::raise_exception(char const * msg) {
     throw ast_exception(msg);
 }
 
-void ast_manager::raise_exception(std::string const&  msg) {
-    throw ast_exception(msg.c_str());
+void ast_manager::raise_exception(std::string &&  msg) {
+    throw ast_exception(std::move(msg));
 }
 
 
@@ -1827,21 +1869,16 @@ ast * ast_manager::register_node_core(ast * n) {
 
 void ast_manager::delete_node(ast * n) {
     TRACE("delete_node_bug", tout << mk_ll_pp(n, *this) << "\n";);
-    ptr_buffer<ast> worklist;
-    worklist.push_back(n);
 
-    while (!worklist.empty()) {
-        n = worklist.back();
-        worklist.pop_back();
+    SASSERT(m_ast_table.contains(n));
+    m_ast_table.push_erase(n);
 
-        TRACE("ast", tout << "Deleting object " << n->m_id << " " << n << "\n";);
+    while ((n = m_ast_table.pop_erase())) {
+
         CTRACE("del_quantifier", is_quantifier(n), tout << "deleting quantifier " << n->m_id << " " << n << "\n";);
         TRACE("mk_var_bug", tout << "del_ast: " << n->m_id << "\n";);
         TRACE("ast_delete_node", tout << mk_bounded_pp(n, *this) << "\n";);
 
-        SASSERT(m_ast_table.contains(n));
-        m_ast_table.erase(n);
-        SASSERT(!m_ast_table.contains(n));
         SASSERT(!m_debug_ref_count || !m_debug_free_indices.contains(n->m_id));
 
 #ifdef RECYCLE_FREE_AST_INDICES
@@ -1860,29 +1897,35 @@ void ast_manager::delete_node(ast * n) {
                 dealloc(info);
             }
             break;
-        case AST_FUNC_DECL:
-            if (to_func_decl(n)->m_info != nullptr && !m_debug_ref_count) {
-                func_decl_info * info = to_func_decl(n)->get_info();
+        case AST_FUNC_DECL: {
+            func_decl* f = to_func_decl(n);
+            if (f->m_info != nullptr && !m_debug_ref_count) {
+                func_decl_info * info = f->get_info();
                 info->del_eh(*this);
                 dealloc(info);
             }
-            dec_array_ref(worklist, to_func_decl(n)->get_arity(), to_func_decl(n)->get_domain());
-            dec_ref(worklist, to_func_decl(n)->get_range());
+            push_dec_array_ref(f->get_arity(), f->get_domain());
+            push_dec_ref(f->get_range());
             break;
-        case AST_APP:
-            dec_ref(worklist, to_app(n)->get_decl());
-            dec_array_ref(worklist, to_app(n)->get_num_args(), to_app(n)->get_args());
+        }
+        case AST_APP: {
+            app* a = to_app(n);
+            push_dec_ref(a->get_decl());
+            push_dec_array_ref(a->get_num_args(), a->get_args());
             break;
+        }
         case AST_VAR:
-            dec_ref(worklist, to_var(n)->get_sort());
+            push_dec_ref(to_var(n)->get_sort());
             break;
-        case AST_QUANTIFIER:
-            dec_array_ref(worklist, to_quantifier(n)->get_num_decls(), to_quantifier(n)->get_decl_sorts());
-            dec_ref(worklist, to_quantifier(n)->get_expr());
-            dec_ref(worklist, to_quantifier(n)->get_sort());
-            dec_array_ref(worklist, to_quantifier(n)->get_num_patterns(), to_quantifier(n)->get_patterns());
-            dec_array_ref(worklist, to_quantifier(n)->get_num_no_patterns(), to_quantifier(n)->get_no_patterns());
+        case AST_QUANTIFIER: {
+            quantifier* q = to_quantifier(n);
+            push_dec_array_ref(q->get_num_decls(), q->get_decl_sorts());
+            push_dec_ref(q->get_expr());
+            push_dec_ref(q->get_sort());
+            push_dec_array_ref(q->get_num_patterns(), q->get_patterns());
+            push_dec_array_ref(q->get_num_no_patterns(), q->get_no_patterns());
             break;
+        }
         default:
             break;
         }
@@ -2113,7 +2156,6 @@ app * ast_manager::mk_app_core(func_decl * decl, unsigned num_args, expr * const
     app * new_node = nullptr;
     unsigned sz = app::get_obj_size(num_args);
     void * mem = allocate_node(sz);
-
     try {
         if (m_int_real_coercions && coercion_needed(decl, num_args, args)) {
             expr_ref_buffer new_args(*this);
@@ -2159,7 +2201,14 @@ app * ast_manager::mk_app_core(func_decl * decl, unsigned num_args, expr * const
         }
 
         if (m_trace_stream && r == new_node) {
-            *m_trace_stream << "[mk-app] #" << r->get_id() << " ";
+            if (is_proof(r)) {
+                if (decl == mk_func_decl(m_basic_family_id, PR_UNDEF, 0, nullptr, 0, static_cast<expr * const *>(nullptr)))
+                    return r;
+                *m_trace_stream << "[mk-proof] #";
+            } else {
+                *m_trace_stream << "[mk-app] #";
+            }
+            *m_trace_stream << r->get_id() << " ";
             if (r->get_num_args() == 0 && r->get_decl()->get_name() == "int") {
                 ast_ll_pp(*m_trace_stream, *this, r);
             }
@@ -2305,7 +2354,7 @@ var * ast_manager::mk_var(unsigned idx, sort * s) {
     var * r         = register_node(new_node);
 
     if (m_trace_stream && r == new_node) {
-        *m_trace_stream << "[mk-var] #" << r->get_id() << "\n";
+        *m_trace_stream << "[mk-var] #" << r->get_id() << " " << idx << "\n";
     }
     return r;
 }
@@ -2434,6 +2483,11 @@ quantifier * ast_manager::mk_quantifier(quantifier_kind k, unsigned num_decls, s
 
     if (m_trace_stream && r == new_node) {
         trace_quant(*m_trace_stream, r);
+        *m_trace_stream << "[attach-var-names] #" << r->get_id();
+        for (unsigned i = 0; i < num_decls; ++i) {
+            *m_trace_stream << " (|" << decl_names[num_decls - i - 1].str() << "| ; |" << decl_sorts[num_decls - i -1]->get_name().str() << "|)";
+        }
+        *m_trace_stream << "\n";
     }
 
     return r;

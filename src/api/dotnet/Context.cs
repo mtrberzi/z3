@@ -475,7 +475,7 @@ namespace Microsoft.Z3
         /// Update a datatype field at expression t with value v.
         /// The function performs a record update at t. The field
         /// that is passed in as argument is updated with value v,
-        /// the remainig fields of t are unchanged.
+        /// the remaining fields of t are unchanged.
             /// </summary>
         public Expr MkUpdateField(FuncDecl field, Expr t, Expr v)
         {
@@ -929,6 +929,26 @@ namespace Microsoft.Z3
             CheckContextMatch(t1);
             CheckContextMatch(t2);
             return new BoolExpr(this, Native.Z3_mk_xor(nCtx, t1.NativeObject, t2.NativeObject));
+        }
+
+        /// <summary>
+        /// Create an expression representing <c>t1 xor t2 xor t3 ... </c>.
+        /// </summary>
+        public BoolExpr MkXor(IEnumerable<BoolExpr> ts)
+        {
+            Debug.Assert(ts != null);
+            Debug.Assert(ts.All(a => a != null));
+            CheckContextMatch<BoolExpr>(ts);
+            BoolExpr r = null;
+            foreach (var t in ts) {
+                if (r == null) 
+                   r = t;
+                else
+                   r = MkXor(r, t);
+            }
+            if (r == null) 
+               r = MkTrue();
+            return r;
         }
 
         /// <summary>
@@ -2059,6 +2079,7 @@ namespace Microsoft.Z3
             return Expr.Create(this, Native.Z3_mk_select_n(nCtx, a.NativeObject, AST.ArrayLength(args), AST.ArrayToNative(args)));
         }
 
+
         /// <summary>
         /// Array update.
         /// </summary>
@@ -2434,12 +2455,23 @@ namespace Microsoft.Z3
         /// <summary>
         /// Retrieve sequence of length one at index.
         /// </summary>
-        public SeqExpr MkAt(SeqExpr s, IntExpr index)
+        public SeqExpr MkAt(SeqExpr s, Expr index)
         {
             Debug.Assert(s != null);
             Debug.Assert(index != null);
             CheckContextMatch(s, index);
             return new SeqExpr(this, Native.Z3_mk_seq_at(nCtx, s.NativeObject, index.NativeObject));
+        }
+
+        /// <summary>
+        /// Retrieve element at index.
+        /// </summary>
+        public SeqExpr MkNth(SeqExpr s, Expr index)
+        {
+            Debug.Assert(s != null);
+            Debug.Assert(index != null);
+            CheckContextMatch(s, index);
+            return new SeqExpr(this, Native.Z3_mk_seq_nth(nCtx, s.NativeObject, index.NativeObject));
         }
 
         /// <summary>

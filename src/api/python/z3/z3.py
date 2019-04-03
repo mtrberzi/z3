@@ -482,6 +482,7 @@ def _to_ast_ref(a, ctx):
     else:
         return _to_expr_ref(a, ctx)
 
+
 #########################################
 #
 # Sorts
@@ -608,6 +609,10 @@ def _to_sort_ref(s, ctx):
         return FPSortRef(s, ctx)
     elif k == Z3_ROUNDING_MODE_SORT:
         return FPRMSortRef(s, ctx)
+    elif k == Z3_RE_SORT:
+        return ReSortRef(s, ctx)
+    elif k == Z3_SEQ_SORT:
+        return SeqSortRef(s, ctx)
     return SortRef(s, ctx)
 
 def _sort(ctx, a):
@@ -1644,6 +1649,12 @@ def Not(a, ctx=None):
         s = BoolSort(ctx)
         a = s.cast(a)
         return BoolRef(Z3_mk_not(ctx.ref(), a.as_ast()), ctx)
+
+def mk_not(a):
+    if is_not(a):
+        return a.arg(0)
+    else:
+        return Not(a)
 
 def _has_probe(args):
     """Return `True` if one of the elements of the given collection is a Z3 probe."""
@@ -2800,7 +2811,7 @@ class RatNumRef(ArithRef):
         return self.denominator().is_int() and self.denominator_as_long() == 1
 
     def as_long(self):
-        _z3_assert(self.is_int(), "Expected integer fraction")
+        _z3_assert(self.is_int_value(), "Expected integer fraction")
         return self.numerator_as_long()
 
     def as_decimal(self, prec):
@@ -4483,11 +4494,15 @@ def K(dom, v):
     return ArrayRef(Z3_mk_const_array(ctx.ref(), dom.ast, v.as_ast()), ctx)
 
 def Ext(a, b):
-    """Return extensionality index for arrays.
+    """Return extensionality index for one-dimensional arrays.
+    >> a, b = Consts('a b', SetSort(IntSort()))
+    >> Ext(a, b)
+    Ext(a, b)
     """
+    ctx = a.ctx
     if __debug__:
-        _z3_assert(is_array(a) and is_array(b))
-    return _to_expr_ref(Z3_mk_array_ext(ctx.ref(), a.as_ast(), b.as_ast()));
+        _z3_assert(is_array(a) and is_array(b), "arguments must be arrays")
+    return _to_expr_ref(Z3_mk_array_ext(ctx.ref(), a.as_ast(), b.as_ast()), ctx)
 
 def is_select(a):
     """Return `True` if `a` is a Z3 array select application.
@@ -5333,7 +5348,7 @@ class Goal(Z3PPObject):
     def __copy__(self):
         return self.translate(self.ctx)
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo={}):
         return self.translate(self.ctx)
 
     def simplify(self, *arguments, **keywords):
@@ -5521,7 +5536,7 @@ class AstVector(Z3PPObject):
     def __copy__(self):
         return self.translate(self.ctx)
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo={}):
         return self.translate(self.ctx)
 
     def __repr__(self):
@@ -5865,7 +5880,7 @@ class FuncInterp(Z3PPObject):
     def __copy__(self):
         return self.translate(self.ctx)
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo={}):
         return self.translate(self.ctx)
 
     def as_list(self):
@@ -6161,8 +6176,12 @@ class ModelRef(Z3PPObject):
     def __copy__(self):
         return self.translate(self.ctx)
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo={}):
         return self.translate(self.ctx)
+
+def Model(ctx = None):
+    ctx = _get_ctx(ctx)
+    return ModelRef(Z3_mk_model(ctx.ref()), ctx)
 
 def is_as_array(n):
     """Return true if n is a Z3 expression of the form (_ as-array f)."""
@@ -6654,17 +6673,11 @@ class Solver(Z3PPObject):
 
     def from_file(self, filename):
         """Parse assertions from a file"""
-        try:
-            Z3_solver_from_file(self.ctx.ref(), self.solver, filename)
-        except Z3Exception as e:
-            _handle_parse_error(e, self.ctx)
+        Z3_solver_from_file(self.ctx.ref(), self.solver, filename)
 
     def from_string(self, s):
         """Parse assertions from a string"""
-        try:
-           Z3_solver_from_string(self.ctx.ref(), self.solver, s)
-        except Z3Exception as e:
-            _handle_parse_error(e, self.ctx)        
+        Z3_solver_from_string(self.ctx.ref(), self.solver, s)
     
     def cube(self, vars = None):
         """Get set of cubes
@@ -6722,6 +6735,25 @@ class Solver(Z3PPObject):
         """
         return AstVector(Z3_solver_get_non_units(self.ctx.ref(), self.solver), self.ctx)
 
+    def trail_levels(self):
+        """Return trail and decision levels of the solver state after a check() call. 
+        """
+        trail = self.trail()
+        levels = (ctypes.c_uint * len(trail))()
+        Z3_solver_get_levels(self.ctx.ref(), self.solver, trail.vector, len(trail), levels)
+        return trail, levels
+
+    def trail(self):
+        """Return trail of the solver state after a check() call. 
+        """
+        return AstVector(Z3_solver_get_trail(self.ctx.ref(), self.solver), self.ctx)
+
+    def set_activity(self, lit, act):
+        """Set activity of literal on solver object.
+        This influences the case split order of the variable.
+        """
+        Z3_solver_set_activity(self.ctx.ref(), self.solver, lit.ast, act)
+        
     def statistics(self):
         """Return statistics for the last `check()`.
 
@@ -6781,7 +6813,7 @@ class Solver(Z3PPObject):
     def __copy__(self):
         return self.translate(self.ctx)
 
-    def __deepcopy__(self):
+    def __deepcopy__(self, memo={}):
         return self.translate(self.ctx)
 
     def sexpr(self):
@@ -6794,6 +6826,10 @@ class Solver(Z3PPObject):
         >>> r = s.sexpr()
         """
         return Z3_solver_to_string(self.ctx.ref(), self.solver)
+
+    def dimacs(self):
+        """Return a textual representation of the solver in DIMACS format."""
+        return Z3_solver_to_dimacs_string(self.ctx.ref(), self.solver)
 
     def to_smt2(self):
         """return SMTLIB2 formatted benchmark for solver's assertions"""
@@ -7053,17 +7089,11 @@ class Fixedpoint(Z3PPObject):
 
     def parse_string(self, s):
         """Parse rules and queries from a string"""
-        try:
-            return AstVector(Z3_fixedpoint_from_string(self.ctx.ref(), self.fixedpoint, s), self.ctx)
-        except Z3Exception as e:
-            _handle_parse_error(e, self.ctx)
+        return AstVector(Z3_fixedpoint_from_string(self.ctx.ref(), self.fixedpoint, s), self.ctx)
 
     def parse_file(self, f):
         """Parse rules and queries from a file"""
-        try:
-            return AstVector(Z3_fixedpoint_from_file(self.ctx.ref(), self.fixedpoint, f), self.ctx)
-        except Z3Exception as e:
-            _handle_parse_error(e, self.ctx)
+        return AstVector(Z3_fixedpoint_from_file(self.ctx.ref(), self.fixedpoint, f), self.ctx)
 
     def get_rules(self):
         """retrieve rules that have been added to fixedpoint context"""
@@ -7320,6 +7350,35 @@ class Optimize(Z3PPObject):
         self.add(fml)
         return self
 
+    def assert_and_track(self, a, p):
+        """Assert constraint `a` and track it in the unsat core using the Boolean constant `p`.
+
+        If `p` is a string, it will be automatically converted into a Boolean constant.
+
+        >>> x = Int('x')
+        >>> p3 = Bool('p3')
+        >>> s = Optimize()
+        >>> s.assert_and_track(x > 0,  'p1')
+        >>> s.assert_and_track(x != 1, 'p2')
+        >>> s.assert_and_track(x < 0,  p3)
+        >>> print(s.check())
+        unsat
+        >>> c = s.unsat_core()
+        >>> len(c)
+        2
+        >>> Bool('p1') in c
+        True
+        >>> Bool('p2') in c
+        False
+        >>> p3 in c
+        True
+        """
+        if isinstance(p, str):
+            p = Bool(p, self.ctx)
+        _z3_assert(isinstance(a, BoolRef), "Boolean expression expected")
+        _z3_assert(isinstance(p, BoolRef) and is_const(p), "Boolean expression expected")
+        Z3_optimize_assert_and_track(self.ctx.ref(), self.optimize, a.as_ast(), p.as_ast())
+
     def add_soft(self, arg, weight = "1", id = None):
         """Add soft constraint with optional weight and optional identifier.
            If no weight is supplied, then the penalty for violating the soft constraint
@@ -7400,17 +7459,11 @@ class Optimize(Z3PPObject):
 
     def from_file(self, filename):
         """Parse assertions and objectives from a file"""
-        try:
-            Z3_optimize_from_file(self.ctx.ref(), self.optimize, filename)
-        except Z3Exception as e:
-            _handle_parse_error(e, self.ctx)
+        Z3_optimize_from_file(self.ctx.ref(), self.optimize, filename)
 
     def from_string(self, s):
         """Parse assertions and objectives from a string"""
-        try:
-            Z3_optimize_from_string(self.ctx.ref(), self.optimize, s)
-        except Z3Exception as e:
-            _handle_parse_error(e, self.ctx)
+        Z3_optimize_from_string(self.ctx.ref(), self.optimize, s)
 
     def assertions(self):
         """Return an AST vector containing all added constraints."""
@@ -9859,6 +9912,9 @@ class SeqSortRef(SortRef):
         False
         """
         return Z3_is_string_sort(self.ctx_ref(), self.ast)
+
+    def basis(self):
+        return _to_sort_ref(Z3_get_seq_sort_basis(self.ctx_ref(), self.ast), self.ctx)
         
 
 def StringSort(ctx=None):
@@ -9894,6 +9950,11 @@ class SeqRef(ExprRef):
     def __getitem__(self, i):
         if _is_int(i):
             i = IntVal(i, self.ctx)
+        return SeqRef(Z3_mk_seq_nth(self.ctx_ref(), self.as_ast(), i.as_ast()), self.ctx)
+
+    def at(self, i):
+        if _is_int(i):
+            i = IntVal(i, self.ctx)
         return SeqRef(Z3_mk_seq_at(self.ctx_ref(), self.as_ast(), i.as_ast()), self.ctx)
 
     def is_string(self):
@@ -9904,6 +9965,8 @@ class SeqRef(ExprRef):
 
     def as_string(self):
         """Return a string representation of sequence expression."""
+        if self.is_string_value():
+           return Z3_get_string(self.ctx_ref(), self.as_ast())
         return Z3_ast_to_string(self.ctx_ref(), self.as_ast())
 
 
@@ -9955,7 +10018,7 @@ def is_string_value(a):
 def StringVal(s, ctx=None):
     """create a string expression"""
     ctx = _get_ctx(ctx)
-    return SeqRef(Z3_mk_string(ctx.ref(), s), ctx)
+    return SeqRef(Z3_mk_lstring(ctx.ref(), len(s), s), ctx)
 
 def String(name, ctx=None):
     """Return a string constant named `name`. If `ctx=None`, then the global context is used.
@@ -9983,17 +10046,15 @@ def Strings(names, ctx=None):
 def Empty(s):
     """Create the empty sequence of the given sort
     >>> e = Empty(StringSort())
-    >>> print(e)
-    ""
     >>> e2 = StringVal("")
     >>> print(e.eq(e2))
     True
     >>> e3 = Empty(SeqSort(IntSort()))
     >>> print(e3)
-    seq.empty
+    Empty(Seq(Int))
     >>> e4 = Empty(ReSort(SeqSort(IntSort())))
     >>> print(e4)
-    re.empty
+    Empty(ReSort(Seq(Int)))
     """
     if isinstance(s, SeqSortRef):
        return SeqRef(Z3_mk_seq_empty(s.ctx_ref(), s.ast), s.ctx)
@@ -10005,10 +10066,10 @@ def Full(s):
     """Create the regular expression that accepts the universal language
     >>> e = Full(ReSort(SeqSort(IntSort())))
     >>> print(e)
-    re.all
+    Full(ReSort(Seq(Int)))
     >>> e1 = Full(ReSort(StringSort()))
     >>> print(e1)
-    re.all
+    Full(ReSort(String))
     """
     if isinstance(s, ReSortRef):
        return ReRef(Z3_mk_re_full(s.ctx_ref(), s.ast), s.ctx)
@@ -10098,7 +10159,16 @@ def IndexOf(s, substr, offset):
     substr = _coerce_seq(substr, ctx)
     if _is_int(offset):
         offset = IntVal(offset, ctx)
-    return SeqRef(Z3_mk_seq_index(s.ctx_ref(), s.as_ast(), substr.as_ast(), offset.as_ast()), s.ctx)
+    return ArithRef(Z3_mk_seq_index(s.ctx_ref(), s.as_ast(), substr.as_ast(), offset.as_ast()), s.ctx)
+
+def LastIndexOf(s, substr):
+    """Retrieve the last index of substring within a string"""
+    ctx = None
+    ctx = _get_ctx2(s, substr, ctx)
+    s = _coerce_seq(s, ctx)
+    substr = _coerce_seq(substr, ctx)
+    return ArithRef(Z3_mk_seq_last_index(s.ctx_ref(), s.as_ast(), substr.as_ast()), s.ctx)
+    
 
 def Length(s):
     """Obtain the length of a sequence 's'
@@ -10149,6 +10219,8 @@ def Re(s, ctx=None):
 class ReSortRef(SortRef):
     """Regular expression sort."""
 
+    def basis(self):
+        return _to_sort_ref(Z3_get_re_sort_basis(self.ctx_ref(), self.ast), self.ctx)
 
 def ReSort(s):
     if is_ast(s):
@@ -10164,7 +10236,6 @@ class ReRef(ExprRef):
 
     def __add__(self, other):
         return Union(self, other)
-
 
 def is_re(s):
     return isinstance(s, ReRef)
@@ -10201,6 +10272,23 @@ def Union(*args):
     for i in range(sz):
         v[i] = args[i].as_ast()
     return ReRef(Z3_mk_re_union(ctx.ref(), sz, v), ctx)
+
+def Intersect(*args):
+    """Create intersection of regular expressions.
+    >>> re = Intersect(Re("a"), Re("b"), Re("c"))
+    """
+    args = _get_args(args)
+    sz = len(args)
+    if __debug__:
+        _z3_assert(sz > 0, "At least one argument expected.")
+        _z3_assert(all([is_re(a) for a in args]), "All arguments must be regular expressions.")
+    if sz == 1:
+        return args[0]
+    ctx = args[0].ctx
+    v = (Ast * sz)()
+    for i in range(sz):
+        v[i] = args[i].as_ast()
+    return ReRef(Z3_mk_re_intersect(ctx.ref(), sz, v), ctx)
 
 def Plus(re):
     """Create the regular expression accepting one or more repetitions of argument.
@@ -10253,3 +10341,18 @@ def Loop(re, lo, hi=0):
     False
     """
     return ReRef(Z3_mk_re_loop(re.ctx_ref(), re.as_ast(), lo, hi), re.ctx)
+
+def Range(lo, hi, ctx = None):
+    """Create the range regular expression over two sequences of length 1
+    >>> range = Range("a","z")
+    >>> print(simplify(InRe("b", range)))
+    True
+    >>> print(simplify(InRe("bb", range)))
+    False
+    """
+    lo = _coerce_seq(lo, ctx)
+    hi = _coerce_seq(hi, ctx)
+    return ReRef(Z3_mk_re_range(lo.ctx_ref(), lo.ast, hi.ast), lo.ctx)
+
+# Special Relations
+

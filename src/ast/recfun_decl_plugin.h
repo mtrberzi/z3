@@ -56,7 +56,7 @@ namespace recfun {
         friend class def;
         func_decl_ref       m_pred; //<! predicate used for this case
         expr_ref_vector     m_guards; //<! conjunction that is equivalent to this case
-        expr_ref            m_rhs; //<! if guard is true, `f(t1…tn) = rhs` holds
+        expr_ref            m_rhs; //<! if guard is true, `f(t1...tn) = rhs` holds
         def *               m_def; //<! definition this is a part of
         bool                m_immediate; //<! does `rhs` contain no defined_fun/case_pred?
 
@@ -172,6 +172,8 @@ namespace recfun {
                                      unsigned arity, sort * const * domain, sort * range) override;
             
             promise_def mk_def(symbol const& name, unsigned n, sort *const * params, sort * range);
+
+            promise_def ensure_def(symbol const& name, unsigned n, sort *const * params, sort * range);
             
             void set_definition(replace& r, promise_def & d, unsigned n_vars, var * const * vars, expr * rhs);
             
@@ -222,7 +224,6 @@ namespace recfun {
 
         //<! add a function declaration
         def * decl_fun(symbol const & s, unsigned n_args, sort *const * args, sort * range);
-
 
         def& get_def(func_decl* f) {
             SASSERT(m_plugin->has_def(f));

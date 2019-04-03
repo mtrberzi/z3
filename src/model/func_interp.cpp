@@ -25,11 +25,11 @@ Revision History:
 func_entry::func_entry(ast_manager & m, unsigned arity, expr * const * args, expr * result):
     m_args_are_values(true),
     m_result(result) {
-    SASSERT(is_ground(result));
+    //SASSERT(is_ground(result));
     m.inc_ref(result);
     for (unsigned i = 0; i < arity; i++) {
         expr * arg = args[i];
-        SASSERT(is_ground(arg));
+        //SASSERT(is_ground(arg));
         if (!m.is_value(arg))
             m_args_are_values = false;
         m.inc_ref(arg);
@@ -203,7 +203,7 @@ void func_interp::insert_new_entry(expr * const * args, expr * r) {
            }
            tout << "Old: " << mk_ismt2_pp(get_entry(args)->get_result(), m_manager) << "\n";
            );
-    SASSERT(get_entry(args) == 0);
+    SASSERT(get_entry(args) == nullptr);
     func_entry * new_entry = func_entry::mk(m_manager, m_arity, args, r);
     if (!new_entry->args_are_values())
         m_args_are_values = false;
