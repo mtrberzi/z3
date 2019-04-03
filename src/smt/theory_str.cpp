@@ -75,7 +75,8 @@ namespace smt {
         fixed_length_subterm_trail(m),
         fixed_length_assumptions(m),
         preprocessing_iteration_count(0),
-        fixed_length_transcendent_axioms(m)
+        fixed_length_transcendent_axioms(m),
+        bitvector_character_constants(m)
     {
         initialize_charset();
     }
@@ -11227,11 +11228,8 @@ namespace smt {
         zstring strConst;
         if (u.str.is_string(term, strConst)) {
             for (unsigned i = 0; i < strConst.length(); ++i) {
-                rational ch(strConst[i]);
-                // TODO we can probably cache these
-                expr_ref chTerm(bv.mk_numeral(ch, bv8_sort), m);
+                expr_ref chTerm(bitvector_character_constants.get(strConst[i]), m);
                 eqcChars.push_back(chTerm);
-                fixed_length_subterm_trail.push_back(chTerm);
             }
         } else if (to_app(term)->get_num_args() == 0 && !u.str.is_string(term)) {
             // this is a variable; get its length and create/reuse character terms
@@ -11705,6 +11703,17 @@ namespace smt {
     lbool theory_str::fixed_length_model_construction(expr_ref_vector formulas, expr_ref_vector &precondition,
             obj_map<expr, zstring> &model, expr_ref_vector &cex) {
         ast_manager & m = get_manager();
+
+        if (bitvector_character_constants.empty()) {
+            bv_util bv(m);
+            sort * bv8_sort = bv.mk_sort(8);
+            for (unsigned i = 0; i < 256; ++i) {
+                rational ch(i);
+                expr_ref chTerm(bv.mk_numeral(ch, bv8_sort), m);
+                bitvector_character_constants.push_back(chTerm);
+                fixed_length_subterm_trail.push_back(chTerm);
+            }
+        }
 
         if (is_trace_enabled("str")) {
         TRACE_CODE(

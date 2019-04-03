@@ -603,6 +603,8 @@ protected:
     unsigned preprocessing_iteration_count; // number of attempts we've made to solve by preprocessing length information
     obj_map<expr, zstring> candidate_model;
     expr_ref_vector fixed_length_transcendent_axioms; // learned clauses to carry over between different SMT solvers across tactics
+
+    expr_ref_vector bitvector_character_constants; // array-indexed map of bv.mk_numeral terms
 protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);
