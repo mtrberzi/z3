@@ -10694,6 +10694,7 @@ namespace smt {
                 // whatever came back in CEX is the conflict clause.
                 // negate its conjunction and assert that
                 expr_ref conflict(m.mk_not(mk_and(cex)), m);
+                TRACE("str_mc", tout << "asserting " << mk_ismt2_pp(conflict, m) << std::endl;);
                 assert_axiom(conflict);
                 add_persisted_axiom(conflict);
                 fixed_length_transcendent_axioms.push_back(conflict);
@@ -11926,6 +11927,7 @@ namespace smt {
             TRACE("str_mc", tout << "subsolver found UNSAT; reconstructing unsat core" << std::endl;);
             TRACE("str", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
             TRACE("str_mc", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
+            bool negate_pre = false;
             for (unsigned i = 0; i < subsolver.get_unsat_core_size(); ++i) {
                 TRACE("str", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
                 rational index;
@@ -11935,6 +11937,14 @@ namespace smt {
                 TRACE("str_mc", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
                 TRACE("str", tout << "lesson: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << " at index " << index << std::endl;);
                 cex.push_back(refine(lhs, rhs, index));
+                if (index < rational(0)) {
+                    negate_pre = true;
+                }
+            }
+            if (negate_pre){
+                for (auto ex : precondition) {
+                    cex.push_back(ex);
+                }
             }
             return l_false;
         } else { // l_undef
@@ -13766,31 +13776,10 @@ namespace smt {
 
     expr* theory_str::refine_dis(expr* lhs, expr* rhs) {
         ast_manager & m = get_manager();
-        //for now just assert a change in lengths
-        expr_ref_vector diseqs(m);
-
-        std::set<expr*> left_v_set;
-        std::set<expr*> left_c_set;
-        get_sets(lhs, &left_c_set, &left_v_set);
-
-        std::set<expr*> right_v_set;
-        std::set<expr*> right_c_set;
-        get_sets(rhs, &right_c_set, &right_v_set);
-
-        std::set<expr*>::iterator it;
-
-        for (std::set<expr*>::iterator it=left_v_set.begin(); it!=left_v_set.end(); ++it){
-            unsigned len = fixed_length_used_len_terms.find(*it);
-            diseqs.push_back(m.mk_eq(u.str.mk_length(*it), mk_int(len)));
-        }
-
-        for (std::set<expr*>::iterator it=right_v_set.begin(); it!=right_v_set.end(); ++it){
-            unsigned len = fixed_length_used_len_terms.find(*it);
-            diseqs.push_back(m.mk_eq(u.str.mk_length(*it), mk_int(len)));
-        }
-        expr* final_diseq = m.mk_and(diseqs.size(), diseqs.c_ptr());
-        TRACE("str", tout << "learning not " << mk_pp(final_diseq, m) << std::endl;);
-        return final_diseq;
+        expr_ref lesson(m);
+        lesson = m.mk_not(m.mk_eq(lhs, rhs));
+        TRACE("str", tout << "learning not " << mk_pp(lesson, m) << std::endl;);
+        return lesson;
     }
 
     expr* theory_str::refine_function(expr* f) {
