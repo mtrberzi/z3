@@ -125,6 +125,15 @@ namespace smt {
         }
     };
 
+
+    void theory_str::collect_statistics(::statistics & st) const {
+        st.update("str refine equation", m_stats.m_refine_eq);
+        st.update("str refine negated equation", m_stats.m_refine_neq);
+        st.update("str refine function", m_stats.m_refine_f);
+        st.update("str refine negated function", m_stats.m_refine_nf);
+        st.update("str solved by refine", m_stats.m_refine_solved);
+    }
+
     void theory_str::init(context * ctx) {
         theory::init(ctx);
         m_mk_aut.set_solver(alloc(seq_expr_solver, get_manager(),
@@ -10660,6 +10669,7 @@ namespace smt {
                     TRACE("str", tout << "model is valid" << std::endl;);
                     TRACE("str_mc", tout << "model is valid" << std::endl;);
                     candidate_model = model;
+                    m_stats.m_refine_solved = 1;
                     return FC_DONE;
                 } else {
                     TRACE("str", tout << "model is not valid -- generating conflict clause" << std::endl;);
@@ -13635,17 +13645,21 @@ namespace smt {
     expr* theory_str::refine(expr* lhs, expr* rhs, rational offset) {
         // TRACE("str", tout << "refine with " << offset.get_unsigned() << std::endl;);
         if (offset >= rational(0)) {
+            ++m_stats.m_refine_eq;
             return refine_eq(lhs, rhs, offset.get_unsigned());
         }
         if (offset == rational(-1)) { // negative equation
+            ++m_stats.m_refine_neq;
             return refine_dis(lhs, rhs);
         }
         if (offset == rational(-2)) { // function like contains, prefix,...
             SASSERT(rhs == nullptr);
+            ++m_stats.m_refine_f;
             return refine_function(lhs);
         }
         if (offset == rational(-3)) { // negated function
             SASSERT(rhs == nullptr);
+            ++m_stats.m_refine_nf;
             ast_manager & m = get_manager();
             return refine_function(m.mk_not(lhs));
         }

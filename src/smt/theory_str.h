@@ -348,6 +348,16 @@ class theory_str : public theory {
     };
     typedef map<zstring, expr*, zstring_hash_proc, default_eq<zstring> > string_map;
 
+    struct stats {
+        stats() { reset(); }
+        void reset() { memset(this, 0, sizeof(stats)); }
+        unsigned m_refine_eq;
+        unsigned m_refine_neq;
+        unsigned m_refine_f;
+        unsigned m_refine_nf;
+        unsigned m_refine_solved;
+    };
+
 protected:
     theory_str_params const & m_params;
 
@@ -605,6 +615,9 @@ protected:
     expr_ref_vector fixed_length_transcendent_axioms; // learned clauses to carry over between different SMT solvers across tactics
 
     expr_ref_vector bitvector_character_constants; // array-indexed map of bv.mk_numeral terms
+    
+    stats m_stats;
+
 protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);
@@ -875,6 +888,8 @@ public:
 
     char const * get_name() const override { return "seq"; }
     void display(std::ostream & out) const override;
+
+    void collect_statistics(::statistics & st) const override;
 
     bool overlapping_variables_detected() const { return loopDetected; }
     expr_ref_vector get_transcendent_axioms() const { return fixed_length_transcendent_axioms; }

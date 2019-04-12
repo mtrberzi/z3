@@ -53,6 +53,11 @@ public:
         _solver2->operator()(in, result);
     }
 
+    void collect_statistics(::statistics & st) const {
+        _solver1->collect_statistics(st);
+        _solver2->collect_statistics(st);
+    }
+
 };
 
 tactic * mk_z3str3_cegar_tactical(tactic * s1, tactic * s2) {
