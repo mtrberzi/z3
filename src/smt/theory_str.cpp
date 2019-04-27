@@ -131,7 +131,8 @@ namespace smt {
         st.update("str refine negated equation", m_stats.m_refine_neq);
         st.update("str refine function", m_stats.m_refine_f);
         st.update("str refine negated function", m_stats.m_refine_nf);
-        st.update("str solved by refine", m_stats.m_refine_solved);
+        st.update("str solved by", m_stats.m_solved_by);
+        st.update("str fixed length iterations", m_stats.m_fixed_length_iterations);
     }
 
     void theory_str::init(context * ctx) {
@@ -10669,12 +10670,13 @@ namespace smt {
                     TRACE("str", tout << "model is valid" << std::endl;);
                     TRACE("str_mc", tout << "model is valid" << std::endl;);
                     candidate_model = model;
-                    m_stats.m_refine_solved = 1;
+                    m_stats.m_solved_by = 1;
                     return FC_DONE;
                 } else {
                     TRACE("str", tout << "model is not valid -- generating conflict clause" << std::endl;);
                     TRACE("str_mc", tout << "model is not valid -- generating conflict clause" << std::endl;);
                     preprocessing_iteration_count += 1;
+                    m_stats.m_fixed_length_iterations++;
                     if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                         TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                         TRACE("str_mc", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
@@ -10696,6 +10698,7 @@ namespace smt {
             } else if (model_status == l_false) {
                 // UNSAT
                 preprocessing_iteration_count += 1;
+                m_stats.m_fixed_length_iterations++;
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     TRACE("str_mc", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
@@ -10712,6 +10715,7 @@ namespace smt {
             } else {
                 // UNKNOWN
                 preprocessing_iteration_count += 1;
+                m_stats.m_fixed_length_iterations++;
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     TRACE("str_mc", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
@@ -10782,6 +10786,7 @@ namespace smt {
         std::map<expr*, std::map<expr*, int> > var_eq_concat_map;
         int conflictInDep = ctx_dep_analysis(varAppearInAssign, freeVar_map, unrollGroup_map, var_eq_concat_map);
         if (conflictInDep == -1) {
+            m_stats.m_solved_by = 2;
             return FC_DONE;
         }
 
@@ -10938,6 +10943,7 @@ namespace smt {
 
             if (unused_internal_variables.empty()) {
                 TRACE("str", tout << "All variables are assigned. Done!" << std::endl;);
+                m_stats.m_solved_by = 2;
                 return FC_DONE;
             } else {
                 TRACE("str", tout << "Assigning decoy values to free internal variables." << std::endl;);
@@ -11100,6 +11106,7 @@ namespace smt {
             lbool model_status = fixed_length_model_construction(assignments, precondition, candidate_model, cex);
 
             if (model_status == l_true) {
+                m_stats.m_solved_by = 2;
                 return FC_DONE;
             } else if (model_status == l_false) {
                 // whatever came back in CEX is the conflict clause.
@@ -13648,6 +13655,8 @@ namespace smt {
             ++m_stats.m_refine_eq;
             return refine_eq(lhs, rhs, offset.get_unsigned());
         }
+        // Let's just giveup if we find ourselves in the disjunctive fragment.
+        preprocessing_iteration_count = m_params.m_FixedLengthIterations + 1;
         if (offset == rational(-1)) { // negative equation
             ++m_stats.m_refine_neq;
             return refine_dis(lhs, rhs);

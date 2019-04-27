@@ -355,7 +355,8 @@ class theory_str : public theory {
         unsigned m_refine_neq;
         unsigned m_refine_f;
         unsigned m_refine_nf;
-        unsigned m_refine_solved;
+        unsigned m_solved_by;
+        unsigned m_fixed_length_iterations;
     };
 
 protected:
