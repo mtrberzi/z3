@@ -20,6 +20,8 @@ Notes:
 #define Z3STR3_TACTIC_H_
 
 #include "util/params.h"
+#include "tactic/goal_util.h"
+
 class ast_manager;
 class tactic;
 
@@ -29,5 +31,6 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p = params_ref());
   ADD_TACTIC("z3str3",  "use z3str3 tricks to solve string problems.", "mk_z3str3_tactic(m, p)")
 */
 
+probe * mk_is_cf_probe();
 
 #endif

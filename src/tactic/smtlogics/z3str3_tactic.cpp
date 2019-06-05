@@ -23,6 +23,47 @@ Notes:
 #include "smt/params/smt_params.h"
 #include "ast/ast_pp.h"
 
+// conjunctive fragment := cf
+
+static bool is_cf(goal const & g) {
+    ast_manager & m = g.m();
+    seq_util u(m);
+    unsigned sz = g.size();
+    for (unsigned i = 0; i < sz; i++) {
+        expr * f  = g.form(i);
+        bool sign = true;
+        while (m.is_not(f, f))
+            sign = !sign;
+        if (m.is_eq(f) && !sign) {
+            if (m.get_sort(to_app(f)->get_arg(0))->get_family_id() == u.get_family_id())
+                TRACE("str", tout << "Not conjunctive fragment!" << std::endl;);
+                return false;
+            continue;
+        }
+        if ((u.str.is_prefix(f) || u.str.is_suffix(f)) && !sign) {
+            TRACE("str", tout << "Not conjunctive fragment!" << std::endl;);
+            return false;
+        }
+        if (u.str.is_contains(f)) {
+            TRACE("str", tout << "Not conjunctive fragment!" << std::endl;);
+            return false;
+        }
+    }
+    TRACE("str", tout << "Conjunctive fragment!" << std::endl;);
+    return true;
+}
+
+class is_cf_probe : public probe {
+public:
+    result operator()(goal const & g) override {
+        return is_cf(g);
+    }
+};
+
+probe * mk_is_cf_probe() {
+    return alloc(is_cf_probe);
+}
+
 class z3str3_cegar_tactical : public tactic {
 protected:
     tactic * _solver1;
@@ -87,9 +128,12 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     tactic * z3str3_1 = using_params(mk_smt_tactic(m), preprocess_p);
     tactic * z3str3_2 = try_for(using_params(mk_smt_tactic(m), general_p), 15000);
 
-    tactic * st = using_params(and_then(preamble, or_else(
-            mk_z3str3_cegar_tactical(z3str3_1, z3str3_2),
-            using_params(mk_smt_tactic(m), seq_p)
-            )), p);
+    tactic * st = using_params(
+            and_then(preamble, 
+                or_else(
+                        cond(mk_is_cf_probe(), z3str3_1, z3str3_2), 
+                        using_params(mk_smt_tactic(m), seq_p)
+                       )
+                    ), p);
     return st;
 }
