@@ -36,16 +36,16 @@ static bool is_cf(goal const & g) {
             sign = !sign;
         if (m.is_eq(f) && !sign) {
             if (m.get_sort(to_app(f)->get_arg(0))->get_family_id() == u.get_family_id())
-                TRACE("str", tout << "Not conjunctive fragment!" << std::endl;);
+                TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
                 return false;
             continue;
         }
         if ((u.str.is_prefix(f) || u.str.is_suffix(f)) && !sign) {
-            TRACE("str", tout << "Not conjunctive fragment!" << std::endl;);
+            TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m)<< std::endl;);
             return false;
         }
         if (u.str.is_contains(f)) {
-            TRACE("str", tout << "Not conjunctive fragment!" << std::endl;);
+            TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
             return false;
         }
     }
@@ -126,14 +126,11 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     seq_p.set_sym("string_solver", symbol("seq"));
 
     tactic * z3str3_1 = using_params(mk_smt_tactic(m), preprocess_p);
-    tactic * z3str3_2 = try_for(using_params(mk_smt_tactic(m), general_p), 15000);
+    tactic * z3str3_2 = using_params(mk_smt_tactic(m), general_p);
+    tactic * z3seq    = try_for(using_params(mk_smt_tactic(m), seq_p), 200);
 
-    tactic * st = using_params(
-            and_then(preamble, 
-                or_else(
-                        cond(mk_is_cf_probe(), z3str3_1, z3str3_2), 
-                        using_params(mk_smt_tactic(m), seq_p)
-                       )
-                    ), p);
+    tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), 
+                        mk_z3str3_cegar_tactical(z3str3_1, z3str3_2),
+                        or_else(z3seq, z3str3_2))), p);
     return st;
 }
