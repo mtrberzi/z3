@@ -25,26 +25,36 @@ Notes:
 
 // conjunctive fragment := cf
 
-static bool is_cf(goal const & g) {
-    ast_manager & m = g.m();
+static bool is_cf(goal const &g)
+{
+    ast_manager &m = g.m();
     seq_util u(m);
     unsigned sz = g.size();
-    for (unsigned i = 0; i < sz; i++) {
-        expr * f  = g.form(i);
+    for (unsigned i = 0; i < sz; i++)
+    {
+        expr *f = g.form(i);
         bool sign = true;
         while (m.is_not(f, f))
             sign = !sign;
-        if (m.is_eq(f) && !sign) {
+        if (m.is_eq(f) && !sign)
+        {
             if (m.get_sort(to_app(f)->get_arg(0))->get_family_id() == u.get_family_id())
                 TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
-                return false;
+            return false;
             continue;
         }
-        if ((u.str.is_prefix(f) || u.str.is_suffix(f)) && !sign) {
-            TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m)<< std::endl;);
+        else if ((u.str.is_prefix(f) || u.str.is_suffix(f)) && !sign)
+        {
+            TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
             return false;
         }
-        if (u.str.is_contains(f)) {
+        else if (u.str.is_contains(f))
+        {
+            TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
+            return false;
+        }
+        else if (u.str.is_in_re(f))
+        {
             TRACE("str", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
             return false;
         }
