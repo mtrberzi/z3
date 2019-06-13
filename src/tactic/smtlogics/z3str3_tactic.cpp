@@ -140,7 +140,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     tactic * z3seq    = try_for(using_params(mk_smt_tactic(m), seq_p), 200);
 
     tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), 
-                        mk_z3str3_cegar_tactical(z3str3_1, z3str3_2),
+                        or_else(z3str3_1, z3str3_2),
                         or_else(z3seq, z3str3_2))), p);
     return st;
 }
