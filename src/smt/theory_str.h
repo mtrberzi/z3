@@ -843,16 +843,16 @@ protected:
 
     lbool fixed_length_model_construction(expr_ref_vector formulas, expr_ref_vector &precondition,
             obj_map<expr, zstring> &model, expr_ref_vector &cex);
-    bool fixed_length_reduce_eq(smt::kernel & subsolver, expr * lhs, expr * rhs, expr_ref & cex);
-    bool fixed_length_reduce_diseq(smt::kernel & subsolver, expr * lhs, expr * rhs, expr_ref & cex);
-    void fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & eqcChars);
-    bool fixed_length_reduce_contains(smt::kernel & subsolver, expr * f, expr_ref & cex);
-    bool fixed_length_reduce_negative_contains(smt::kernel & subsolver, expr * f, expr_ref & cex);
-    bool fixed_length_reduce_prefix(smt::kernel & subsolver, expr * f, expr_ref & cex);
-    bool fixed_length_reduce_negative_prefix(smt::kernel & subsolver, expr * f, expr_ref & cex);
-    bool fixed_length_reduce_suffix(smt::kernel & subsolver, expr * f, expr_ref & cex);
-    bool fixed_length_reduce_negative_suffix(smt::kernel & subsolver, expr * f, expr_ref & cex);
+    ptr_vector<expr> fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term);
     bool fixed_length_get_len_value(expr * e, rational & val);
+    bool fixed_length_reduce_eq(smt::kernel & subsolver, expr_ref lhs, expr_ref rhs, expr_ref & cex);
+    bool fixed_length_reduce_diseq(smt::kernel & subsolver, expr_ref lhs, expr_ref rhs, expr_ref & cex);
+    bool fixed_length_reduce_contains(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
+    bool fixed_length_reduce_negative_contains(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
+    bool fixed_length_reduce_prefix(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
+    bool fixed_length_reduce_negative_prefix(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
+    bool fixed_length_reduce_suffix(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
+    bool fixed_length_reduce_negative_suffix(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
 
     // strRegex
 
