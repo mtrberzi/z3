@@ -11275,7 +11275,7 @@ namespace smt {
                 rational varLen_value;
                 bool var_hasLen = fixed_length_get_len_value(term, varLen_value);
                 ENSURE(var_hasLen);
-                TRACE("str_fl", tout << "creating character terms for variable " << mk_pp(term, get_manager()) << ", length = " << varLen_value << std::endl;);
+                TRACE("str_fl", tout << "creating character terms for variable " << mk_pp(term, m) << ", length = " << varLen_value << std::endl;);
                 // TODO what happens if the variable has length 0?
                 ptr_vector<expr> new_chars;
                 for (unsigned i = 0; i < varLen_value.get_unsigned(); ++i) {
@@ -11287,7 +11287,7 @@ namespace smt {
                 var_to_char_subterm_map.insert(term, new_chars);
                 fixed_length_used_len_terms.insert(term, varLen_value.get_unsigned());
             }
-            
+
             var_to_char_subterm_map.find(term, eqc_chars);
 
         } else if (u.str.is_concat(term, arg0, arg1)) {
@@ -11303,7 +11303,7 @@ namespace smt {
             expr_ref second(arg1, sub_m);
             expr_ref third(arg2, sub_m);
             ptr_vector<expr> base_chars(fixed_length_reduce_string_term(subsolver, first));
-            arith_value v(get_manager());
+            arith_value v(m);
             v.init(&get_context());
             rational pos, len;
             bool pos_exists = v.get_value(arg1, pos);
@@ -11346,7 +11346,7 @@ namespace smt {
             }
             uninterpreted_to_char_subterm_map.find(term, eqc_chars);
         }
-        
+
         return eqc_chars;
     }
 
@@ -11501,7 +11501,10 @@ namespace smt {
         if (full_chars.size() < suff_chars.size()) {
             // a string can't endwith a longer one
             // X startswith Y -> len(X) >= len(Y)
-            cex = m.mk_or(m.mk_not(f), m_autil.mk_ge(mk_strlen(full), mk_strlen(suff)));
+            expr_ref minus_one(m_autil.mk_numeral(rational::minus_one(), true), m);
+            expr_ref zero(m_autil.mk_numeral(rational::zero(), true), m);
+            expr_ref lens(m_autil.mk_add(mk_strlen(full), m_autil.mk_mul(minus_one, mk_strlen(suff))), m);
+            cex = m.mk_or(m.mk_not(f), m_autil.mk_ge(lens, zero));
             th_rewriter m_rw(m);
             m_rw(cex);
             return false;
@@ -11610,7 +11613,10 @@ namespace smt {
         if (full_chars.size() < pref_chars.size()) {
             // a string can't startwith a longer one
             // X startswith Y -> len(X) >= len(Y)
-            cex = m.mk_or(m.mk_not(f), m_autil.mk_ge(mk_strlen(full), mk_strlen(pref)));
+            expr_ref minus_one(m_autil.mk_numeral(rational::minus_one(), true), m);
+            expr_ref zero(m_autil.mk_numeral(rational::zero(), true), m);
+            expr_ref lens(m_autil.mk_add(mk_strlen(full), m_autil.mk_mul(minus_one, mk_strlen(pref))), m);
+            cex = m.mk_or(m.mk_not(f), m_autil.mk_ge(lens, zero));
             th_rewriter m_rw(m);
             m_rw(cex);
             return false;
@@ -11718,7 +11724,10 @@ namespace smt {
         if (needle_chars.size() > haystack_chars.size()) {
             // a string can't contain a longer one
             // X contains Y -> len(X) >= len(Y)
-            cex = m.mk_or(m.mk_not(f), m_autil.mk_ge(mk_strlen(haystack), mk_strlen(needle)));
+            expr_ref minus_one(m_autil.mk_numeral(rational::minus_one(), true), m);
+            expr_ref zero(m_autil.mk_numeral(rational::zero(), true), m);
+            expr_ref lens(m_autil.mk_add(mk_strlen(haystack), m_autil.mk_mul(minus_one, mk_strlen(needle))), m);
+            cex = m.mk_or(m.mk_not(f), m_autil.mk_ge(lens, zero));
             th_rewriter m_rw(m);
             m_rw(cex);
             return false;
