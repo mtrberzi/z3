@@ -11699,7 +11699,7 @@ namespace smt {
 
         expr * full;
         expr * small;
-        u.str.is_contains(f, small, full);
+        u.str.is_contains(f, full, small);
 
         expr_ref haystack(full, m);
         expr_ref needle(small, m);
@@ -11764,7 +11764,7 @@ namespace smt {
 
         expr * full;
         expr * small;
-        u.str.is_contains(f, small, full);
+        u.str.is_contains(f, full, small);
 
         expr_ref haystack(full, m);
         expr_ref needle(small, m);
