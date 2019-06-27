@@ -127,6 +127,11 @@ struct theory_str_params {
     unsigned m_FixedLengthIterations;
 
     /*
+     * SequenceMilliseconds is the number of milliseconds to try the sequence solver on disjunctive fragment queries.
+     */
+    unsigned m_SequenceMilliseconds;
+
+    /*
     * If MultisetCheck is true, we use the quick multiset check to 
     * help solve word equations.
     */
@@ -158,7 +163,8 @@ struct theory_str_params {
         m_RegexAutomata_LengthAttemptThreshold(10),
         m_FixedLengthModels(true),
         m_FixedLengthPreprocessing(true),
-        m_FixedLengthIterations(100),
+        m_FixedLengthIterations(20),
+        m_SequenceMilliseconds(500),
         m_MultisetCheck(true),
         m_CountAbstraction(false)
     {

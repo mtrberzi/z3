@@ -158,7 +158,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
 
     tactic * z3str3_1 = using_params(mk_smt_tactic(m), preprocess_p);
     tactic * z3str3_2 = using_params(mk_smt_tactic(m), general_p);
-    tactic * z3seq    = try_for(using_params(mk_smt_tactic(m), seq_p), 200);
+    tactic * z3seq    = try_for(using_params(mk_smt_tactic(m), seq_p), m_smt_params.m_SequenceMilliseconds);
 
     tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), 
                         or_else(z3str3_1, z3str3_2),
