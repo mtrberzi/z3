@@ -142,7 +142,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     smt_params m_smt_params;
     m_smt_params.updt_params(p);
 
-    tactic * substr = mk_ext_str_tactic(m, p);
+    tactic * ext_str = mk_ext_str_tactic(m, p);
     tactic * preamble = mk_simplify_tactic(m, p);
 
     params_ref preprocess_p = p;
@@ -162,8 +162,8 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     tactic * z3str3_2 = using_params(mk_smt_tactic(m), general_p);
     tactic * z3seq    = try_for(using_params(mk_smt_tactic(m), seq_p), m_smt_params.m_SequenceMilliseconds);
 
-    tactic * st = using_params(and_then(substr, preamble, cond(mk_is_cf_probe(), 
-                        or_else(z3str3_1, z3str3_2),
-                        or_else(z3seq, z3str3_2))), p);
+    tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), 
+                        or_else(z3str3_1, and_then(ext_str, z3str3_2)),
+                        and_then(ext_str, or_else(z3seq, z3str3_2)))), p);
     return st;
 }
