@@ -78,8 +78,11 @@ class ext_str_tactic : public tactic {
             expr_ref len_y(u.str.mk_length(y), m);
             expr_ref len_z1(u.str.mk_length(z1), m);
 
-            expr_ref c(m.mk_and(m_autil.mk_ge(n, zero), m_autil.mk_ge(n, zero), m_autil.mk_gt(m_autil.mk_add(n, len_y), zero)), m);
+            // n >= 0 and len_y - n > 0 and l > 0 
+            expr_ref c(m.mk_and(m_autil.mk_ge(n, zero), m_autil.mk_gt(l, zero), m_autil.mk_gt(m_autil.mk_sub(len_y, n), zero)), m);
+            // y = z1 x z2 and len_z1 = n
             expr_ref then(m.mk_and(m.mk_eq(y, u.str.mk_concat(z1, x, z2)), m.mk_eq(len_z1, n)), m);
+            // x = \epsilon
             expr_ref el(m.mk_eq(x, empty_str), m);
 
             TRACE("ext_str_debug", tout 
