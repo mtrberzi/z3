@@ -8170,9 +8170,9 @@ namespace smt {
         }
 
         // BEGIN new_eq_handler() in strTheory
-	if (m_params.m_MultisetCheck) {
-	    multiset_check(lhs, rhs);
-	}
+        // if (m_params.m_MultisetCheck) {
+        //     multiset_check(lhs, rhs);
+        // }
         check_eqc_empty_string(lhs, rhs);
         instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
 
