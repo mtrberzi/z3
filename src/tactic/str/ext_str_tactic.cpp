@@ -49,53 +49,13 @@ class ext_str_tactic : public tactic {
 
         }
 
-        void process_logical_connective(expr * op, goal_ref const & g, expr_substitution & sub)
-        {
-            
-        }
-
-        void process_eq(expr * eq, goal_ref const & g, expr_substitution & sub)
-        {
-            expr * lhs, * rhs;
-            m.is_eq(eq, lhs, rhs);
-            stack.push_back(lhs);
-            stack.push_back(rhs);
-        }
-
-        void process_concat(expr * concat, goal_ref const & g, expr_substitution & sub)
-        {
-            expr * lhs, * rhs;
-            u.str.is_concat(concat, lhs, rhs);
-            stack.push_back(lhs);
-            stack.push_back(rhs);
-        }
-
-        void process_prefix(expr * prefix, goal_ref const & g, expr_substitution & sub)
-        {
-            expr * lhs, * rhs;
-            u.str.is_prefix(prefix, lhs, rhs);
-            stack.push_back(lhs);
-            stack.push_back(rhs);
-        }
-
-        void process_suffix(expr * suffix, goal_ref const & g, expr_substitution & sub)
-        {
-            expr * lhs, * rhs;
-            u.str.is_suffix(suffix, lhs, rhs);
-            stack.push_back(lhs);
-            stack.push_back(rhs);
-        }
-
-        void process_contains(expr * contains, goal_ref const & g, expr_substitution & sub)
-        {
-            expr * lhs, * rhs;
-            u.str.is_contains(contains, lhs, rhs);
-            stack.push_back(lhs);
-            stack.push_back(rhs);
-        }
-
         void process_extract(expr * extract, goal_ref const & g, expr_substitution & sub)
         {
+            if (sub.contains(extract))
+            {
+                return;
+            }
+
             expr * y, *n, *l;
             u.str.is_extract(extract, y, n, l);
             // make a fresh string variable and put it in place of the ext_string
@@ -138,23 +98,6 @@ class ext_str_tactic : public tactic {
             sub.insert(extract, x);
         }
 
-        void process_length(expr * length, goal_ref const & g, expr_substitution & sub)
-        {
-            expr * child;
-            u.str.is_length(length, child);
-            stack.push_back(child);
-        }
-
-        void process_arith_op(expr * op, goal_ref const & g, expr_substitution & sub)
-        {
-            
-        }
-
-        void process_arith_comparison(expr * comparison, goal_ref const & g, expr_substitution & sub)
-        {
-            
-        }
-
         void operator()(goal_ref const & g, goal_ref_buffer & result) {
             SASSERT(g->is_well_sorted());
             tactic_report report("ext_str", *g);
@@ -192,46 +135,17 @@ class ext_str_tactic : public tactic {
                     {
                         curr = stack.back();
                         stack.pop_back();
-                        if (m.is_not(curr) || m.is_and(curr) || m.is_or(curr) || m.is_ite(curr) || m.is_iff(curr) || m.is_implies(curr))
-                        {
-                            process_logical_connective(curr, g, sub);
-                        }
-                        else if (m.is_eq(curr))
-                        {
-                            //possible not string equality
-                            process_eq(curr, g, sub);
-                        }
-                        else if (u.str.is_concat(curr))
-                        {
-                            process_concat(curr, g, sub);
-                        }
-                        else if (u.str.is_prefix(curr))
-                        {
-                            process_prefix(curr, g, sub);
-                        }
-                        else if (u.str.is_suffix(curr))
-                        {
-                            process_suffix(curr, g, sub);
-                        }
-                        else if (u.str.is_contains(curr))
-                        {
-                            process_contains(curr, g, sub);
-                        }
-                        else if (u.str.is_extract(curr))
+                        if (u.str.is_extract(curr))
                         {
                             process_extract(curr, g, sub);
                         } 
-                        else if (u.str.is_length(curr))
+                        else 
                         {
-                            process_length(curr, g, sub);
-                        }
-                        else if (m_autil.is_add(curr) || m_autil.is_sub(curr) || m_autil.is_mul(curr))
-                        {
-                            process_arith_op(curr, g, sub);
-                        }
-                        else if (m_autil.is_ge(curr) || m_autil.is_gt(curr) || m_autil.is_le(curr) || m_autil.is_lt(curr))
-                        {
-                            process_arith_comparison(curr, g, sub);
+                            unsigned num_args = to_app(curr)->get_num_args();
+                            for (unsigned i = 0; i < num_args; i++) {
+                                expr * arg = to_app(curr)->get_arg(i);
+                                stack.push_back(arg);
+                            }
                         }
                     }
                 }
