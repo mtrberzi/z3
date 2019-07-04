@@ -158,12 +158,11 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     params_ref seq_p = p;
     seq_p.set_sym("string_solver", symbol("seq"));
 
-    tactic * z3str3_1 = using_params(mk_smt_tactic(m), preprocess_p);
-    tactic * z3str3_2 = using_params(mk_smt_tactic(m), general_p);
-    tactic * z3seq    = try_for(using_params(mk_smt_tactic(m), seq_p), m_smt_params.m_SequenceMilliseconds);
+    tactic * z3str3_1 = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), preprocess_p);
+    tactic * z3str3_2 = using_params(and_then(ext_str, preamble, mk_smt_tactic(m)), general_p);
+    tactic * z3seq    = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
 
-    tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), 
-                        or_else(z3str3_1, and_then(ext_str, preamble, z3str3_2)),
-                        and_then(ext_str, preamble, or_else(z3seq, z3str3_2)))), p);
+    tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
+
     return st;
 }

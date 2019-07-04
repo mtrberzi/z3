@@ -42,7 +42,7 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_MultisetCheck = p.str_multiset_check();
     m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
     m_FixedLengthIterations = p.str_fixed_length_iterations();
-    m_SequenceMilliseconds = p.str_sequence_milliseconds();
+    m_PreMilliseconds = p.str_pre_milliseconds();
 }
 
 #define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;
@@ -69,5 +69,5 @@ void theory_str_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_CountAbstraction);
     DISPLAY_PARAM(m_FixedLengthPreprocessing);
     DISPLAY_PARAM(m_FixedLengthIterations);
-    DISPLAY_PARAM(m_SequenceMilliseconds);
+    DISPLAY_PARAM(m_PreMilliseconds);
 }
