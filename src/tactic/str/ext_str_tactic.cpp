@@ -20,6 +20,7 @@ Notes:
 #include "tactic/generic_model_converter.h"
 #include "ast/ast_pp.h"
 #include "ast/rewriter/expr_replacer.h"
+#include "ast/rewriter/var_subst.h"
 
 class ext_str_tactic : public tactic {
 
@@ -58,19 +59,20 @@ class ext_str_tactic : public tactic {
 
             expr * y, *n, *l;
             u.str.is_extract(extract, y, n, l);
-            // make a fresh string variable and put it in place of the ext_string
+
+            // make a fresh string variable to put in place of extract
             app * v;
             v = m.mk_fresh_const(nullptr, u.str.mk_string_sort());
-            m_fresh_vars.push_back(v);
             expr_ref x(v, m);
+            m_fresh_vars.push_back(x);
 
             // inject auxiliary lemma
             v = m.mk_fresh_const(nullptr, u.str.mk_string_sort());
-            m_fresh_vars.push_back(v);
             expr_ref z1(v, m);
+            m_fresh_vars.push_back(z1);
             v = m.mk_fresh_const(nullptr, u.str.mk_string_sort());
-            m_fresh_vars.push_back(v);
             expr_ref z2(v, m);
+            m_fresh_vars.push_back(z2);
 
             expr_ref zero(m_autil.mk_numeral(rational(0), true), m);
             symbol sym("");
@@ -90,15 +92,74 @@ class ext_str_tactic : public tactic {
                 << "\nthen\n\t" << mk_pp(then, m) 
                 << "\nelse\n\t" << mk_pp(el, m) << std::endl;);
 
-            g->assert_expr(m.mk_ite(c, then, el));
+            expr_ref con(m.mk_ite(c, then, el), m);
+            g->assert_expr(con);
 
             // TRACE("ext_str_debug", tout << "curr replaced by: " << mk_pp(x, m) << std::endl;);
             // return x;
+            stack.push_back(con);
             stack.push_back(y);
             stack.push_back(n);
             stack.push_back(l);
 
             sub.insert(extract, x);
+        }
+
+        void process_contains(expr * contains, goal_ref const & g, expr_substitution & sub)
+        {
+            if (sub.contains(contains))
+            {
+                return;
+            }
+
+            sort * int_sort = m.mk_sort(m_autil.get_family_id(), INT_SORT);
+
+            expr * y, * z;
+            u.str.is_contains(contains, y, z);
+            
+            // make a fresh bool variable to put in place of the contains
+            app * v;
+            v = m.mk_fresh_const(nullptr, m.mk_bool_sort());
+            m_fresh_vars.push_back(v);
+            expr_ref x(v, m);
+
+            // inject auxiliary lemma
+            v = m.mk_fresh_const(nullptr, int_sort);
+            expr_ref k(v, m);
+
+            expr_ref len_z(u.str.mk_length(z), m);
+            expr_ref eq(m.mk_eq(u.str.mk_substr(y, k, len_z), z), m);
+
+            g->assert_expr(m.mk_iff(x, eq));
+
+            stack.push_back(eq);
+            stack.push_back(y);
+            stack.push_back(z);
+
+            sub.insert(contains, x);
+
+            // var_ref k(m.mk_var(0, int_sort), m);
+            // expr_ref len_z(u.str.mk_length(z), m);
+
+            // expr_ref eq(m.mk_eq(u.str.mk_substr(y, k, len_z), z), m);
+
+            // sort_ref_vector sorts(m);
+            // svector<symbol> names;
+            // sorts.push_back(int_sort);
+            // names.push_back(symbol("k"));
+
+            // expr_ref quant(m.mk_exists(sorts.size(), sorts.c_ptr(), names.c_ptr(), eq), m);
+            // TRACE("ext_str_debug", tout << "quant: " << mk_pp(quant, m) << std::endl;);
+            // expr_ref con(m.mk_iff(x, quant), m);
+            // TRACE("ext_str_debug", tout << "con: " << mk_pp(con, m) << std::endl;);
+
+            // g->assert_expr(con);
+
+            // stack.push_back(y);
+            // stack.push_back(z);
+
+            // sub.insert(contains, x);
+
         }
 
         void operator()(goal_ref const & g, goal_ref_buffer & result) {
@@ -125,8 +186,8 @@ class ext_str_tactic : public tactic {
 
             expr_substitution sub(m);
 
-            unsigned idx = 0;
-            while (idx < g->size()) {
+            unsigned size = g->size();
+            for(unsigned idx = 0; idx < size; idx++) {
                 if (g->inconsistent())
                     break;
                 expr * curr = g->form(idx);
@@ -138,9 +199,17 @@ class ext_str_tactic : public tactic {
                     {
                         curr = stack.back();
                         stack.pop_back();
+                        if (!is_app(curr)) {
+                            continue;
+                        }
+                        TRACE("ext_str_debug", tout << "curr: " << mk_pp(curr, m) << std::endl;);
                         if (u.str.is_extract(curr))
                         {
                             process_extract(curr, g, sub);
+                        }
+                        if (u.str.is_contains(curr))
+                        {
+                            process_contains(curr, g, sub);
                         } 
                         else 
                         {
@@ -152,8 +221,9 @@ class ext_str_tactic : public tactic {
                         }
                     }
                 }
-                idx++;
             }
+
+            TRACE("ext_str", tout << "ALMOST: " << std::endl; g->display(tout););
 
             m_replace->set_substitution(&sub);
 
