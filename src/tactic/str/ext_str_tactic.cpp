@@ -118,47 +118,50 @@ class ext_str_tactic : public tactic {
             u.str.is_contains(contains, y, z);
             
             // make a fresh bool variable to put in place of the contains
+
             app * v;
             v = m.mk_fresh_const(nullptr, m.mk_bool_sort());
             m_fresh_vars.push_back(v);
             expr_ref x(v, m);
 
-            // inject auxiliary lemma
-            v = m.mk_fresh_const(nullptr, int_sort);
-            expr_ref k(v, m);
+            // // inject auxiliary lemma
+            // WOULD THIS WORK? {
+            // v = m.mk_fresh_const(nullptr, int_sort);
+            // expr_ref k(v, m);
 
-            expr_ref len_z(u.str.mk_length(z), m);
-            expr_ref eq(m.mk_eq(u.str.mk_substr(y, k, len_z), z), m);
-
-            g->assert_expr(m.mk_iff(x, eq));
-
-            stack.push_back(eq);
-            stack.push_back(y);
-            stack.push_back(z);
-
-            sub.insert(contains, x);
-
-            // var_ref k(m.mk_var(0, int_sort), m);
             // expr_ref len_z(u.str.mk_length(z), m);
-
             // expr_ref eq(m.mk_eq(u.str.mk_substr(y, k, len_z), z), m);
 
-            // sort_ref_vector sorts(m);
-            // svector<symbol> names;
-            // sorts.push_back(int_sort);
-            // names.push_back(symbol("k"));
+            // g->assert_expr(m.mk_iff(x, eq));
 
-            // expr_ref quant(m.mk_exists(sorts.size(), sorts.c_ptr(), names.c_ptr(), eq), m);
-            // TRACE("ext_str_debug", tout << "quant: " << mk_pp(quant, m) << std::endl;);
-            // expr_ref con(m.mk_iff(x, quant), m);
-            // TRACE("ext_str_debug", tout << "con: " << mk_pp(con, m) << std::endl;);
-
-            // g->assert_expr(con);
-
+            // stack.push_back(eq);
             // stack.push_back(y);
             // stack.push_back(z);
 
             // sub.insert(contains, x);
+            // }
+
+            var_ref k(m.mk_var(0, int_sort), m);
+            expr_ref len_z(u.str.mk_length(z), m);
+
+            expr_ref eq(m.mk_eq(u.str.mk_substr(y, k, len_z), z), m);
+
+            sort_ref_vector sorts(m);
+            svector<symbol> names;
+            sorts.push_back(int_sort);
+            names.push_back(symbol("k"));
+
+            expr_ref quant(m.mk_exists(sorts.size(), sorts.c_ptr(), names.c_ptr(), eq), m);
+            TRACE("ext_str_debug", tout << "quant: " << mk_pp(quant, m) << std::endl;);
+            expr_ref con(m.mk_iff(x, quant), m);
+            TRACE("ext_str_debug", tout << "con: " << mk_pp(con, m) << std::endl;);
+
+            g->assert_expr(con);
+
+            stack.push_back(y);
+            stack.push_back(z);
+
+            sub.insert(contains, x);
 
         }
 

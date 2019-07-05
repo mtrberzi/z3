@@ -55,6 +55,11 @@ static bool is_cf_helper(ast_manager &m, expr * f, bool sign)
         TRACE("str_fl", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
         return false;
     }
+    else if (!is_app((f)))
+    {
+        TRACE("str_fl", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
+        return false;
+    }
 
     if (m.is_and(f) || m.is_or(f) || m.is_ite(f) || m.is_implies(f) || m.is_eq(f) || m.is_iff(f)) {
         TRACE("str_fl", tout << "and/or " << mk_pp(f, m) << std::endl;);
@@ -160,10 +165,10 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     seq_p.set_sym("string_solver", symbol("seq"));
 
     tactic * z3str3_1 = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), preprocess_p);
-    tactic * z3str3_2 = using_params(mk_smt_tactic(m), general_p);
+    tactic * z3str3_2 = using_params(and_then(ext_str, preamble, mk_smt_tactic(m)), general_p);
     tactic * z3seq    = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
 
-    tactic * st = using_params(and_then(ext_str, preamble, cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
+    tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
 
     return st;
 }
