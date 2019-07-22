@@ -735,6 +735,13 @@ namespace smt {
         else if (m_params.m_string_solver == "auto") {
             setup_unknown();
         }
+ 
+        else if (m_params.m_string_solver == "empty") {
+            m_context.register_plugin(alloc(smt::theory_seq_empty, m_manager));
+        }
+        else if (m_params.m_string_solver == "none") {
+            // don't register any solver.
+        }
         else {
             throw default_exception("invalid parameter for smt.string_solver, valid options are 'z3str3', 'seq', 'auto'");
         }
@@ -838,7 +845,7 @@ namespace smt {
                 m_context.register_plugin(alloc(smt::theory_mi_arith, m_manager, m_params));
             break;
         case AS_NEW_ARITH:
-            if (st.m_num_non_linear != 0) 
+            if (st.m_num_non_linear != 0 && st.m_has_int) 
                 m_context.register_plugin(alloc(smt::theory_mi_arith, m_manager, m_params));
             else 
                 setup_lra_arith();
@@ -900,6 +907,12 @@ namespace smt {
         else if (m_params.m_string_solver == "seq") {
             setup_seq();
         } 
+        else if (m_params.m_string_solver == "empty") {
+            m_context.register_plugin(alloc(smt::theory_seq_empty, m_manager));
+        }
+        else if (m_params.m_string_solver == "none") {
+            // don't register any solver.
+        }
         else if (m_params.m_string_solver == "auto") {
             if (st.m_has_seq_non_str) {
                 setup_seq();

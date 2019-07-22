@@ -45,6 +45,9 @@ Notes:
 #include "solver/parallel_tactic.h"
 #include "solver/parallel_params.hpp"
 #include "smt/params/smt_params.h"
+#include "tactic/tactic_params.hpp"
+#include "parsers/smt2/smt2parser.h"
+
 
 
 tactic * mk_tactic_for_logic(ast_manager & m, params_ref const & p, symbol const & logic) {
@@ -137,10 +140,30 @@ public:
             l = m_logic;
         else
             l = logic;
-        solver* s = mk_special_solver_for_logic(m, p, l);
-        if (s) return s;
-        tactic * t = mk_tactic_for_logic(m, p, l);
-        return mk_combined_solver(mk_tactic2solver(m, t, p, proofs_enabled, models_enabled, unsat_core_enabled, l),
+
+        tactic_params tp;
+        tactic_ref t;
+        if (tp.default_tactic() != symbol::null &&
+            !tp.default_tactic().is_numerical() && 
+            tp.default_tactic().bare_str() && 
+            tp.default_tactic().bare_str()[0]) {
+            cmd_context ctx(false, &m, l);
+            std::istringstream is(tp.default_tactic().bare_str());
+            char const* file_name = "";
+            sexpr_ref se = parse_sexpr(ctx, is, p, file_name);
+            if (se) {
+                t = sexpr2tactic(ctx, se.get());
+            }
+        }
+
+        if (!t) {
+            solver* s = mk_special_solver_for_logic(m, p, l);
+            if (s) return s;
+        }
+        if (!t) {
+            t = mk_tactic_for_logic(m, p, l);
+        }
+        return mk_combined_solver(mk_tactic2solver(m, t.get(), p, proofs_enabled, models_enabled, unsat_core_enabled, l),
                                   mk_solver_for_logic(m, p, l), 
                                   p);
     }

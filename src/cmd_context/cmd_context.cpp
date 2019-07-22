@@ -1075,6 +1075,7 @@ void cmd_context::mk_app(symbol const & s, unsigned num_args, expr * const * arg
               tout << "body:\n" << mk_ismt2_pp(_t, m()) << "\n";
               tout << "args:\n"; for (unsigned i = 0; i < num_args; i++) tout << mk_ismt2_pp(args[i], m()) << "\n" << mk_pp(m().get_sort(args[i]), m()) << "\n";);
         var_subst subst(m());
+        scoped_rlimit no_limit(m().limit(), 0);
         result = subst(_t, num_args, args);
         if (well_sorted_check_enabled() && !is_well_sorted(m(), result))
             throw cmd_exception("invalid macro application, sort mismatch ", s);
@@ -1337,6 +1338,7 @@ void cmd_context::reset(bool finalize) {
 }
 
 void cmd_context::assert_expr(expr * t) {
+    scoped_rlimit no_limit(m().limit(), 0);
     m_processing_pareto = false;
     if (!m_check_logic(t))
         throw cmd_exception(m_check_logic.get_last_error());
@@ -1357,10 +1359,12 @@ void cmd_context::assert_expr(symbol const & name, expr * t) {
         assert_expr(t);
         return;
     }
+    scoped_rlimit no_limit(m().limit(), 0);
+
     m_check_sat_result = nullptr;
     m().inc_ref(t);
     m_assertions.push_back(t);
-    expr * ans  = m().mk_const(name, m().mk_bool_sort());
+    app * ans  = m().mk_skolem_const(name, m().mk_bool_sort());
     m().inc_ref(ans);
     m_assertion_names.push_back(ans);
     if (m_solver)
@@ -2033,10 +2037,8 @@ void cmd_context::display_smt2_benchmark(std::ostream & out, unsigned num, expr 
 
     // TODO: display uninterpreted sort decls, and datatype decls.
 
-    unsigned num_decls = decls.get_num_decls();
-    func_decl * const * fs = decls.get_func_decls();
-    for (unsigned i = 0; i < num_decls; i++) {
-        display(out, fs[i]);
+    for (func_decl* f : decls.get_func_decls()) {
+        display(out, f);
         out << std::endl;
     }
 

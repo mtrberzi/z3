@@ -644,6 +644,18 @@ typedef enum
           unfolding the Boolean connectives in the axioms a small
           bounded number of steps (=3).
 
+   - Z3_OP_PR_ASSUMPTION_ADD
+     Clausal proof adding axiom
+
+   - Z3_OP_PR_LEMMA_ADD
+     Clausal proof lemma addition
+
+   - Z3_OP_PR_REDUNDANT_DEL
+     Clausal proof lemma deletion
+
+   - Z3_OP_PR_CLAUSE_TRAIL,
+     Clausal proof trail of additions and deletions
+
    - Z3_OP_PR_DEF_INTRO: Introduces a name for a formula/term.
        Suppose e is an expression with free variables x, and def-intro
        introduces the name n(x). The possible cases are:
@@ -875,6 +887,18 @@ typedef enum
       - Z3_OP_PB_EQ: Generalized Pseudo-Boolean equality constraint.
               Example  2*x + 1*y + 2*z + 1*u = 4
 
+       - Z3_OP_SPECIAL_RELATION_LO: A relation that is a total linear order
+
+       - Z3_OP_SPECIAL_RELATION_PO: A relation that is a partial order
+
+       - Z3_OP_SPECIAL_RELATION_PLO: A relation that is a piecewise linear order
+
+       - Z3_OP_SPECIAL_RELATION_TO: A relation that is a tree order
+
+       - Z3_OP_SPECIAL_RELATION_TC: Transitive closure of a relation
+
+       - Z3_OP_SPECIAL_RELATION_TRC: Transitive reflexive closure of a relation
+
       - Z3_OP_FPA_RM_NEAREST_TIES_TO_EVEN: Floating-point rounding mode RNE
 
       - Z3_OP_FPA_RM_NEAREST_TIES_TO_AWAY: Floating-point rounding mode RNA
@@ -1101,12 +1125,6 @@ typedef enum {
     Z3_OP_BUREM_I,
     Z3_OP_BSMOD_I,
 
-    // Special relations
-    Z3_OP_SPECIAL_RELATION_LO,
-    Z3_OP_SPECIAL_RELATION_PO,
-    Z3_OP_SPECIAL_RELATION_PLO,
-    Z3_OP_SPECIAL_RELATION_TO,
-
     // Proofs
     Z3_OP_PR_UNDEF = 0x500,
     Z3_OP_PR_TRUE,
@@ -1137,6 +1155,10 @@ typedef enum {
     Z3_OP_PR_IFF_FALSE,
     Z3_OP_PR_COMMUTATIVITY,
     Z3_OP_PR_DEF_AXIOM,
+    Z3_OP_PR_ASSUMPTION_ADD, 
+    Z3_OP_PR_LEMMA_ADD, 
+    Z3_OP_PR_REDUNDANT_DEL, 
+    Z3_OP_PR_CLAUSE_TRAIL,
     Z3_OP_PR_DEF_INTRO,
     Z3_OP_PR_APPLY_DEF,
     Z3_OP_PR_IFF_OEQ,
@@ -1217,8 +1239,17 @@ typedef enum {
     Z3_OP_PB_GE,
     Z3_OP_PB_EQ,
 
+    // Special relations
+    Z3_OP_SPECIAL_RELATION_LO = 0xa000,
+    Z3_OP_SPECIAL_RELATION_PO,
+    Z3_OP_SPECIAL_RELATION_PLO,
+    Z3_OP_SPECIAL_RELATION_TO,
+    Z3_OP_SPECIAL_RELATION_TC,
+    Z3_OP_SPECIAL_RELATION_TRC,
+
+
     // Floating-Point Arithmetic
-    Z3_OP_FPA_RM_NEAREST_TIES_TO_EVEN,
+    Z3_OP_FPA_RM_NEAREST_TIES_TO_EVEN = 0xb000,
     Z3_OP_FPA_RM_NEAREST_TIES_TO_AWAY,
     Z3_OP_FPA_RM_TOWARD_POSITIVE,
     Z3_OP_FPA_RM_TOWARD_NEGATIVE,
@@ -3092,6 +3123,14 @@ extern "C" {
        def_API('Z3_mk_as_array', AST, (_in(CONTEXT), _in(FUNC_DECL)))
      */
     Z3_ast Z3_API Z3_mk_as_array(Z3_context c, Z3_func_decl f);
+
+    /**
+       \brief Create predicate that holds if Boolean array \c set has \c k elements set to true.       
+
+       def_API('Z3_mk_set_has_size', AST, (_in(CONTEXT), _in(AST), _in(AST)))
+    */
+    Z3_ast Z3_API Z3_mk_set_has_size(Z3_context c, Z3_ast set, Z3_ast k);
+
     /*@}*/
 
     /** @name Sets */
@@ -3353,7 +3392,7 @@ extern "C" {
     /**
        \brief Create a string constant out of the string that is passed in
        It takes the length of the string as well to take into account
-       0 characters.
+       0 characters. The string is unescaped.
 
        def_API('Z3_mk_lstring' ,AST ,(_in(CONTEXT), _in(UINT), _in(STRING)))
      */
@@ -3374,6 +3413,15 @@ extern "C" {
        def_API('Z3_get_string' ,STRING ,(_in(CONTEXT), _in(AST)))
      */
     Z3_string Z3_API Z3_get_string(Z3_context c, Z3_ast s);
+
+    /**
+       \brief Retrieve the unescaped string constant stored in \c s.
+
+       \pre  Z3_is_string(c, s)
+
+       def_API('Z3_get_lstring' ,STRING ,(_in(CONTEXT), _in(AST), _out(UINT)))
+     */
+    Z3_string Z3_API Z3_get_lstring(Z3_context c, Z3_ast s, unsigned* length);
 
     /**
        \brief Create an empty sequence of the sequence sort \c seq.
@@ -3426,6 +3474,25 @@ extern "C" {
        def_API('Z3_mk_seq_contains' ,AST ,(_in(CONTEXT), _in(AST), _in(AST)))
      */
     Z3_ast Z3_API Z3_mk_seq_contains(Z3_context c, Z3_ast container, Z3_ast containee);
+
+
+    /**
+       \brief Check if \c s1 is lexicographically strictly less than \c s2.
+
+       \pre \c s1 and \c s2 are strings
+
+       def_API('Z3_mk_str_lt' ,AST ,(_in(CONTEXT), _in(AST), _in(AST)))
+     */
+    Z3_ast Z3_API Z3_mk_str_lt(Z3_context c, Z3_ast prefix, Z3_ast s);
+
+    /**
+       \brief Check if \c s1 is equal or lexicographically strictly less than \c s2.
+
+       \pre \c s1 and \c s2 are strings
+
+       def_API('Z3_mk_str_le' ,AST ,(_in(CONTEXT), _in(AST), _in(AST)))
+     */
+    Z3_ast Z3_API Z3_mk_str_le(Z3_context c, Z3_ast prefix, Z3_ast s);
 
     /**
        \brief Extract subsequence starting at \c offset of \c length.
@@ -3622,36 +3689,41 @@ extern "C" {
        \pre a and b are of same type.
        
 
-       def_API('Z3_mk_linear_order', AST ,(_in(CONTEXT), _in(UINT), _in(AST), _in(AST)))
+       def_API('Z3_mk_linear_order', FUNC_DECL ,(_in(CONTEXT), _in(SORT), _in(UINT)))
      */
-    Z3_ast Z3_API Z3_mk_linear_order(Z3_context c, unsigned id, Z3_ast a, Z3_ast b);
+    Z3_func_decl Z3_API Z3_mk_linear_order(Z3_context c, Z3_sort a, unsigned id);
 
     /**
-       \brief declare \c a and \c b are in partial order over a relation indexed by \c id.
+       \brief create a partial ordering relation over signature \c a and index \c id.
 
-       \pre a and b are of same type.
-
-       def_API('Z3_mk_partial_order', AST ,(_in(CONTEXT), _in(UINT), _in(AST), _in(AST)))
+       def_API('Z3_mk_partial_order', FUNC_DECL ,(_in(CONTEXT), _in(SORT), _in(UINT)))
      */
-    Z3_ast Z3_API Z3_mk_partial_order(Z3_context c, unsigned id, Z3_ast a, Z3_ast b);
+    Z3_func_decl Z3_API Z3_mk_partial_order(Z3_context c, Z3_sort a, unsigned id);
 
     /**
-       \brief declare \c a and \c b are in piecewise linear order indexed by relation \c id.
+       \brief create a piecewise linear ordering relation over signature \c a and index \c id.
 
-       \pre a and b are of same type.
-
-       def_API('Z3_mk_piecewise_linear_order', AST ,(_in(CONTEXT), _in(UINT), _in(AST), _in(AST)))
+       def_API('Z3_mk_piecewise_linear_order', FUNC_DECL ,(_in(CONTEXT), _in(SORT), _in(UINT)))
      */
-    Z3_ast Z3_API Z3_mk_piecewise_linear_order(Z3_context c, unsigned id, Z3_ast a, Z3_ast b);
+    Z3_func_decl Z3_API Z3_mk_piecewise_linear_order(Z3_context c, Z3_sort a, unsigned id);
 
     /**
-       \brief declare \c a and \c b are in tree order indexed by \c id.
+       \brief create a tree ordering lreation over signature \c a identified using index \c id.
 
-       \pre a and b are of same type.
-
-       def_API('Z3_mk_tree_order', AST ,(_in(CONTEXT), _in(UINT), _in(AST), _in(AST)))
+       def_API('Z3_mk_tree_order', FUNC_DECL, (_in(CONTEXT), _in(SORT), _in(UINT)))
      */
-    Z3_ast Z3_API Z3_mk_tree_order(Z3_context c, unsigned id, Z3_ast a, Z3_ast b);
+    Z3_func_decl Z3_API Z3_mk_tree_order(Z3_context c, Z3_sort a, unsigned id);
+
+    /**
+       \brief create transitive closure of binary relation.
+
+       \pre f is a binary relation, such that the two arguments have the same sorts.
+
+       The resulting relation f+ represents the transitive closure of f.
+
+       def_API('Z3_mk_transitive_closure', FUNC_DECL ,(_in(CONTEXT), _in(FUNC_DECL)))
+     */
+    Z3_func_decl Z3_API Z3_mk_transitive_closure(Z3_context c, Z3_func_decl f);
 
     /*@}*/
 
@@ -6151,6 +6223,14 @@ extern "C" {
 
     /**
        \brief Ad-hoc method for importing model conversion from solver.
+
+       This method is used for scenarios where \c src has been used to solve a set
+       of formulas and was interrupted. The \c dst solver may be a strengthening of \c src
+       obtained from cubing (assigning a subset of literals or adding constraints over the 
+       assertions available in \c src). If \c dst ends up being satisfiable, the model for \c dst
+       may not correspond to a model of the original formula due to inprocessing in \c src.
+       This method is used to take the side-effect of inprocessing into account when returning
+       a model for \c dst.
        
        def_API('Z3_solver_import_model_converter', VOID, (_in(CONTEXT), _in(SOLVER), _in(SOLVER)))
      */
@@ -6332,13 +6412,6 @@ extern "C" {
        def_API('Z3_solver_get_levels', VOID, (_in(CONTEXT), _in(SOLVER), _in(AST_VECTOR), _in(UINT), _in_array(3, UINT)))
     */
     void Z3_API Z3_solver_get_levels(Z3_context c, Z3_solver s, Z3_ast_vector literals, unsigned sz,  unsigned levels[]);
-
-    /**
-       \brief set activity score associated with literal.
-
-       def_API('Z3_solver_set_activity', VOID, (_in(CONTEXT), _in(SOLVER), _in(AST), _in(DOUBLE)))
-     */
-    void Z3_API Z3_solver_set_activity(Z3_context c, Z3_solver s, Z3_ast l, double activity);
 
     /**
        \brief Check whether the assertions in a given solver are consistent or not.

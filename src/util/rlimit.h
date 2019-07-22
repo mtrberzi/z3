@@ -16,10 +16,14 @@ Author:
 Revision History:
 
 --*/
-#ifndef RLIMIT_H_
-#define RLIMIT_H_
+#pragma once
 
 #include "util/vector.h"
+
+void finalize_rlimit();
+/*
+  ADD_FINALIZER('finalize_rlimit();')
+*/
 
 class reslimit {
     volatile unsigned   m_cancel;
@@ -71,6 +75,11 @@ public:
         m_suspend = r.m_suspend;
         r.m_suspend = true;
     }
+
+    scoped_suspend_rlimit(reslimit& r, bool do_suspend): m_limit(r) {
+        m_suspend = r.m_suspend;
+        r.m_suspend |= do_suspend;
+    }
     ~scoped_suspend_rlimit() {
         m_limit.m_suspend = m_suspend;
     }
@@ -83,6 +92,3 @@ struct scoped_limits {
     ~scoped_limits() { for (unsigned i = 0; i < m_sz; ++i) m_limit.pop_child(); }
     void push_child(reslimit* lim) { m_limit.push_child(lim); ++m_sz; }
 };
-
-
-#endif

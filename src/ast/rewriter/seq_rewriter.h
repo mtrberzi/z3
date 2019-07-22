@@ -125,6 +125,7 @@ class seq_rewriter {
     br_status mk_str_in_regexp(expr* a, expr* b, expr_ref& result);
     br_status mk_str_to_regexp(expr* a, expr_ref& result);
     br_status mk_str_count(expr* a, expr* b, expr_ref& result);
+    br_status mk_str_le(expr* a, expr* b, expr_ref& result);
     br_status mk_re_concat(expr* a, expr* b, expr_ref& result);
     br_status mk_re_union(expr* a, expr* b, expr_ref& result);
     br_status mk_re_inter(expr* a, expr* b, expr_ref& result);
@@ -155,6 +156,7 @@ class seq_rewriter {
     bool is_sequence(eautomaton& aut, expr_ref_vector& seq);
     bool is_epsilon(expr* e) const;
     void split_units(expr_ref_vector& lhs, expr_ref_vector& rhs);
+    bool get_lengths(expr* e, expr_ref_vector& lens, rational& pos);
 
 
 public:    
@@ -168,6 +170,7 @@ public:
     static void get_param_descrs(param_descrs & r) {}
 
     void set_solver(expr_solver* solver) { m_re2aut.set_solver(solver); }
+    bool has_solver() { return m_re2aut.has_solver(); }
 
 
     br_status mk_app_core(func_decl * f, unsigned num_args, expr * const * args, expr_ref & result);
