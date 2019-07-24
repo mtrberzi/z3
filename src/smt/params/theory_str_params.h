@@ -143,6 +143,12 @@ struct theory_str_params {
      */
     bool m_CountAbstraction;
 
+    /*
+     * If inProcessingLemmas is true, we use some in processing lemmas to raise
+     * constraints which guide the solving of word equations.
+     */
+    bool m_inProcessingLemmas;
+
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
@@ -165,8 +171,9 @@ struct theory_str_params {
         m_FixedLengthPreprocessing(true),
         m_FixedLengthIterations(1000),
         m_PreMilliseconds(1000),
-        m_MultisetCheck(true),
-        m_CountAbstraction(false)
+        m_MultisetCheck(false),
+        m_CountAbstraction(false),
+		m_inProcessingLemmas(true)
     {
         updt_params(p);
     }

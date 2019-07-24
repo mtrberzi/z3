@@ -43,6 +43,7 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
     m_FixedLengthIterations = p.str_fixed_length_iterations();
     m_PreMilliseconds = p.str_pre_milliseconds();
+    m_inProcessingLemmas = p.str_in_processing_lemmas();
 }
 
 #define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;
@@ -70,4 +71,5 @@ void theory_str_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_FixedLengthPreprocessing);
     DISPLAY_PARAM(m_FixedLengthIterations);
     DISPLAY_PARAM(m_PreMilliseconds);
+    DISPLAY_PARAM(m_inProcessingLemmas);
 }
