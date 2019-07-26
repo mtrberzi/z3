@@ -166,16 +166,13 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     params_ref general_p = p;
     general_p.set_bool("str.fixed_length_preprocessing", false);
     general_p.set_bool("str.fixed_length_models", false);
-    preprocess_p.set_bool("str.multiset_check", false);
-    preprocess_p.set_bool("str.count_abstraction", false);
-    preprocess_p.set_bool("str.in_processing_lemmas", true);
+    general_p.set_bool("str.multiset_check", false);
+    general_p.set_bool("str.count_abstraction", false);
     general_p.set_sym("string_solver", symbol("z3str3"));
 
     params_ref seq_p = p;
     seq_p.set_sym("string_solver", symbol("seq"));
 
-    tactic * z3str3_1 = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), preprocess_p);
-    
     tactic * z3str3_2;
     if (false) // for now don't use ext_str rewrites
     {
@@ -185,9 +182,19 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     {
         z3str3_2 = using_params(mk_smt_tactic(m), general_p);
     }
-    
-    tactic * z3seq    = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
-    tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
 
-    return st;
+    tactic * z3str3_1;
+    tactic * z3seq;
+    
+    if (m_smt_params.m_PreMilliseconds > 0) 
+    {
+        z3seq       = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
+        z3str3_1    = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), preprocess_p);
+        tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
+        return st;
+
+    }
+    
+    return z3str3_2;
+
 }
