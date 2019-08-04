@@ -8524,6 +8524,7 @@ namespace smt {
     void theory_str::init_search_eh() {
         context & ctx = get_context();
         if (m_params.m_FixedLengthPreprocessing) {
+            std::cout << "LAS:" << std::endl;
             TRACE("str", tout << "NOTE: using fixed length preprocessing -- normal processing DISABLED" << std::endl;);
         }
 
@@ -13711,8 +13712,19 @@ namespace smt {
             u.str.is_string(str, str_const);
             return str_const.length();
         } else if (u.str.is_itos(ex)) {
-            TRACE("str_fl", tout << "itos not implemented yet!" << std::endl;);
-            UNREACHABLE();
+            expr* fromInt = nullptr;
+            u.str.is_itos(ex, fromInt);
+            
+            arith_value v(m);
+            v.init(&ctx);
+            rational val;
+            bool val_exists = v.get_value(fromInt, val);
+            SASSERT(val_exists);
+
+            std::string s = std::to_string(val.get_int32());
+            extra_deps.push_back(ctx.mk_eq_atom(fromInt, mk_int(val)));
+            return s.length();
+
         } else if (u.str.is_at(ex)) {
             expr* substrBase = nullptr;
             expr* substrPos = nullptr;
@@ -13742,9 +13754,10 @@ namespace smt {
             return len.get_unsigned();
 
         } else if (u.str.is_replace(ex)) {
-            TRACE("str_fl", tout << "replace not implemented yet!" << std::endl;);
+            TRACE("str_fl", tout << "replace is like contains---not in conjunctive fragment!" << std::endl;);
             UNREACHABLE();
         }
+        //find asserts that it exists
         return fixed_length_used_len_terms.find(ex);
     }
 
