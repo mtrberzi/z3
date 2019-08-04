@@ -91,7 +91,7 @@ static bool is_cf(goal const &g)
         }
     }
     TRACE("str_fl", tout << "Conjunctive fragment!" << std::endl;);
-    std::cout << "LAS:" << std::endl;
+    // std::cout << "LAS:" << std::endl;
     return true;
 }
 

@@ -902,51 +902,49 @@ namespace smt {
             }
             m_concat_eval_todo.reset();
 
-            if (!m_params.m_FixedLengthPreprocessing) {
-                while(true) {
-                    // Special handling: terms can recursively set up other terms
-                    // (e.g. indexof can instantiate other indexof terms).
-                    // - Copy the list so it can potentially be modified during setup.
-                    // - Don't clear this list if new ones are added in the process;
-                    //   instead, set up all the new terms before proceeding.
-                    // TODO see if any other propagate() worklists need this kind of handling
-                    // TODO we really only need to check the new ones on each pass
-                    unsigned start_count = m_library_aware_axiom_todo.size();
-                    ptr_vector<enode> axioms_tmp(m_library_aware_axiom_todo);
-                    for (auto const& e : axioms_tmp) {
-                        app * a = e->get_owner();
-                        if (u.str.is_stoi(a)) {
-                            instantiate_axiom_str_to_int(e);
-                        } else if (u.str.is_itos(a)) {
-                            instantiate_axiom_int_to_str(e);
-                        } else if (u.str.is_at(a)) {
-                            instantiate_axiom_CharAt(e);
-                        } else if (u.str.is_prefix(a)) {
-                            instantiate_axiom_prefixof(e);
-                        } else if (u.str.is_suffix(a)) {
-                            instantiate_axiom_suffixof(e);
-                        } else if (u.str.is_contains(a)) {
-                            instantiate_axiom_Contains(e);
-                        } else if (u.str.is_index(a)) {
-                            instantiate_axiom_Indexof(e);
-                        } else if (u.str.is_extract(a)) {
-                            instantiate_axiom_Substr(e);
-                        } else if (u.str.is_replace(a)) {
-                            instantiate_axiom_Replace(e);
-                        } else if (u.str.is_in_re(a)) {
-                            instantiate_axiom_RegexIn(e);
-                        } else {
-                            TRACE("str", tout << "BUG: unhandled library-aware term " << mk_pp(e->get_owner(), get_manager()) << std::endl;);
-                            NOT_IMPLEMENTED_YET();
-                        }
-                    }
-                    unsigned end_count = m_library_aware_axiom_todo.size();
-                    if (end_count > start_count) {
-                        TRACE("str", tout << "new library-aware terms added during axiom setup -- checking again" << std::endl;);
-                        continue;
+            while(true) {
+                // Special handling: terms can recursively set up other terms
+                // (e.g. indexof can instantiate other indexof terms).
+                // - Copy the list so it can potentially be modified during setup.
+                // - Don't clear this list if new ones are added in the process;
+                //   instead, set up all the new terms before proceeding.
+                // TODO see if any other propagate() worklists need this kind of handling
+                // TODO we really only need to check the new ones on each pass
+                unsigned start_count = m_library_aware_axiom_todo.size();
+                ptr_vector<enode> axioms_tmp(m_library_aware_axiom_todo);
+                for (auto const& e : axioms_tmp) {
+                    app * a = e->get_owner();
+                    if (u.str.is_stoi(a)) {
+                        instantiate_axiom_str_to_int(e);
+                    } else if (u.str.is_itos(a)) {
+                        instantiate_axiom_int_to_str(e);
+                    } else if (u.str.is_at(a)) {
+                        instantiate_axiom_CharAt(e);
+                    } else if (u.str.is_prefix(a)) {
+                        instantiate_axiom_prefixof(e);
+                    } else if (u.str.is_suffix(a)) {
+                        instantiate_axiom_suffixof(e);
+                    } else if (u.str.is_contains(a)) {
+                        instantiate_axiom_Contains(e);
+                    } else if (u.str.is_index(a)) {
+                        instantiate_axiom_Indexof(e);
+                    } else if (u.str.is_extract(a)) {
+                        instantiate_axiom_Substr(e);
+                    } else if (u.str.is_replace(a)) {
+                        instantiate_axiom_Replace(e);
+                    } else if (u.str.is_in_re(a)) {
+                        instantiate_axiom_RegexIn(e);
                     } else {
-                        break;
+                        TRACE("str", tout << "BUG: unhandled library-aware term " << mk_pp(e->get_owner(), get_manager()) << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     }
+                }
+                unsigned end_count = m_library_aware_axiom_todo.size();
+                if (end_count > start_count) {
+                    TRACE("str", tout << "new library-aware terms added during axiom setup -- checking again" << std::endl;);
+                    continue;
+                } else {
+                    break;
                 }
             }
             m_library_aware_axiom_todo.reset();
@@ -11659,7 +11657,7 @@ namespace smt {
         expr_ref final_diseq(mk_and(branch), sub_m);
         fixed_length_assumptions.push_back(final_diseq);
         fixed_length_lesson.insert(final_diseq, std::make_tuple(rational(-2), f, f));
-        
+
         return true;
     }
 
