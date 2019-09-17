@@ -236,6 +236,9 @@ def _get_ctx(ctx):
     else:
         return ctx
 
+def get_ctx(ctx):
+    return _get_ctx(ctx)
+
 def set_param(*args, **kws):
     """Set Z3 global (or module) parameters.
 
@@ -292,6 +295,14 @@ class Z3PPObject:
     """Superclass for all Z3 objects that have support for pretty printing."""
     def use_pp(self):
         return True
+
+    def _repr_html_(self):
+        in_html = in_html_mode()
+        set_html_mode(True)
+        res = repr(self)
+        set_html_mode(in_html)
+        return res
+
 
 class AstRef(Z3PPObject):
     """AST are Direct Acyclic Graphs (DAGs) used to represent sorts, declarations and expressions."""
@@ -1857,6 +1868,15 @@ class QuantifierRef(BoolRef):
         False
         """
         return Z3_is_lambda(self.ctx_ref(), self.ast)
+
+    def __getitem__(self, arg):
+        """Return the Z3 expression `self[arg]`.
+        """
+        if z3_debug():
+            _z3_assert(self.is_lambda(), "quantifier should be a lambda expression")
+        arg = self.sort().domain().cast(arg)
+        return _to_expr_ref(Z3_mk_select(self.ctx_ref(), self.as_ast(), arg.as_ast()), self.ctx)
+    
 
     def weight(self):
         """Return the weight annotation of `self`.
@@ -4271,6 +4291,9 @@ class ArrayRef(ExprRef):
     def default(self):
         return _to_expr_ref(Z3_mk_array_default(self.ctx_ref(), self.as_ast()), self.ctx)
 
+def is_array_sort(a):
+    return Z3_get_sort_kind(a.ctx.ref(), Z3_get_sort(a.ctx.ref(), a.ast)) == Z3_ARRAY_SORT
+
 
 def is_array(a):
     """Return `True` if `a` is a Z3 array expression.
@@ -4409,7 +4432,7 @@ def Update(a, i, v):
     proved
     """
     if z3_debug():
-        _z3_assert(is_array(a), "First argument must be a Z3 array expression")
+        _z3_assert(is_array_sort(a), "First argument must be a Z3 array expression")
     i = a.domain().cast(i)
     v = a.range().cast(v)
     ctx = a.ctx
@@ -4422,7 +4445,7 @@ def Default(a):
     proved
     """
     if z3_debug():
-        _z3_assert(is_array(a), "First argument must be a Z3 array expression")
+        _z3_assert(is_array_sort(a), "First argument must be a Z3 array expression")
     return a.default()
 
 
@@ -4453,7 +4476,7 @@ def Select(a, i):
     True
     """
     if z3_debug():
-        _z3_assert(is_array(a), "First argument must be a Z3 array expression")
+        _z3_assert(is_array_sort(a), "First argument must be a Z3 array expression")
     return a[i]
 
 
@@ -4508,7 +4531,7 @@ def Ext(a, b):
     """
     ctx = a.ctx
     if z3_debug():
-        _z3_assert(is_array(a) and is_array(b), "arguments must be arrays")
+        _z3_assert(is_array_sort(a) and is_array(b), "arguments must be arrays")
     return _to_expr_ref(Z3_mk_array_ext(ctx.ref(), a.as_ast(), b.as_ast()), ctx)
 
 def SetHasSize(a, k):
@@ -6402,6 +6425,13 @@ class CheckSatResult:
                 return "unsat"
             else:
                 return "unknown"
+
+    def _repr_html_(self):
+        in_html = in_html_mode()
+        set_html_mode(True)
+        res = repr(self)
+        set_html_mode(in_html)
+        return res
 
 sat     = CheckSatResult(Z3_L_TRUE)
 unsat   = CheckSatResult(Z3_L_FALSE)
@@ -8925,14 +8955,13 @@ class FPRef(ExprRef):
         [a, b] = _coerce_fp_expr_list([other, self], self.ctx)
         return fpDiv(_dflt_rm(), a, b, self.ctx)
 
-    if not sys.version < '3':
-        def __truediv__(self, other):
-            """Create the Z3 expression division `self / other`."""
-            return self.__div__(other)
+    def __truediv__(self, other):
+        """Create the Z3 expression division `self / other`."""
+        return self.__div__(other)
 
-        def __rtruediv__(self, other):
-            """Create the Z3 expression division `other / self`."""
-            return self.__rdiv__(other)
+    def __rtruediv__(self, other):
+        """Create the Z3 expression division `other / self`."""
+        return self.__rdiv__(other)
 
     def __mod__(self, other):
         """Create the Z3 expression mod `self % other`."""
@@ -9973,7 +10002,7 @@ class SeqRef(ExprRef):
     def __getitem__(self, i):
         if _is_int(i):
             i = IntVal(i, self.ctx)
-        return SeqRef(Z3_mk_seq_nth(self.ctx_ref(), self.as_ast(), i.as_ast()), self.ctx)
+        return _to_expr_ref(Z3_mk_seq_nth(self.ctx_ref(), self.as_ast(), i.as_ast()), self.ctx)
 
     def at(self, i):
         if _is_int(i):

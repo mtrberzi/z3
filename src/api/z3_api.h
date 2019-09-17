@@ -1457,6 +1457,9 @@ extern "C" {
        Z3_global_param_set('pp.decimal', 'true')
        will set the parameter "decimal" in the module "pp" to true.
 
+       \sa Z3_global_param_get
+       \sa Z3_global_param_reset_all
+
        def_API('Z3_global_param_set', VOID, (_in(STRING), _in(STRING)))
     */
     void Z3_API Z3_global_param_set(Z3_string param_id, Z3_string param_value);
@@ -1466,6 +1469,7 @@ extern "C" {
        \brief Restore the value of all global (and module) parameters.
        This command will not affect already created objects (such as tactics and solvers).
 
+       \sa Z3_global_param_get
        \sa Z3_global_param_set
 
        def_API('Z3_global_param_reset_all', VOID, ())
@@ -1477,6 +1481,7 @@ extern "C" {
 
        Returns \c false if the parameter value does not exist.
 
+       \sa Z3_global_param_reset_all
        \sa Z3_global_param_set
 
        \remark This function cannot be invoked simultaneously from different threads without synchronization.
@@ -1998,6 +2003,10 @@ extern "C" {
                         sort reference is 0, then the value in sort_refs should be an index referring to
                         one of the recursive datatypes that is declared.
 
+       \sa Z3_del_constructor
+       \sa Z3_mk_constructor_list
+       \sa Z3_query_constructor
+
        def_API('Z3_mk_constructor', CONSTRUCTOR, (_in(CONTEXT), _in(SYMBOL), _in(SYMBOL), _in(UINT), _in_array(3, SYMBOL), _in_array(3, SORT), _in_array(3, UINT)))
     */
     Z3_constructor Z3_API Z3_mk_constructor(Z3_context c,
@@ -2015,6 +2024,8 @@ extern "C" {
        \param c logical context.
        \param constr constructor.
 
+       \sa Z3_mk_constructor
+
        def_API('Z3_del_constructor', VOID, (_in(CONTEXT), _in(CONSTRUCTOR)))
     */
     void Z3_API Z3_del_constructor(Z3_context c, Z3_constructor constr);
@@ -2027,6 +2038,10 @@ extern "C" {
        \param name name of datatype.
        \param num_constructors number of constructors passed in.
        \param constructors array of constructor containers.
+
+       \sa Z3_mk_constructor
+       \sa Z3_mk_constructor_list
+       \sa Z3_mk_datatypes
 
        def_API('Z3_mk_datatype', SORT, (_in(CONTEXT), _in(SYMBOL), _in(UINT), _inout_array(2, CONSTRUCTOR)))
     */
@@ -2042,6 +2057,9 @@ extern "C" {
        \param num_constructors number of constructors in list.
        \param constructors list of constructors.
 
+       \sa Z3_del_constructor_list
+       \sa Z3_mk_constructor
+
        def_API('Z3_mk_constructor_list', CONSTRUCTOR_LIST, (_in(CONTEXT), _in(UINT), _in_array(1, CONSTRUCTOR)))
     */
     Z3_constructor_list Z3_API Z3_mk_constructor_list(Z3_context c,
@@ -2056,6 +2074,8 @@ extern "C" {
        \param c logical context.
        \param clist constructor list container.
 
+       \sa Z3_mk_constructor_list
+
        def_API('Z3_del_constructor_list', VOID, (_in(CONTEXT), _in(CONSTRUCTOR_LIST)))
     */
     void Z3_API Z3_del_constructor_list(Z3_context c, Z3_constructor_list clist);
@@ -2068,6 +2088,10 @@ extern "C" {
        \param sort_names names of datatype sorts.
        \param sorts array of datatype sorts.
        \param constructor_lists list of constructors, one list per sort.
+
+       \sa Z3_mk_constructor
+       \sa Z3_mk_constructor_list
+       \sa Z3_mk_datatype
 
        def_API('Z3_mk_datatypes', VOID, (_in(CONTEXT), _in(UINT), _in_array(1, SYMBOL), _out_array(1, SORT), _inout_array(1, CONSTRUCTOR_LIST)))
     */
@@ -2086,6 +2110,8 @@ extern "C" {
        \param constructor constructor function declaration, allocated by user.
        \param tester constructor test function declaration, allocated by user.
        \param accessors array of accessor function declarations allocated by user. The array must contain num_fields elements.
+
+       \sa Z3_mk_constructor
 
        def_API('Z3_query_constructor', VOID, (_in(CONTEXT), _in(CONSTRUCTOR), _in(UINT), _out(FUNC_DECL), _out(FUNC_DECL), _out_array(2, FUNC_DECL)))
     */
@@ -2115,6 +2141,8 @@ extern "C" {
        application.
 
        \sa Z3_mk_app
+       \sa Z3_mk_fresh_func_decl
+       \sa Z3_mk_rec_func_decl
 
        def_API('Z3_mk_func_decl', FUNC_DECL, (_in(CONTEXT), _in(SYMBOL), _in(UINT), _in_array(2, SORT), _in(SORT)))
     */
@@ -2127,7 +2155,9 @@ extern "C" {
     /**
        \brief Create a constant or function application.
 
+       \sa Z3_mk_fresh_func_decl
        \sa Z3_mk_func_decl
+       \sa Z3_mk_rec_func_decl
 
        def_API('Z3_mk_app', AST, (_in(CONTEXT), _in(FUNC_DECL), _in(UINT), _in_array(2, AST)))
     */
@@ -2146,8 +2176,9 @@ extern "C" {
        Z3_ast n            = Z3_mk_app(c, d, 0, 0);
        \endcode
 
-       \sa Z3_mk_func_decl
        \sa Z3_mk_app
+       \sa Z3_mk_fresh_const
+       \sa Z3_mk_func_decl
 
        def_API('Z3_mk_const', AST, (_in(CONTEXT), _in(SYMBOL), _in(SORT)))
     */
@@ -2177,8 +2208,10 @@ extern "C" {
 
        \remark If \c prefix is \c NULL, then it is assumed to be the empty string.
 
-       \sa Z3_mk_func_decl
        \sa Z3_mk_app
+       \sa Z3_mk_const
+       \sa Z3_mk_fresh_func_decl
+       \sa Z3_mk_func_decl
 
        def_API('Z3_mk_fresh_const', AST, (_in(CONTEXT), _in(STRING), _in(SORT)))
     */
@@ -2198,8 +2231,9 @@ extern "C" {
        The function #Z3_mk_app can be used to create a constant or function
        application.
 
-       \sa Z3_mk_app
        \sa Z3_add_rec_def
+       \sa Z3_mk_app
+       \sa Z3_mk_func_decl
 
        def_API('Z3_mk_rec_func_decl', FUNC_DECL, (_in(CONTEXT), _in(SYMBOL), _in(UINT), _in_array(2, SORT), _in(SORT)))
     */
@@ -3684,10 +3718,8 @@ extern "C" {
     /** @name Special relations */
     /*@{*/
     /**
-       \brief declare \c a and \c b are in linear order over a relation indexed by \c id.
-
-       \pre a and b are of same type.
-       
+       \brief create a linear ordering relation over signature \c a.
+       The relation is identified by the index \c id.
 
        def_API('Z3_mk_linear_order', FUNC_DECL ,(_in(CONTEXT), _in(SORT), _in(UINT)))
      */
@@ -3708,7 +3740,7 @@ extern "C" {
     Z3_func_decl Z3_API Z3_mk_piecewise_linear_order(Z3_context c, Z3_sort a, unsigned id);
 
     /**
-       \brief create a tree ordering lreation over signature \c a identified using index \c id.
+       \brief create a tree ordering relation over signature \c a identified using index \c id.
 
        def_API('Z3_mk_tree_order', FUNC_DECL, (_in(CONTEXT), _in(SORT), _in(UINT)))
      */
@@ -4578,7 +4610,7 @@ extern "C" {
     Z3_sort Z3_API Z3_get_sort(Z3_context c, Z3_ast a);
 
     /**
-       \brief Return true if the given expression \c t is well sorted.
+       \brief Return \c true if the given expression \c t is well sorted.
 
        def_API('Z3_is_well_sorted', BOOL, (_in(CONTEXT), _in(AST)))
     */
@@ -4609,7 +4641,7 @@ extern "C" {
     bool Z3_API Z3_is_numeral_ast(Z3_context c, Z3_ast a);
 
     /**
-       \brief Return true if the given AST is a real algebraic number.
+       \brief Return \c true if the given AST is a real algebraic number.
 
        def_API('Z3_is_algebraic_number', BOOL, (_in(CONTEXT), _in(AST)))
     */
@@ -5296,14 +5328,14 @@ extern "C" {
     void Z3_API Z3_func_interp_add_entry(Z3_context c, Z3_func_interp fi, Z3_ast_vector args, Z3_ast value);
 
     /**
-       \brief Increment the reference counter of the given Z3_func_entry object.
+       \brief Increment the reference counter of the given \c Z3_func_entry object.
 
        def_API('Z3_func_entry_inc_ref', VOID, (_in(CONTEXT), _in(FUNC_ENTRY)))
     */
     void Z3_API Z3_func_entry_inc_ref(Z3_context c, Z3_func_entry e);
 
     /**
-       \brief Decrement the reference counter of the given Z3_func_entry object.
+       \brief Decrement the reference counter of the given \c Z3_func_entry object.
 
        def_API('Z3_func_entry_dec_ref', VOID, (_in(CONTEXT), _in(FUNC_ENTRY)))
     */
@@ -5312,7 +5344,7 @@ extern "C" {
     /**
        \brief Return the value of this point.
 
-       A Z3_func_entry object represents an element in the finite map used to encode
+       A \c Z3_func_entry object represents an element in the finite map used to encode
        a function interpretation.
 
        \sa Z3_func_interp_get_entry
@@ -5322,7 +5354,7 @@ extern "C" {
     Z3_ast Z3_API Z3_func_entry_get_value(Z3_context c, Z3_func_entry e);
 
     /**
-       \brief Return the number of arguments in a Z3_func_entry object.
+       \brief Return the number of arguments in a \c Z3_func_entry object.
 
        \sa Z3_func_interp_get_entry
 
@@ -5331,7 +5363,7 @@ extern "C" {
     unsigned Z3_API Z3_func_entry_get_num_args(Z3_context c, Z3_func_entry e);
 
     /**
-       \brief Return an argument of a Z3_func_entry object.
+       \brief Return an argument of a \c Z3_func_entry object.
 
        \pre i < Z3_func_entry_get_num_args(c, e)
 
@@ -5387,11 +5419,11 @@ extern "C" {
 
        The default mode for pretty printing AST nodes is to produce
        SMT-LIB style output where common subexpressions are printed
-       at each occurrence. The mode is called Z3_PRINT_SMTLIB_FULL.
+       at each occurrence. The mode is called \c Z3_PRINT_SMTLIB_FULL.
        To print shared common subexpressions only once,
-       use the Z3_PRINT_LOW_LEVEL mode.
+       use the \c Z3_PRINT_LOW_LEVEL mode.
        To print in way that conforms to SMT-LIB standards and uses let
-       expressions to share common sub-expressions use Z3_PRINT_SMTLIB2_COMPLIANT.
+       expressions to share common sub-expressions use \c Z3_PRINT_SMTLIB2_COMPLIANT.
 
        \sa Z3_ast_to_string
        \sa Z3_pattern_to_string
@@ -5535,7 +5567,7 @@ extern "C" {
     /**
        \brief Register a Z3 error handler.
 
-       A call to a Z3 function may return a non Z3_OK error code, when
+       A call to a Z3 function may return a non \c Z3_OK error code, when
        it is not used correctly.  An error handler can be registered
        and will be called in this case.  To disable the use of the
        error handler, simply register with \c h=NULL.
@@ -5569,20 +5601,26 @@ extern "C" {
     /**
        \brief Return Z3 version number information.
 
+       \sa Z3_get_full_version
+
        def_API('Z3_get_version', VOID, (_out(UINT), _out(UINT), _out(UINT), _out(UINT)))
     */
     void Z3_API Z3_get_version(unsigned * major, unsigned * minor, unsigned * build_number, unsigned * revision_number);
 
     /**
-        \brief Return a string that fully describes the version of Z3 in use.
+       \brief Return a string that fully describes the version of Z3 in use.
 
-        def_API('Z3_get_full_version', STRING, ())
+       \sa Z3_get_version
+
+       def_API('Z3_get_full_version', STRING, ())
     */
     Z3_string Z3_API Z3_get_full_version(void);
 
     /**
        \brief Enable tracing messages tagged as \c tag when Z3 is compiled in debug mode.
        It is a NOOP otherwise
+
+       \sa Z3_disable_trace
 
        def_API('Z3_enable_trace', VOID, (_in(STRING),))
     */
@@ -5591,6 +5629,8 @@ extern "C" {
     /**
        \brief Disable tracing messages tagged as \c tag when Z3 is compiled in debug mode.
        It is a NOOP otherwise
+
+       \sa Z3_enable_trace
 
        def_API('Z3_disable_trace', VOID, (_in(STRING),))
     */
@@ -5626,14 +5666,14 @@ extern "C" {
        of formulas, that can be solved and/or transformed using
        tactics and solvers.
 
-       If models == true, then model generation is enabled for the new goal.
+       If \c models is \c true, then model generation is enabled for the new goal.
 
-       If unsat_cores == true, then unsat core generation is enabled for the new goal.
+       If \c unsat_cores is \c true, then unsat core generation is enabled for the new goal.
 
-       If proofs == true, then proof generation is enabled for the new goal. Remark, the
-       Z3 context c must have been created with proof generation support.
+       If \c proofs is \c true, then proof generation is enabled for the new goal. Remark, the
+       Z3 context \c c must have been created with proof generation support.
 
-       \remark Reference counting must be used to manage goals, even when the Z3_context was
+       \remark Reference counting must be used to manage goals, even when the \c Z3_context was
        created using #Z3_mk_context instead of #Z3_mk_context_rc.
 
        def_API('Z3_mk_goal', GOAL, (_in(CONTEXT), _in(BOOL), _in(BOOL), _in(BOOL)))
@@ -5678,7 +5718,7 @@ extern "C" {
     void Z3_API Z3_goal_assert(Z3_context c, Z3_goal g, Z3_ast a);
 
     /**
-       \brief Return true if the given goal contains the formula \c false.
+       \brief Return \c true if the given goal contains the formula \c false.
 
        def_API('Z3_goal_inconsistent', BOOL, (_in(CONTEXT), _in(GOAL)))
     */
@@ -5722,14 +5762,14 @@ extern "C" {
     unsigned Z3_API Z3_goal_num_exprs(Z3_context c, Z3_goal g);
 
     /**
-       \brief Return true if the goal is empty, and it is precise or the product of a under approximation.
+       \brief Return \c true if the goal is empty, and it is precise or the product of a under approximation.
 
        def_API('Z3_goal_is_decided_sat', BOOL, (_in(CONTEXT), _in(GOAL)))
     */
     bool Z3_API Z3_goal_is_decided_sat(Z3_context c, Z3_goal g);
 
     /**
-       \brief Return true if the goal contains false, and it is precise or the product of an over approximation.
+       \brief Return \c true if the goal contains false, and it is precise or the product of an over approximation.
 
        def_API('Z3_goal_is_decided_unsat', BOOL, (_in(CONTEXT), _in(GOAL)))
     */
@@ -5827,7 +5867,7 @@ extern "C" {
 
     /**
        \brief Return a tactic that applies \c t1 to a given goal and \c t2
-       to every subgoal produced by t1.
+       to every subgoal produced by \c t1.
 
        def_API('Z3_tactic_and_then', TACTIC, (_in(CONTEXT), _in(TACTIC), _in(TACTIC)))
     */
@@ -5850,7 +5890,7 @@ extern "C" {
 
     /**
        \brief Return a tactic that applies \c t1 to a given goal and then \c t2
-       to every subgoal produced by t1. The subgoals are processed in parallel.
+       to every subgoal produced by \c t1. The subgoals are processed in parallel.
 
        def_API('Z3_tactic_par_and_then', TACTIC, (_in(CONTEXT), _in(TACTIC), _in(TACTIC)))
     */
@@ -6027,7 +6067,7 @@ extern "C" {
     unsigned Z3_API Z3_get_num_probes(Z3_context c);
 
     /**
-       \brief Return the name of the i probe.
+       \brief Return the name of the \c i probe.
 
        \pre i < Z3_get_num_probes(c)
 
@@ -6528,6 +6568,11 @@ extern "C" {
     /**
        \brief Retrieve the unsat core for the last #Z3_solver_check_assumptions
        The unsat core is a subset of the assumptions \c a.
+
+       By default, the unsat core will not be minimized. Generation of a minimized
+       unsat core can be enabled via the `"sat.core.minimize"` and `"smt.core.minimize"`
+       settings for SAT and SMT cores respectively. Generation of minimized unsat cores
+       will be more expensive.
 
        def_API('Z3_solver_get_unsat_core', AST_VECTOR, (_in(CONTEXT), _in(SOLVER)))
     */

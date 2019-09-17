@@ -23,7 +23,7 @@ Revision History:
 
 namespace sat {
 
-    model_converter::model_converter(): m_solver(nullptr), m_exposed_lim(0) {
+    model_converter::model_converter(): m_exposed_lim(0), m_solver(nullptr) {
     }
 
     model_converter::~model_converter() {
@@ -85,7 +85,7 @@ namespace sat {
                     // end of clause
                     VERIFY (sat || e.get_kind() != ATE);
                     if (!sat && e.get_kind() != ATE && v0 != null_bool_var) {     
-                        VERIFY(legal_to_flip(v0));                        
+                        VERIFY(legal_to_flip(v0));   
                         m[v0] = var_sign ? l_false : l_true;
                     }
                     elim_stack* st = e.m_elim_stack[index];
@@ -124,6 +124,7 @@ namespace sat {
                 for (literal const& l : e.m_clauses) {
                     if (l == null_literal) {
                         CTRACE("sat", !sat, 
+                               tout << "exposed: " << m_exposed_lim << "\n";
                                if (m_solver) m_solver->display(tout);
                                display(tout);
                                for (unsigned v = 0; v < m.size(); ++v) tout << v << ": " << m[v] << "\n";

@@ -115,6 +115,7 @@ class seq_rewriter {
     br_status mk_seq_contains(expr* a, expr* b, expr_ref& result);
     br_status mk_seq_at(expr* a, expr* b, expr_ref& result);
     br_status mk_seq_nth(expr* a, expr* b, expr_ref& result);
+    br_status mk_seq_nth_i(expr* a, expr* b, expr_ref& result);
     br_status mk_seq_index(expr* a, expr* b, expr* c, expr_ref& result);
     br_status mk_seq_last_index(expr* a, expr* b, expr_ref& result);
     br_status mk_seq_replace(expr* a, expr* b, expr* c, expr_ref& result);
@@ -138,6 +139,8 @@ class seq_rewriter {
 
     bool cannot_contain_prefix(expr* a, expr* b);
     bool cannot_contain_suffix(expr* a, expr* b);
+
+    bool is_suffix(expr* s, expr* offset, expr* len);
 
     bool set_empty(unsigned sz, expr* const* es, bool all, expr_ref_vector& lhs, expr_ref_vector& rhs);
     bool is_subsequence(unsigned n, expr* const* l, unsigned m, expr* const* r, 

@@ -268,7 +268,7 @@ public:
                         in->assert_expr(ex);
                     }
                 }
-                if (m_ctx->canceled() && !pr) {
+                if (m_ctx->canceled()&& !pr) {
                     throw tactic_exception(Z3_CANCELED_MSG);
                 }
 

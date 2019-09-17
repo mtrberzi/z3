@@ -1017,8 +1017,11 @@ bool poly_rewriter<Config>::hoist_ite(expr_ref& e) {
                         bs.push_back(s);
                     }
                 }
-                adds[i] = mk_add_app(bs.size(), bs.c_ptr());
-                pinned.push_back(adds[i]);
+                expr* a2 = mk_add_app(bs.size(), bs.c_ptr()); 
+                if (a != a2) {
+                    adds[i] = a2;
+                    pinned.push_back(a2);
+                }
             }
         }
         ++i;
@@ -1038,8 +1041,7 @@ bool poly_rewriter<Config>::hoist_ite(expr* a, obj_hashtable<expr>& shared, nume
     }
     rational k, g1;
     if (is_int_numeral(a, k)) {
-        g = gcd(g, k);
-        return shared.empty();
+        return false;
     }
     ptr_buffer<expr> adds;
     TO_BUFFER(is_add, adds, a);

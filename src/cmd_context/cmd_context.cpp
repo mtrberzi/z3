@@ -36,6 +36,7 @@ Notes:
 #include "ast/rewriter/var_subst.h"
 #include "ast/pp.h"
 #include "ast/ast_smt2_pp.h"
+#include "ast/ast_ll_pp.h"
 #include "ast/decl_collector.h"
 #include "ast/well_sorted.h"
 #include "ast/for_each_expr.h"
@@ -1674,6 +1675,7 @@ void cmd_context::display_model(model_ref& mdl) {
     if (mdl) {
         if (m_mc0) (*m_mc0)(mdl);
         if (m_params.m_model_compress) mdl->compress();
+        add_declared_functions(*mdl);
         model_params p;
         if (p.v1() || p.v2()) {
             std::ostringstream buffer;
@@ -1683,6 +1685,23 @@ void cmd_context::display_model(model_ref& mdl) {
             regular_stream() << "(model " << std::endl;
             model_smt2_pp(regular_stream(), *this, *mdl, 2);
             regular_stream() << ")" << std::endl;
+        }
+    }
+}
+
+void cmd_context::add_declared_functions(model& mdl) {
+    for (auto const& kv : m_func_decls) {
+        func_decl* f = kv.m_value.first();
+        if (f->get_family_id() == null_family_id && !mdl.has_interpretation(f)) {
+            expr* val = mdl.get_some_value(f->get_range());
+            if (f->get_arity() == 0) {
+                mdl.register_decl(f, val);
+                }
+            else {
+                func_interp* fi = alloc(func_interp, m(), f->get_arity());
+                fi->set_else(val);
+                mdl.register_decl(f, fi);
+            }
         }
     }
 }
@@ -1771,7 +1790,9 @@ struct contains_underspecified_op_proc {
     \brief Complete the model if necessary.
 */
 void cmd_context::complete_model(model_ref& md) const {
-    if (gparams::get_value("model.completion") != "true" || !md.get())
+    if (!md.get()) 
+        return;
+    if (gparams::get_value("model.completion") != "true")
         return;
 
     params_ref p;
@@ -1863,6 +1884,9 @@ void cmd_context::validate_model() {
                 if (m().is_true(r))
                     continue;
 
+                analyze_failure(evaluator, a, true);
+                IF_VERBOSE(11, model_smt2_pp(verbose_stream(), *this, *md, 0););                
+
                 // The evaluator for array expressions is not complete
                 // If r contains as_array/store/map/const expressions, then we do not generate the error.
                 // TODO: improve evaluator for model expressions.
@@ -1878,8 +1902,6 @@ void cmd_context::validate_model() {
                     continue;
                 }
                 TRACE("model_validate", model_smt2_pp(tout, *this, *md, 0););
-                IF_VERBOSE(10, verbose_stream() << "model check failed on: " << mk_pp(a, m()) << "\n";);                
-                IF_VERBOSE(11, model_smt2_pp(verbose_stream(), *this, *md, 0););                
                 invalid_model = true;
             }
         }
@@ -1889,6 +1911,73 @@ void cmd_context::validate_model() {
     }
 }
 
+void cmd_context::analyze_failure(model_evaluator& ev, expr* a, bool expected_value) {
+    if (expected_value && m().is_and(a)) {
+        for (expr* arg : *to_app(a)) {
+            if (ev.is_false(arg)) {
+                analyze_failure(ev, arg, true);
+                return;
+            }
+        }
+    }
+    expr* c = nullptr, *t = nullptr, *e = nullptr;
+    if (expected_value && m().is_ite(a, c, t, e)) {
+        if (ev.is_true(c) && ev.is_false(t)) {
+            analyze_failure(ev, t, true);
+            return;
+        }
+        if (ev.is_false(c) && ev.is_false(e)) {
+            analyze_failure(ev, e, true);
+            return;
+        }
+    }
+    if (m().is_not(a, e)) {
+        analyze_failure(ev, e, !expected_value);
+        return;
+    }
+    if (!expected_value && m().is_or(a)) {
+        for (expr* arg : *to_app(a)) {
+            if (ev.is_false(arg)) {
+                analyze_failure(ev, arg, false);
+                return;
+            }
+        }
+    }
+    if (!expected_value && m().is_ite(a, c, t, e)) {
+        if (ev.is_true(c) && ev.is_true(t)) {
+            analyze_failure(ev, t, false);
+            return;
+        }
+        if (ev.is_false(c) && ev.is_true(e)) {
+            analyze_failure(ev, e, false);
+            return;
+        }
+    }
+    IF_VERBOSE(10, verbose_stream() << "model check failed on: " << " " << mk_pp(a, m()) << "\n";);                
+    IF_VERBOSE(10, verbose_stream() << "expected value: " << (expected_value?"true":"false") << "\n";);                
+
+    IF_VERBOSE(10, display_detailed_analysis(verbose_stream(), ev, a));
+}
+
+void cmd_context::display_detailed_analysis(std::ostream& out, model_evaluator& ev, expr* e) {
+    ptr_vector<expr> es;
+    es.push_back(e);
+    expr_mark visited;
+    for (unsigned i = 0; i < es.size(); ++i) {
+        e = es[i];
+        if (visited.is_marked(e)) {
+            continue;
+        }
+        visited.mark(e, true);
+        expr_ref val = ev(e);
+        out << "#" << e->get_id() << ": " << mk_bounded_pp(e, m(), 1) << " " << val << "\n";
+        if (is_app(e)) {
+            for (expr* arg : *to_app(e)) {
+                es.push_back(arg);
+            }
+        }
+    }
+}
 
 void cmd_context::mk_solver() {
     bool proofs_enabled, models_enabled, unsat_core_enabled;
@@ -1959,6 +2048,8 @@ bool cmd_context::is_model_available(model_ref& md) const {
         has_manager() &&
         (cs_state() == css_sat || cs_state() == css_unknown)) {
         get_check_sat_result()->get_model(md);
+        params_ref p;
+        if (md.get()) md->updt_params(p);
         complete_model(md);
         return md.get() != nullptr;
     }

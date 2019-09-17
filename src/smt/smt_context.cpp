@@ -326,6 +326,7 @@ namespace smt {
 
         if (m_manager.has_trace_stream())
             trace_assign(l, j, decision);
+
         m_case_split_queue->assign_lit_eh(l);
 
         // a unit is asserted at search level. Mark it as relevant.
@@ -1710,39 +1711,36 @@ namespace smt {
        congruences cannot be retracted to a consistent state.
      */
     bool context::propagate() {
-        scoped_suspend_rlimit _suspend_cancel(m_manager.limit(), at_base_level());
         TRACE("propagate", tout << "propagating... " << m_qhead << ":" << m_assigned_literals.size() << "\n";);
         while (true) {
             if (inconsistent())
                 return false;
             unsigned qhead = m_qhead;
-            if (!bcp())
-                return false;
-            if (!propagate_th_case_split(qhead))
-                return false;
-            if (get_cancel_flag()) {
-                m_qhead = qhead;
-                return true;
+            {
+                scoped_suspend_rlimit _suspend_cancel(m_manager.limit(), at_base_level());
+                if (!bcp())
+                    return false;
+                if (!propagate_th_case_split(qhead))
+                    return false;
+                SASSERT(!inconsistent());
+                propagate_relevancy(qhead);
+                if (inconsistent())
+                    return false;
+                if (!propagate_atoms())
+                    return false;
+                if (!propagate_eqs())
+                    return false;
+                propagate_th_eqs();
+                propagate_th_diseqs();
+                if (inconsistent())
+                    return false;
+                if (!propagate_theories())
+                    return false;
             }
-            SASSERT(!inconsistent());
-            propagate_relevancy(qhead);
-            if (inconsistent())
-                return false;
-            if (!propagate_atoms())
-                return false;
-            if (!propagate_eqs())
-                return false;
-            if (get_cancel_flag()) {
-                m_qhead = qhead;
-                return true;
+            if (!get_cancel_flag()) {
+                scoped_suspend_rlimit _suspend_cancel(m_manager.limit(), at_base_level());
+                m_qmanager->propagate();
             }
-            propagate_th_eqs();
-            propagate_th_diseqs();
-            if (inconsistent())
-                return false;
-            if (!propagate_theories())
-                return false;
-            m_qmanager->propagate();
             if (inconsistent())
                 return false;
             if (resource_limits_exceeded()) {
@@ -1849,6 +1847,16 @@ namespace smt {
             }
             else {
                 switch (m_fparams.m_phase_selection) {
+                case PS_THEORY: 
+                    if (d.is_theory_atom()) {
+                        theory * th = m_theories.get_plugin(d.get_theory());
+                        lbool ph = th->get_phase(var);
+                        if (ph != l_undef) {
+                            is_pos = ph == l_true;
+                            break;
+                        }
+                    }
+                    Z3_fallthrough;
                 case PS_CACHING:
                 case PS_CACHING_CONSERVATIVE:
                 case PS_CACHING_CONSERVATIVE2:
@@ -1995,6 +2003,7 @@ namespace smt {
         SASSERT(m_flushing || !cls->in_reinit_stack());
         if (log) 
             m_clause_proof.del(*cls);
+        CTRACE("context", !m_flushing, display_clause_smt2(tout << "deleting ", *cls) << "\n";);
         if (!cls->deleted())
             remove_cls_occs(cls);
         cls->deallocate(m_manager);
@@ -2539,13 +2548,14 @@ namespace smt {
         for(; it != end; ++it) {
             clause * cls = *it;
             SASSERT(!cls->in_reinit_stack());
-            TRACE("simplify_clauses_bug", display_clause(tout, cls); tout << "\n";);
             
             if (cls->deleted()) {
+                TRACE("simplify_clauses_bug", display_clause(tout << "deleted\n", cls) << "\n";);
                 del_clause(true, cls);
                 num_del_clauses++;
             }
             else if (simplify_clause(*cls)) {
+                TRACE("simplify_clauses_bug", display_clause_smt2(tout << "simplified\n", *cls) << "\n";);
                 for (unsigned idx = 0; idx < 2; idx++) {
                     literal     l0        = (*cls)[idx];
                     b_justification l0_js = get_justification(l0.var());
@@ -3325,6 +3335,35 @@ namespace smt {
         if (r == l_true && get_cancel_flag()) {
             r = l_undef;
         }
+        if (r == l_true && gparams::get_value("model_validate") == "true") {
+            for (theory* t : m_theory_set) {
+                t->validate_model(*m_model);
+            }
+#if 0
+            for (literal lit : m_assigned_literals) {
+                if (!is_relevant(lit)) continue;
+                expr* v = m_bool_var2expr[lit.var()];
+                if (lit.sign() ? m_model->is_true(v) : m_model->is_false(v)) {
+                    IF_VERBOSE(10, verbose_stream() 
+                               << "invalid assignment " << (lit.sign() ? "true" : "false") 
+                               << " to #" << v->get_id() << " := " << mk_bounded_pp(v, m_manager, 2) << "\n");
+                }
+            }
+            for (clause* cls : m_aux_clauses) {
+                bool found = false;
+                for (literal lit : *cls) {
+                    expr* v = m_bool_var2expr[lit.var()];
+                    if (lit.sign() ? !m_model->is_true(v) : !m_model->is_false(v)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    IF_VERBOSE(10, display_clause_smt2(verbose_stream() << "not satisfied:\n", *cls) << "\n");                    
+                }
+            }
+#endif
+        }
         return r;
     }
 
@@ -3863,7 +3902,9 @@ namespace smt {
         default:
             break;
         }
-        if (m_fparams.m_phase_selection == PS_CACHING_CONSERVATIVE || m_fparams.m_phase_selection == PS_CACHING_CONSERVATIVE2)
+        if (m_fparams.m_phase_selection == PS_THEORY || 
+            m_fparams.m_phase_selection == PS_CACHING_CONSERVATIVE || 
+            m_fparams.m_phase_selection == PS_CACHING_CONSERVATIVE2)
             forget_phase_of_vars_in_current_level();
         m_atom_propagation_queue.reset();
         m_eq_propagation_queue.reset();

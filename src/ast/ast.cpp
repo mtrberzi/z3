@@ -1814,7 +1814,6 @@ ast * ast_manager::register_node_core(ast * n) {
         SASSERT(m_ast_table.contains(n));
     }
 
-
     n->m_id   = is_decl(n) ? m_decl_id_gen.mk() : m_expr_id_gen.mk();
 
     TRACE("ast", tout << "Object " << n->m_id << " was created.\n";);
@@ -2347,10 +2346,10 @@ app * ast_manager::mk_app(func_decl * decl, unsigned num_args, expr * const * ar
 
 
 func_decl * ast_manager::mk_fresh_func_decl(symbol const & prefix, symbol const & suffix, unsigned arity,
-                                            sort * const * domain, sort * range) {
+                                            sort * const * domain, sort * range, bool skolem) {
     func_decl_info info(null_family_id, null_decl_kind);
-    info.m_skolem = true;
-    SASSERT(info.is_skolem());
+    info.m_skolem = skolem;
+    SASSERT(skolem == info.is_skolem());
     func_decl * d;
     if (prefix == symbol::null && suffix == symbol::null) {
         d = mk_func_decl(symbol(m_fresh_id), arity, domain, range, &info);
@@ -2369,7 +2368,7 @@ func_decl * ast_manager::mk_fresh_func_decl(symbol const & prefix, symbol const 
     }
     m_fresh_id++;
     SASSERT(d->get_info());
-    SASSERT(d->is_skolem());
+    SASSERT(skolem == d->is_skolem());
     return d;
 }
 

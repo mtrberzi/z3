@@ -2642,6 +2642,11 @@ namespace smt2 {
 
             check_rparen("invalid get-value command, ')' expected");
             model_ref md;
+            if (m_ctx.ignore_check()) {
+                expr_stack().shrink(spos);
+                next();
+                return;
+            }
             if (!m_ctx.is_model_available(md) || m_ctx.get_check_sat_result() == nullptr)
                 throw cmd_exception("model is not available");
             if (index != 0) {
@@ -2650,7 +2655,7 @@ namespace smt2 {
             m_ctx.regular_stream() << "(";
             expr ** expr_it  = expr_stack().c_ptr() + spos;
             expr ** expr_end = expr_it + m_cached_strings.size();
-            // md->compress();
+            md->compress();
             for (unsigned i = 0; expr_it < expr_end; expr_it++, i++) {
                 model::scoped_model_completion _scm(md, true);
                 expr_ref v = (*md)(*expr_it);

@@ -92,6 +92,8 @@ namespace sat {
         bool               m_phase_sticky;
         unsigned           m_rephase_base;
         unsigned           m_reorder_base;
+        double             m_reorder_itau;
+        unsigned           m_reorder_activity_scale;
         bool               m_propagate_prefetch;
         restart_strategy   m_restart;
         bool               m_restart_fast;
@@ -166,6 +168,7 @@ namespace sat {
         symbol             m_drat_file;
         bool               m_drat_check_unsat;
         bool               m_drat_check_sat;
+        bool               m_drat_activity;
         
         bool               m_card_solver;
         bool               m_xor_solver;

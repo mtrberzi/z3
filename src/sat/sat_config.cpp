@@ -65,6 +65,8 @@ namespace sat {
 
         m_rephase_base      = p.rephase_base();
         m_reorder_base      = p.reorder_base();
+        m_reorder_itau      = p.reorder_itau();
+        m_activity_scale  = p.reorder_activity_scale();
         m_search_sat_conflicts = p.search_sat_conflicts();
         m_search_unsat_conflicts = p.search_unsat_conflicts();
         m_phase_sticky      = p.phase_sticky();
@@ -72,7 +74,6 @@ namespace sat {
         m_restart_initial = p.restart_initial();
         m_restart_factor  = p.restart_factor();
         m_restart_max     = p.restart_max();
-        m_activity_scale  = 100;
         m_propagate_prefetch = p.propagate_prefetch();
         m_inprocess_max   = p.inprocess_max();
 
@@ -180,6 +181,7 @@ namespace sat {
         m_drat_file       = p.drat_file();
         m_drat            = (m_drat_check_unsat || m_drat_file != symbol("") || m_drat_check_sat) && p.threads() == 1;
         m_drat_binary     = p.drat_binary();
+        m_drat_activity   = p.drat_activity();
         m_dyn_sub_res     = p.dyn_sub_res();
 
         // Parameters used in Liang, Ganesh, Poupart, Czarnecki AAAI 2016.
