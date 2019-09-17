@@ -68,10 +68,6 @@ enum seq_op_kind {
     OP_STRING_CONST,
     OP_STRING_ITOS,
     OP_STRING_STOI,
-<<<<<<< HEAD
-=======
-
->>>>>>> e739f1ab5e9bd41c197bf9800eb4c019657e4b5f
     OP_STRING_COUNT,
     OP_STRING_LT,
     OP_STRING_LE,

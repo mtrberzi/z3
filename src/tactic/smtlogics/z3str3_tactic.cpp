@@ -140,7 +140,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     smt_params m_smt_params;
     m_smt_params.updt_params(p);
 
-    tactic * ext_str = mk_ext_str_tactic(m, p);
+    // tactic * ext_str = mk_ext_str_tactic(m, p);
     tactic * preamble = mk_simplify_tactic(m, p);
 
     params_ref preprocess_p = p;
@@ -164,7 +164,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     tactic * z3str3_2;
     if (false) // for now don't use ext_str rewrites
     {
-        z3str3_2 = using_params(and_then(ext_str, preamble, mk_smt_tactic(m)), general_p);
+        z3str3_2 = using_params(and_then(preamble, mk_smt_tactic(m)), general_p);
     } 
     else 
     {

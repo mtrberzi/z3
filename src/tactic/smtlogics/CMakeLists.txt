@@ -25,7 +25,6 @@ z3_add_component(smtlogic_tactics
     qe
     sat_solver
     smt_tactic
-    str_tactics
   PYG_FILES
     qfufbv_tactic_params.pyg
   TACTIC_HEADERS
