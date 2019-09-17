@@ -202,7 +202,7 @@ extern "C" {
         func_decl* d = mk_c(c)->m().mk_fresh_func_decl(prefix,
                                                        domain_size,
                                                        reinterpret_cast<sort*const*>(domain),
-                                                       to_sort(range));
+                                                       to_sort(range), false);
 
         mk_c(c)->save_ast_trail(d);
         RETURN_Z3(of_func_decl(d));
@@ -216,7 +216,7 @@ extern "C" {
         if (prefix == nullptr) {
             prefix = "";
         }
-        app* a = mk_c(c)->m().mk_fresh_const(prefix, to_sort(ty));
+        app* a = mk_c(c)->m().mk_fresh_const(prefix, to_sort(ty), false);
         mk_c(c)->save_ast_trail(a);
         RETURN_Z3(of_ast(a));
         Z3_CATCH_RETURN(nullptr);
@@ -996,6 +996,10 @@ extern "C" {
             case PR_IFF_FALSE: return Z3_OP_PR_IFF_FALSE;
             case PR_COMMUTATIVITY: return Z3_OP_PR_COMMUTATIVITY;
             case PR_DEF_AXIOM: return Z3_OP_PR_DEF_AXIOM;
+            case PR_ASSUMPTION_ADD: return Z3_OP_PR_ASSUMPTION_ADD;
+            case PR_LEMMA_ADD: return Z3_OP_PR_LEMMA_ADD;
+            case PR_REDUNDANT_DEL: return Z3_OP_PR_REDUNDANT_DEL;
+            case PR_CLAUSE_TRAIL: return Z3_OP_PR_CLAUSE_TRAIL;
             case PR_DEF_INTRO: return Z3_OP_PR_DEF_INTRO;
             case PR_APPLY_DEF: return Z3_OP_PR_APPLY_DEF;
             case PR_IFF_OEQ: return Z3_OP_PR_IFF_OEQ;
@@ -1058,6 +1062,7 @@ extern "C" {
             case OP_SPECIAL_RELATION_PO : return Z3_OP_SPECIAL_RELATION_PO;
             case OP_SPECIAL_RELATION_PLO: return Z3_OP_SPECIAL_RELATION_PLO;
             case OP_SPECIAL_RELATION_TO : return Z3_OP_SPECIAL_RELATION_TO;
+            case OP_SPECIAL_RELATION_TC : return Z3_OP_SPECIAL_RELATION_TC;
             default: UNREACHABLE();
             }
         }

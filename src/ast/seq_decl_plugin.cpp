@@ -224,6 +224,17 @@ std::string zstring::encode() const {
     return strm.str();
 }
 
+std::string zstring::as_string() const {
+    SASSERT(m_encoding == ascii);
+    std::ostringstream strm;
+    for (unsigned i = 0; i < m_buffer.size(); ++i) {
+        unsigned char ch = m_buffer[i];
+        strm << (char)(ch);        
+    }
+    return strm.str();
+}
+
+
 bool zstring::suffixof(zstring const& other) const {
     if (length() > other.length()) return false;
     bool suffix = true;
@@ -561,6 +572,8 @@ void seq_decl_plugin::init() {
     m_sigs[OP_SEQ_LAST_INDEX] = alloc(psig, m, "seq.last_indexof",  1, 2, seqAseqA, intT);
     m_sigs[OP_SEQ_AT]        = alloc(psig, m, "seq.at",       1, 2, seqAintT, seqA);
     m_sigs[OP_SEQ_NTH]       = alloc(psig, m, "seq.nth",      1, 2, seqAintT, A);
+    m_sigs[OP_SEQ_NTH_I]     = alloc(psig, m, "seq.nth_i",    1, 2, seqAintT, A);
+    m_sigs[OP_SEQ_NTH_U]     = alloc(psig, m, "seq.nth_u",    1, 2, seqAintT, A);
     m_sigs[OP_SEQ_LENGTH]    = alloc(psig, m, "seq.len",      1, 1, &seqA, intT);
     m_sigs[OP_RE_PLUS]       = alloc(psig, m, "re.+",         1, 1, &reA, reA);
     m_sigs[OP_RE_STAR]       = alloc(psig, m, "re.*",         1, 1, &reA, reA);
@@ -583,6 +596,8 @@ void seq_decl_plugin::init() {
     m_sigs[OP_STRING_ITOS]       = alloc(psig, m, "int.to.str", 0, 1, &intT, strT);
     m_sigs[OP_STRING_STOI]       = alloc(psig, m, "str.to.int", 0, 1, &strT, intT);
     m_sigs[OP_STRING_COUNT]      = alloc(psig, m, "_str.count", 0, 2, str2T, intT);
+    m_sigs[OP_STRING_LT]         = alloc(psig, m, "str.<", 0, 2, str2T, boolT);
+    m_sigs[OP_STRING_LE]         = alloc(psig, m, "str.<=", 0, 2, str2T, boolT);
     m_sigs[_OP_STRING_CONCAT]    = alloc(psig, m, "str.++", 1, 2, str2T, strT);
     m_sigs[_OP_STRING_LENGTH]    = alloc(psig, m, "str.len", 0, 1, &strT, intT);
     m_sigs[_OP_STRING_STRCTN]    = alloc(psig, m, "str.contains", 0, 2, str2T, boolT);
@@ -699,10 +714,11 @@ func_decl * seq_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, 
     case OP_STRING_ITOS:
     case OP_STRING_STOI:
     case OP_STRING_COUNT:
-
+    case OP_STRING_LT:
+    case OP_STRING_LE:
         match(*m_sigs[k], arity, domain, range, rng);
         return m.mk_func_decl(m_sigs[k]->m_name, arity, domain, rng, func_decl_info(m_family_id, k));
-
+        
     case _OP_REGEXP_FULL_CHAR:
         m_has_re = true;
         if (!range) range = m_re;
@@ -853,6 +869,8 @@ func_decl * seq_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, 
         return mk_str_fun(k, arity, domain, range, OP_SEQ_AT);
 
     case OP_SEQ_NTH:
+    case OP_SEQ_NTH_I:
+    case OP_SEQ_NTH_U:
         match(*m_sigs[k], arity, domain, range, rng);
         return m.mk_func_decl(m_sigs[k]->m_name, arity, domain, rng, func_decl_info(m_family_id, k));
 
@@ -922,12 +940,18 @@ bool seq_decl_plugin::is_value(app* e) const {
             m_manager->is_value(e->get_arg(0))) {
             return true;
         }
-        if (is_app_of(e, m_family_id, OP_SEQ_CONCAT) &&
-            e->get_num_args() == 2 && 
-            is_app(e->get_arg(0)) &&
-            is_app(e->get_arg(1)) &&
-            is_value(to_app(e->get_arg(0)))) {
-            e = to_app(e->get_arg(1));
+        if (is_app_of(e, m_family_id, OP_SEQ_CONCAT)) {
+            bool first = true;
+            for (expr* arg : *e) {
+                if (first) {
+                    first = false;
+                }
+                else if (is_app(arg) && !is_value(to_app(arg))) {
+                    return false;
+                }
+            }
+            if (!is_app(e->get_arg(0))) return false;            
+            e = to_app(e->get_arg(0));
             continue;
         }
         return false;
@@ -1015,6 +1039,10 @@ app* seq_util::mk_le(expr* ch1, expr* ch2) const {
     return bv.mk_ule(ch1, ch2);
 }
 
+app* seq_util::mk_lt(expr* ch1, expr* ch2) const {
+    bv_util bv(m);
+    return m.mk_not(bv.mk_ule(ch2, ch1));
+}
 
 bool seq_util::str::is_string(expr const* n, zstring& s) const {
     if (is_string(n)) {
@@ -1026,16 +1054,15 @@ bool seq_util::str::is_string(expr const* n, zstring& s) const {
     }
 }
 
-bool seq_util::str::is_nth(expr const* n, expr*& s, unsigned& idx) const {
+bool seq_util::str::is_nth_i(expr const* n, expr*& s, unsigned& idx) const {
     expr* i = nullptr;
-    if (!is_nth(n, s, i)) return false;
+    if (!is_nth_i(n, s, i)) return false;
     return arith_util(m).is_unsigned(i, idx);
 }
 
-app* seq_util::str::mk_nth(expr* s, unsigned i) const {
-    return mk_nth(s, arith_util(m).mk_int(i));
+app* seq_util::str::mk_nth_i(expr* s, unsigned i) const {
+    return mk_nth_i(s, arith_util(m).mk_int(i));
 }
-
 
 void seq_util::str::get_concat(expr* e, expr_ref_vector& es) const {
     expr* e1, *e2;

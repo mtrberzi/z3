@@ -32,7 +32,6 @@ Revision History:
 #include "api/api_ast_vector.h"
 #include "solver/tactic2solver.h"
 #include "util/file_path.h"
-#include "tactic/portfolio/smt_strategic_solver.h"
 #include "smt/smt_solver.h"
 #include "smt/smt_implied_equalities.h"
 #include "solver/smt_logics.h"
@@ -425,15 +424,6 @@ extern "C" {
         for (unsigned i = 0; i < sz; ++i) {
             levels[i] = _levels[i];
         }
-        Z3_CATCH;
-    }
-
-    void Z3_API Z3_solver_set_activity(Z3_context c, Z3_solver s, Z3_ast a, double activity) {
-        Z3_TRY;
-        LOG_Z3_solver_set_activity(c, s, a, activity);
-        RESET_ERROR_CODE();
-        init_solver(c, s);
-        to_solver_ref(s)->set_activity(to_expr(a), activity);
         Z3_CATCH;
     }
 

@@ -8,7 +8,7 @@
 from mk_util import *
 
 def init_version():
-    set_version(4, 8, 5, 0)
+    set_version(4, 8, 6, 0)
     
 # Z3 Project definition
 def init_project_def():
@@ -58,7 +58,7 @@ def init_project_def():
     add_lib('sls_tactic', ['tactic', 'normal_forms', 'core_tactics', 'bv_tactics'], 'tactic/sls')
     add_lib('qe', ['smt','sat','nlsat','tactic','nlsat_tactic'], 'qe')
     add_lib('sat_solver', ['solver', 'core_tactics', 'aig_tactic', 'bv_tactics', 'arith_tactics', 'sat_tactic'], 'sat/sat_solver')
-    add_lib('fd_solver', ['core_tactics', 'arith_tactics', 'sat_solver'], 'tactic/fd_solver') 
+    add_lib('fd_solver', ['core_tactics', 'arith_tactics', 'sat_solver', 'smt'], 'tactic/fd_solver') 
     add_lib('muz', ['smt', 'sat', 'smt2parser', 'aig_tactic', 'qe'], 'muz/base')
     add_lib('dataflow', ['muz'], 'muz/dataflow')
     add_lib('transforms', ['muz', 'hilbert', 'dataflow'], 'muz/transforms')
@@ -86,8 +86,7 @@ def init_project_def():
                               static=build_static_lib(),
                               export_files=API_files,
                               staging_link='python')
-    add_dot_net_dll('dotnet', ['api_dll'], 'api/dotnet', dll_name='Microsoft.Z3', assembly_info_dir='Properties', default_key_file='src/api/dotnet/Microsoft.Z3.snk')
-    add_dot_net_core_dll('dotnetcore', ['api_dll'], 'api/dotnet', dll_name='Microsoft.Z3', default_key_file='src/api/dotnet/Microsoft.Z3.snk')
+    add_dot_net_core_dll('dotnet', ['api_dll'], 'api/dotnet', dll_name='Microsoft.Z3', default_key_file='src/api/dotnet/Microsoft.Z3.snk')
     add_java_dll('java', ['api_dll'], 'api/java', dll_name='libz3java', package_name="com.microsoft.z3", manifest_file='manifest')
     add_ml_lib('ml', ['api_dll'], 'api/ml', lib_name='libz3ml')
     add_hlib('cpp', 'api/c++', includes2install=['z3++.h'])

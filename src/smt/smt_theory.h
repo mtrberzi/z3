@@ -66,6 +66,13 @@ namespace smt {
             m_var2enode.push_back(n);
             return v;
         }
+
+        theory_var get_th_var(expr* e) const;
+
+        theory_var get_th_var(enode* n) const {
+            return n->get_th_var(get_id());
+        }
+
         
     public:
         /**
@@ -83,6 +90,30 @@ namespace smt {
             theory_var v = n->get_th_var(get_id());
             return v != null_theory_var && get_enode(v) == n;
         }
+
+        struct scoped_trace_stream {
+            ast_manager& m;
+            
+            scoped_trace_stream(ast_manager& m, std::function<void (void)>& fn): m(m) {
+                if (m.has_trace_stream()) {
+                    fn();
+                }
+            }
+
+            scoped_trace_stream(theory& th, std::function<expr* (void)>& fn): m(th.get_manager()) {
+                if (m.has_trace_stream()) {
+                    expr_ref body(fn(), m);
+                    th.log_axiom_instantiation(body);
+                }
+            }
+            
+            ~scoped_trace_stream() {
+                if (m.has_trace_stream()) {
+                    m.trace_stream() << "[end-of-instance]\n";
+                }
+            }
+        };
+
 
     protected:
         /**
@@ -134,6 +165,13 @@ namespace smt {
            assigned to the given boolean variable.
         */
         virtual void assign_eh(bool_var v, bool is_true) {
+        }
+
+        /**
+           \brief use the theory to determine phase of the variable.
+         */
+        virtual lbool get_phase(bool_var v) {
+            return l_undef;
         }
 
         /**
@@ -262,13 +300,11 @@ namespace smt {
 
         // ----------------------------------------------------
         //
-        // Model validation (-vldt flag)
+        // Model validation 
         //
         // ----------------------------------------------------
 
-        virtual bool validate_eq_in_model(theory_var v1, theory_var v2, bool is_true) const {
-            return true;
-        }
+        virtual void validate_model(model& mdl) {}
 
         // ----------------------------------------------------
         //
@@ -315,6 +351,10 @@ namespace smt {
         enode * get_enode(theory_var v) const {
             SASSERT(v < static_cast<int>(m_var2enode.size()));
             return m_var2enode[v];
+        }
+
+        app * get_expr(theory_var v) const {
+            return get_enode(v)->get_owner();
         }
 
         /**

@@ -317,6 +317,7 @@ namespace smt {
                 // }
                 // else {
                 TRACE("rdl_bug", tout << "using theory_mi_arith\n";);
+                //setup_lra_arith();
                 m_context.register_plugin(alloc(smt::theory_mi_arith, m_manager, m_params));
                 // }
             }
@@ -408,7 +409,7 @@ namespace smt {
         m_params.m_nnf_cnf          = false;
         m_params.m_arith_eq_bounds  = true;
         m_params.m_arith_eq2ineq    = true;
-        m_params.m_phase_selection  = PS_ALWAYS_FALSE;
+        // m_params.m_phase_selection  = PS_THEORY;
         m_params.m_restart_strategy = RS_GEOMETRIC;
         m_params.m_restart_factor   = 1.5;
         m_params.m_restart_adaptive = false;
@@ -441,7 +442,7 @@ namespace smt {
             }
         }
         m_params.m_arith_eq_bounds  = true;
-        m_params.m_phase_selection  = PS_ALWAYS_FALSE;
+        // m_params.m_phase_selection  = PS_THEORY;
         m_params.m_restart_strategy = RS_GEOMETRIC;
         m_params.m_restart_factor   = 1.5;
         m_params.m_restart_adaptive = false;
@@ -455,13 +456,14 @@ namespace smt {
     }
 
     void setup::setup_QF_LRA() {
-        TRACE("setup", tout << "setup_QF_LRA(st)\n";);
+        TRACE("setup", tout << "setup_QF_LRA()\n";);
         m_params.m_relevancy_lvl       = 0;
         m_params.m_arith_eq2ineq       = true;
         m_params.m_arith_reflect       = false;
         m_params.m_arith_propagate_eqs = false;
         m_params.m_eliminate_term_ite  = true;
         m_params.m_nnf_cnf             = false;
+        m_params.m_phase_selection       = PS_THEORY;
         setup_lra_arith();
     }
 
@@ -477,13 +479,10 @@ namespace smt {
             m_params.m_relevancy_lvl       = 2;
             m_params.m_relevancy_lemma     = false;
         }
-        if (st.m_cnf) {
-            m_params.m_phase_selection = PS_CACHING_CONSERVATIVE2;
-        }
-        else {
+        m_params.m_phase_selection       = PS_THEORY;
+        if (!st.m_cnf) {
             m_params.m_restart_strategy      = RS_GEOMETRIC;
             m_params.m_arith_stronger_lemmas = false;
-            m_params.m_phase_selection       = PS_ALWAYS_FALSE;
             m_params.m_restart_adaptive      = false;
         }
         m_params.m_arith_small_lemma_size = 32;
@@ -533,7 +532,6 @@ namespace smt {
         } 
         else {
             m_params.m_eliminate_term_ite   = true;
-            m_params.m_phase_selection      = PS_CACHING;
             m_params.m_restart_adaptive     = false;
             m_params.m_restart_strategy     = RS_GEOMETRIC;
             m_params.m_restart_factor       = 1.5;
@@ -735,6 +733,13 @@ namespace smt {
         else if (m_params.m_string_solver == "auto") {
             setup_unknown();
         }
+ 
+        else if (m_params.m_string_solver == "empty") {
+            m_context.register_plugin(alloc(smt::theory_seq_empty, m_manager));
+        }
+        else if (m_params.m_string_solver == "none") {
+            // don't register any solver.
+        }
         else {
             throw default_exception("invalid parameter for smt.string_solver, valid options are 'z3str3', 'seq', 'auto'");
         }
@@ -838,7 +843,7 @@ namespace smt {
                 m_context.register_plugin(alloc(smt::theory_mi_arith, m_manager, m_params));
             break;
         case AS_NEW_ARITH:
-            if (st.m_num_non_linear != 0) 
+            if (st.m_num_non_linear != 0 && st.m_has_int) 
                 m_context.register_plugin(alloc(smt::theory_mi_arith, m_manager, m_params));
             else 
                 setup_lra_arith();
@@ -900,6 +905,12 @@ namespace smt {
         else if (m_params.m_string_solver == "seq") {
             setup_seq();
         } 
+        else if (m_params.m_string_solver == "empty") {
+            m_context.register_plugin(alloc(smt::theory_seq_empty, m_manager));
+        }
+        else if (m_params.m_string_solver == "none") {
+            // don't register any solver.
+        }
         else if (m_params.m_string_solver == "auto") {
             if (st.m_has_seq_non_str) {
                 setup_seq();

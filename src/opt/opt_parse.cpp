@@ -411,6 +411,7 @@ private:
                     }
                     m_buffer.push_back(0);
                     m_tokens.push_back(asymbol(symbol(m_buffer.c_ptr()), in.line()));
+                    IF_VERBOSE(10, verbose_stream() << "tok: " << m_tokens.back() << "\n");
                     continue;
                 }
             }
@@ -686,12 +687,20 @@ private:
         return peek(pos) == "<=" || peek(pos) == "=<";
     }
 
-    bool peek_minus_infty(unsigned pos) {
+    bool peek_minus_infty_long(unsigned pos) {
         return peek(pos) == "-" && (peek(pos+1) == "inf" || peek(pos+1) == "infinity");
     }
 
-    bool peek_plus_infty(unsigned pos) {
+    bool peek_minus_infty_short(unsigned pos) {
+        return peek(pos) == "-inf" || peek(pos) == "-infinity";
+    }
+
+    bool peek_plus_infty_long(unsigned pos) {
         return peek(pos) == "+" && (peek(pos+1) == "inf" || peek(pos+1) == "infinity");
+    }
+
+    bool peek_plus_infty_short(unsigned pos) {
+        return peek(pos) == "+inf" || peek(pos) == "+infinity";
     }
 
     void parse_indicator(symbol& var, rational& val) {
@@ -730,13 +739,21 @@ private:
             tok.next(3);
             parse_upper(v);
         }
-        else if (peek_minus_infty(0) && peek_le(2)) {
+        else if (peek_minus_infty_long(0) && peek_le(2)) {
             v = peek(3);
             tok.next(4);
             parse_upper(v);
         }
-        else if (peek_plus_infty(2) && peek_le(1)) {
+        else if (peek_minus_infty_short(0) && peek_le(1)) {
+            v = peek(2);
+            tok.next(3);
+            parse_upper(v);
+        }
+        else if (peek_plus_infty_long(2) && peek_le(1)) {
             tok.next(4);            
+        }
+        else if (peek_plus_infty_short(2) && peek_le(1)) {
+            tok.next(3);
         }
         else if (peek_le(1) && tok.peek_num(2)) {
             v = peek(0);
@@ -756,9 +773,11 @@ private:
             update_upper(v, rhs);
             tok.next(2);
         }
-        else if (peek_le(0) && peek_plus_infty(1)) {
+        else if (peek_le(0) && peek_plus_infty_long(1)) {
             tok.next(3);            
         }
+        else if (peek_le(0) && peek_plus_infty_short(1)) {
+            tok.next(2);        }
 
     }
 
