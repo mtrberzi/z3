@@ -8578,7 +8578,6 @@ namespace smt {
     void theory_str::init_search_eh() {
         context & ctx = get_context();
         if (m_params.m_FixedLengthPreprocessing) {
-            std::cout << "LAS:" << std::endl;
             TRACE("str", tout << "NOTE: using fixed length preprocessing -- normal processing DISABLED" << std::endl;);
         }
 

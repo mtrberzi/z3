@@ -27,6 +27,7 @@ Notes:
 #include "smt/tactic/smt_tactic.h"
 #include "smt/params/smt_params.h"
 #include "ast/ast_pp.h"
+#include "tactic/str/ext_str_tactic.h"
 
 // conjunctive fragment := cf
 static bool is_cf_helper(ast_manager &m, expr * f, bool sign) 
@@ -140,7 +141,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     smt_params m_smt_params;
     m_smt_params.updt_params(p);
 
-    // tactic * ext_str = mk_ext_str_tactic(m, p);
+    tactic * ext_str = mk_ext_str_tactic(m, p);
     tactic * preamble = mk_simplify_tactic(m, p);
 
     params_ref preprocess_p = p;
@@ -162,9 +163,9 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     seq_p.set_sym("string_solver", symbol("seq"));
 
     tactic * z3str3_2;
-    if (false) // for now don't use ext_str rewrites
+    if (m_smt_params.m_RewriterTactic)
     {
-        z3str3_2 = using_params(and_then(preamble, mk_smt_tactic(m)), general_p);
+        z3str3_2 = using_params(and_then(ext_str, mk_smt_tactic(m)), general_p);
     } 
     else 
     {

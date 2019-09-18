@@ -149,6 +149,12 @@ struct theory_str_params {
      */
     bool m_inProcessingLemmas;
 
+    /*
+     * If rewriterTactic is true, we apply a global formula rewriter prior to SMT solving.
+     * This can enable simplifications that aren't caught by the local term rewriter.
+     */
+    bool m_RewriterTactic;
+
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
@@ -173,7 +179,8 @@ struct theory_str_params {
         m_PreMilliseconds(1000),
         m_MultisetCheck(false),
         m_CountAbstraction(false),
-		m_inProcessingLemmas(true)
+		m_inProcessingLemmas(true),
+		m_RewriterTactic(false)
     {
         updt_params(p);
     }

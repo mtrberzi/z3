@@ -169,12 +169,13 @@ class ext_str_tactic : public tactic {
             SASSERT(g->is_well_sorted());
             tactic_report report("ext_str", *g);
             fail_if_proof_generation("ext_str", g);
-            m_produce_models      = g->models_enabled();
+            m_produce_models = g->models_enabled();
             m_fresh_vars.reset();
-            if (m_produce_models)
+            if (m_produce_models) {
                 m_mc = alloc(generic_model_converter, m, "ext_str");
-            else
+            } else {
                 m_mc = nullptr;
+            }
 
             SASSERT(g->is_well_sorted());
 
@@ -198,24 +199,18 @@ class ext_str_tactic : public tactic {
                 if (is_app(curr)) {
                     stack.reset();
                     stack.push_back(curr);
-                    while (!stack.empty())
-                    {
+                    while (!stack.empty()) {
                         curr = stack.back();
                         stack.pop_back();
                         if (!is_app(curr)) {
                             continue;
                         }
                         TRACE("ext_str_debug", tout << "curr: " << mk_pp(curr, m) << std::endl;);
-                        if (u.str.is_extract(curr))
-                        {
+                        if (u.str.is_extract(curr)) {
                             process_extract(curr, g, sub);
-                        }
-                        if (u.str.is_contains(curr))
-                        {
+                        } else if (u.str.is_contains(curr)) {
                             process_contains(curr, g, sub);
-                        } 
-                        else 
-                        {
+                        } else {
                             unsigned num_args = to_app(curr)->get_num_args();
                             for (unsigned i = 0; i < num_args; i++) {
                                 expr * arg = to_app(curr)->get_arg(i);
