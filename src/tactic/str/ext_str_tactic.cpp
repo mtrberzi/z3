@@ -37,11 +37,16 @@ class ext_str_tactic : public tactic {
         ref<mc>                    m_mc;
         bool                       m_produce_models;
 
+        // Delayed assertions for e.g. term substitutions.
+        // These are applied after substitutions are made to prevent
+        expr_ref_vector m_delayed_assertions;
+
         imp(ast_manager & _m, params_ref const & p):
             m(_m),
             u(m),
             m_autil(m),
-            m_fresh_vars(m) {
+            m_fresh_vars(m),
+            m_delayed_assertions(m) {
             m_replace = mk_default_expr_replacer(m);
             updt_params(p);
         }
@@ -50,10 +55,8 @@ class ext_str_tactic : public tactic {
 
         }
 
-        void process_extract(expr * extract, goal_ref const & g, expr_substitution & sub)
-        {
-            if (sub.contains(extract))
-            {
+        void process_extract(expr * extract, goal_ref const & g, expr_substitution & sub) {
+            if (sub.contains(extract)) {
                 return;
             }
 
@@ -105,10 +108,8 @@ class ext_str_tactic : public tactic {
             sub.insert(extract, x);
         }
 
-        void process_contains(expr * contains, goal_ref const & g, expr_substitution & sub)
-        {
-            if (sub.contains(contains))
-            {
+        void process_contains(expr * contains, goal_ref const & g, expr_substitution & sub) {
+            if (sub.contains(contains)) {
                 return;
             }
 
@@ -165,6 +166,42 @@ class ext_str_tactic : public tactic {
 
         }
 
+        void process_stoi(expr * stoi, goal_ref const & g, expr_substitution & sub) {
+            if (sub.contains(stoi)) {
+                return;
+            }
+            expr * s;
+            u.str.is_stoi(stoi, s);
+
+            app * v;
+            v = m.mk_fresh_const(nullptr, m_autil.mk_int());
+            m_fresh_vars.push_back(v);
+            expr_ref x(v, m);
+            expr_ref subst(m.mk_eq(stoi, x), m);
+            m_delayed_assertions.push_back(subst);
+            stack.push_back(s);
+            sub.insert(stoi, x);
+            TRACE("ext_str_debug", tout << "stoi: " << mk_pp(stoi, m) << " => " << mk_pp(x, m) << std::endl;);
+        }
+
+        void process_itos(expr * itos, goal_ref const & g, expr_substitution & sub) {
+            if (sub.contains(itos)) {
+                return;
+            }
+            expr * s;
+            u.str.is_itos(itos, s);
+
+            app * v;
+            v = m.mk_fresh_const(nullptr, u.str.mk_string_sort());
+            m_fresh_vars.push_back(v);
+            expr_ref x(v, m);
+            expr_ref subst(m.mk_eq(itos, x), m);
+            m_delayed_assertions.push_back(subst);
+            stack.push_back(s);
+            sub.insert(itos, x);
+            TRACE("ext_str_debug", tout << "itos: " << mk_pp(itos, m) << " => " << mk_pp(x, m) << std::endl;);
+        }
+
         void operator()(goal_ref const & g, goal_ref_buffer & result) {
             SASSERT(g->is_well_sorted());
             tactic_report report("ext_str", *g);
@@ -210,6 +247,10 @@ class ext_str_tactic : public tactic {
                             process_extract(curr, g, sub);
                         } else if (u.str.is_contains(curr)) {
                             process_contains(curr, g, sub);
+                        } else if (u.str.is_stoi(curr)) {
+                            process_stoi(curr, g, sub);
+                        } else if (u.str.is_itos(curr)) {
+                            process_itos(curr, g, sub);
                         } else {
                             unsigned num_args = to_app(curr)->get_num_args();
                             for (unsigned i = 0; i < num_args; i++) {
@@ -234,6 +275,10 @@ class ext_str_tactic : public tactic {
                     new_pr = m.mk_modus_ponens(g->pr(i), new_pr);
                 }
                 g->update(i, new_curr, new_pr, g->dep(i));
+            }
+
+            for (auto e : m_delayed_assertions) {
+                g->assert_expr(e);
             }
 
             if (m_mc) 
