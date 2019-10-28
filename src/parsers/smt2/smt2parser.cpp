@@ -1951,7 +1951,7 @@ namespace smt2 {
                 // the resultant expression is on the top of the stack
                 TRACE("let_frame", tout << "let result expr: " << mk_pp(expr_stack().back(), m()) << "\n";);
                 expr_ref r(m());
-                if (expr_stack().empty())
+                if (expr_stack().size() < fr->m_expr_spos + 1)
                     throw parser_exception("invalid let expression");
                 r = expr_stack().back();
                 expr_stack().pop_back();
@@ -2336,10 +2336,9 @@ namespace smt2 {
             func_decl_ref_vector decls(m());
             vector<expr_ref_vector> bindings;
             vector<svector<symbol> > ids;
-            expr_ref_vector bodies(m());
             parse_rec_fun_decls(decls, bindings, ids);
-            for (unsigned i = 0; i < decls.size(); ++i) {
-                m_ctx.insert(decls[i].get());
+            for (func_decl* d : decls) {
+                m_ctx.insert(d);
             }
             parse_rec_fun_bodies(decls, bindings, ids);
 

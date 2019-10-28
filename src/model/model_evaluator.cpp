@@ -16,10 +16,8 @@ Author:
 Revision History:
 
 --*/
-#include "model/model.h"
-#include "model/model_evaluator_params.hpp"
-#include "model/model_evaluator.h"
-#include "model/model_v2_pp.h"
+#include "ast/ast_pp.h"
+#include "ast/ast_util.h"
 #include "ast/rewriter/rewriter_types.h"
 #include "ast/rewriter/bool_rewriter.h"
 #include "ast/rewriter/arith_rewriter.h"
@@ -31,10 +29,13 @@ Revision History:
 #include "ast/rewriter/fpa_rewriter.h"
 #include "ast/rewriter/th_rewriter.h"
 #include "ast/rewriter/rewriter_def.h"
-#include "ast/ast_pp.h"
-#include "ast/ast_util.h"
-#include "model/model_smt2_pp.h"
 #include "ast/rewriter/var_subst.h"
+#include "model/model_smt2_pp.h"
+#include "model/model.h"
+#include "model/model_evaluator_params.hpp"
+#include "model/model_evaluator.h"
+#include "model/model_v2_pp.h"
+
 
 namespace {
 
@@ -51,6 +52,7 @@ struct evaluator_cfg : public default_rewriter_cfg {
     fpa_rewriter                    m_f_rw;
     seq_rewriter                    m_seq_rw;
     array_util                      m_ar;
+    arith_util                      m_au;
     unsigned long long              m_max_memory;
     unsigned                        m_max_steps;
     bool                            m_model_completion;
@@ -75,6 +77,7 @@ struct evaluator_cfg : public default_rewriter_cfg {
         m_f_rw(m),
         m_seq_rw(m),
         m_ar(m),
+        m_au(m),
         m_pinned(m) {
         bool flat = true;
         m_b_rw.set_flat(flat);
@@ -331,6 +334,10 @@ struct evaluator_cfg : public default_rewriter_cfg {
             return BR_REWRITE_FULL;
         }
 
+        if (m_au.is_considered_uninterpreted(f, num, args)) {
+            result = m_au.mk_numeral(rational(0), f->get_range());
+            return BR_DONE;
+        }
         return BR_FAILED;
     }
 
