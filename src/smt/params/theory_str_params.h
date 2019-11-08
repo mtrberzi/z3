@@ -155,6 +155,15 @@ struct theory_str_params {
      */
     bool m_RewriterTactic;
 
+    /*
+     * StrTactic allows bypassing of the portfolio selection in z3str3_tactic for testing.
+     * The options are:
+     * 0 (default) - all tactics are used
+     * 1 - length abstraction and fixed-length solving
+     * 2 - arrangement solver (traditional Z3str)
+     */
+    unsigned m_StrTactic;
+
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
@@ -180,7 +189,8 @@ struct theory_str_params {
         m_MultisetCheck(false),
         m_CountAbstraction(false),
 		m_inProcessingLemmas(true),
-		m_RewriterTactic(false)
+		m_RewriterTactic(false),
+		m_StrTactic(0)
     {
         updt_params(p);
     }
