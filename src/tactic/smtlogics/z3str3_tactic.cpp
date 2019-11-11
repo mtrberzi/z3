@@ -141,9 +141,6 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     smt_params m_smt_params;
     m_smt_params.updt_params(p);
 
-    tactic * ext_str = mk_ext_str_tactic(m, p);
-    tactic * preamble = mk_simplify_tactic(m, p);
-
     params_ref preprocess_p = p;
     preprocess_p.set_bool("str.fixed_length_preprocessing", true);
     preprocess_p.set_bool("str.fixed_length_models", true);
@@ -164,7 +161,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     tactic * z3str3_2;
     if (m_smt_params.m_RewriterTactic)
     {
-        z3str3_2 = using_params(and_then(ext_str, mk_smt_tactic(m)), general_p);
+        z3str3_2 = using_params(and_then(mk_ext_str_tactic(m, general_p), mk_smt_tactic(m)), general_p);
     } 
     else 
     {
@@ -179,7 +176,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         if (m_smt_params.m_PreMilliseconds > 0) {
             z3seq       = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
 
-            tactic * st = using_params(and_then(preamble, cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
+            tactic * st = using_params(and_then(mk_simplify_tactic(m, p), cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
             return st;
 
         }
@@ -188,12 +185,12 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     } else if (m_smt_params.m_StrTactic == 1) {
         // fixed-length solver only
         TRACE("str", tout << "z3str3 tactic bypassed: performing length abstraction / fixed-length solving" << std::endl;);
-        tactic * st = using_params(and_then(preamble, z3str3_1), p);
+        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), z3str3_1), p);
         return st;
     } else if (m_smt_params.m_StrTactic == 2) {
         // arrangement solver only
         TRACE("str", tout << "z3str3 tactic bypassed: performing arrangement solving" << std::endl;);
-        tactic * st = using_params(and_then(preamble, z3str3_2), p);
+        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), z3str3_2), p);
         return st;
     } else {
         // unknown tactic
