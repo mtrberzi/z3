@@ -149,7 +149,6 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     preprocess_p.set_bool("str.fixed_length_models", true);
     preprocess_p.set_bool("str.multiset_check", true);
     preprocess_p.set_bool("str.count_abstraction", false);
-    preprocess_p.set_bool("str.in_processing_lemmas", false);
     preprocess_p.set_sym("string_solver", symbol("z3str3"));
 
     params_ref general_p = p;
