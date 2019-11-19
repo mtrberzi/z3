@@ -26,6 +26,8 @@
 #include "smt/theory_arith.h"
 #include "ast/ast_util.h"
 #include "ast/rewriter/seq_rewriter.h"
+#include "ast/rewriter/expr_replacer.h"
+#include "ast/rewriter/var_subst.h"
 #include "smt_kernel.h"
 #include "model/model_smt2_pp.h"
 
@@ -10379,6 +10381,9 @@ namespace smt {
         uninterpreted_to_char_subterm_map.reset();
         fixed_length_lesson.reset();
 
+        // Boolean formulas on which to apply abstraction refinement.
+        expr_ref_vector abstracted_boolean_formulas(m);
+
         smt_params subsolver_params;
         smt::kernel subsolver(m, subsolver_params);
         subsolver.set_logic(symbol("QF_BV"));
@@ -10414,13 +10419,18 @@ namespace smt {
                     TRACE("str_fl", tout << "WARNING: regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
                     return l_undef;
                 } else if (u.str.is_contains(f)) {
-                    TRACE("str_fl", tout << "reduce positive contains: " << mk_pp(f, m) << std::endl;);
-                    expr_ref cex(m);
-                    expr_ref cont(f, m);
-                    if (!fixed_length_reduce_contains(subsolver, cont, cex)) {
-                        assert_axiom(cex);
-                        add_persisted_axiom(cex);
-                        return l_undef;
+                    if (m_params.m_FixedLengthRefinement) {
+                        TRACE("str_fl", tout << "abstracting out positive contains: " << mk_pp(f, m) << std::endl;);
+                        abstracted_boolean_formulas.push_back(f);
+                    } else {
+                        TRACE("str_fl", tout << "reduce positive contains: " << mk_pp(f, m) << std::endl;);
+                        expr_ref cex(m);
+                        expr_ref cont(f, m);
+                        if (!fixed_length_reduce_contains(subsolver, cont, cex)) {
+                            assert_axiom(cex);
+                            add_persisted_axiom(cex);
+                            return l_undef;
+                        }
                     }
                 } else if (u.str.is_prefix(f)) {
                     TRACE("str_fl", tout << "reduce positive prefix: " << mk_pp(f, m) << std::endl;);
@@ -10513,6 +10523,9 @@ namespace smt {
             TRACE("str_fl", tout << "subsolver found SAT; reconstructing model" << std::endl;);
             model_ref subModel;
             subsolver.get_model(subModel);
+
+            expr_substitution subst(m);
+
             // model_smt2_pp(std::cout, m, *subModel, 2);
             for (auto entry : var_to_char_subterm_map) {
                 svector<unsigned> assignment;
@@ -10529,6 +10542,7 @@ namespace smt {
                 }
                 zstring strValue(assignment.size(), assignment.c_ptr());
                 model.insert(var, strValue);
+                subst.insert(var, mk_string(strValue));
             }
             for (auto entry : uninterpreted_to_char_subterm_map) {
                 svector<unsigned> assignment;
@@ -10545,9 +10559,39 @@ namespace smt {
                 }
                 zstring strValue(assignment.size(), assignment.c_ptr());
                 model.insert(var, strValue);
+                subst.insert(var, mk_string(strValue));
             }
+            // TODO insert length values into substitution table as well?
+            if (m_params.m_FixedLengthRefinement) {
+                scoped_ptr<expr_replacer> replacer = mk_default_expr_replacer(m);
+                replacer->set_substitution(&subst);
+                th_rewriter rw(m);
+                if (!abstracted_boolean_formulas.empty()) {
+                    for (auto f : abstracted_boolean_formulas) {
+                        TRACE("str_fl", tout << "refinement of boolean formula: " << mk_pp(f, m) << std::endl;);
+                        expr_ref f_new(m);
+                        (*replacer)(f, f_new);
+                        rw(f_new);
+                        TRACE("str_fl", tout << "after substitution and simplification, evaluates to: " << mk_pp(f_new, m) << std::endl;);
+                        // now there are three cases, depending on what f_new evaluates to:
+                        // true -> OK, do nothing
+                        // false -> refine abstraction by generating conflict clause
+                        // anything else -> error, probably our substitution was incomplete
+                        if (m.is_true(f_new)) {
+                            // do nothing
+                        } else if (m.is_false(f_new)) {
+                            NOT_IMPLEMENTED_YET();
+                        } else {
+                            NOT_IMPLEMENTED_YET();
+                        }
+                    }
+                }
+            }
+
             return l_true;
         } else if (subproblem_status == l_false) {
+            // TODO replace this with something simpler for now
+            NOT_IMPLEMENTED_YET();
             TRACE("str_fl", tout << "subsolver found UNSAT; reconstructing unsat core" << std::endl;);
             TRACE("str_fl", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
             bool negate_pre = false;

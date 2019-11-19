@@ -127,6 +127,13 @@ struct theory_str_params {
     unsigned m_FixedLengthIterations;
 
     /*
+     * If FixedLengthRefinement is true and the fixed-length equation solver is enabled,
+     * Z3str3 will use abstraction refinement to handle formulas that would result in disjunctions or expensive
+     * reductions to fixed-length formulas.
+     */
+    bool m_FixedLengthRefinement;
+
+    /*
      * PreMilliseconds is the number of milliseconds to try the sequence solver on disjunctive fragment queries.
      */
     unsigned m_PreMilliseconds;
@@ -179,6 +186,7 @@ struct theory_str_params {
         m_FixedLengthModels(true),
         m_FixedLengthPreprocessing(true),
         m_FixedLengthIterations(1000),
+        m_FixedLengthRefinement(false),
         m_PreMilliseconds(1000),
         m_MultisetCheck(false),
         m_CountAbstraction(false),

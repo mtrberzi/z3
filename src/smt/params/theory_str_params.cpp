@@ -42,6 +42,7 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_MultisetCheck = p.str_multiset_check();
     m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
     m_FixedLengthIterations = p.str_fixed_length_iterations();
+    m_FixedLengthRefinement = p.str_fixed_length_refinement();
     m_PreMilliseconds = p.str_pre_milliseconds();
     m_RewriterTactic = p.str_rewriter_tactic();
     m_StrTactic = p.str_tactic();
