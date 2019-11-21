@@ -10419,6 +10419,8 @@ namespace smt {
                     TRACE("str_fl", tout << "WARNING: regex constraints not yet implemented in fixed-length model construction!" << std::endl;);
                     return l_undef;
                 } else if (u.str.is_contains(f)) {
+                    // TODO in some cases (e.g. len(haystack) is only slightly greater than len(needle))
+                    // we might be okay to assert the full disjunction because there are very few disjuncts
                     if (m_params.m_FixedLengthRefinement) {
                         TRACE("str_fl", tout << "abstracting out positive contains: " << mk_pp(f, m) << std::endl;);
                         abstracted_boolean_formulas.push_back(f);
@@ -10580,7 +10582,23 @@ namespace smt {
                         if (m.is_true(f_new)) {
                             // do nothing
                         } else if (m.is_false(f_new)) {
-                            NOT_IMPLEMENTED_YET();
+                            context & ctx = get_context();
+                            if (u.str.is_contains(f)) {
+                                expr * haystack;
+                                expr * needle;
+                                u.str.is_contains(f, haystack, needle);
+                                expr_ref haystack_assignment(m);
+                                expr_ref needle_assignment(m);
+                                (*replacer)(haystack, haystack_assignment);
+                                (*replacer)(needle, needle_assignment);
+                                cex.push_back(f);
+                                cex.push_back(ctx.mk_eq_atom(haystack, haystack_assignment));
+                                cex.push_back(ctx.mk_eq_atom(needle, needle_assignment));
+                                return l_false;
+                            } else {
+                                TRACE("str_fl", tout << "error: unhandled refinement term " << mk_pp(f, m) << std::endl;);
+                                NOT_IMPLEMENTED_YET();
+                            }
                         } else {
                             NOT_IMPLEMENTED_YET();
                         }
