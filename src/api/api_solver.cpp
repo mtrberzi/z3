@@ -31,6 +31,7 @@ Revision History:
 #include "api/api_model.h"
 #include "api/api_stats.h"
 #include "api/api_ast_vector.h"
+#include "model/model_params.hpp"
 #include "smt/smt_solver.h"
 #include "smt/smt_implied_equalities.h"
 #include "solver/smt_logics.h"
@@ -558,7 +559,7 @@ extern "C" {
         cancel_eh<reslimit> eh(mk_c(c)->m().limit());
         to_solver(s)->set_eh(&eh);
         api::context::set_interruptable si(*(mk_c(c)), eh);
-        lbool result;
+        lbool result = l_undef;
         {
             scoped_ctrl_c ctrlc(eh, false, use_ctrl_c);
             scoped_timer timer(timeout, &eh);
@@ -576,6 +577,9 @@ extern "C" {
                 return Z3_L_UNDEF;
             }
             catch (...) {
+                to_solver_ref(s)->set_reason_unknown(eh);
+                to_solver(s)->set_eh(nullptr);
+                return Z3_L_UNDEF;
             }
         }
         to_solver(s)->set_eh(nullptr);
@@ -615,7 +619,8 @@ extern "C" {
             RETURN_Z3(nullptr);
         }
         if (_m) {
-            if (mk_c(c)->params().m_model_compress) _m->compress();
+            model_params mp(to_solver_ref(s)->get_params());
+            if (mp.compact()) _m->compress();
         }
         Z3_model_ref * m_ref = alloc(Z3_model_ref, *mk_c(c)); 
         m_ref->m_model = _m;

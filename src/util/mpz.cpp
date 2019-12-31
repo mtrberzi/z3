@@ -46,6 +46,7 @@ Revision History:
 #define LEHMER_GCD
 #endif
 
+
 #if defined(_WINDOWS) && !defined(_M_ARM) && !defined(_M_ARM64)
 // This is needed for _tzcnt_u32 and friends.
 #include <immintrin.h>
@@ -68,11 +69,18 @@ inline uint64_t _trailing_zeros64(uint64_t x) {
     for (; 0 == (x & 1) && r < 64; ++r, x >>= 1);
     return r;
 }
+
+#if defined(_WINDOWS) && !defined(_M_ARM) && !defined(_M_ARM64)
+// _trailing_zeros32 already defined using intrinsics
+#elif defined(__GNUC__)
+// _trailing_zeros32 already defined using intrinsics
+#else
 inline uint32_t _trailing_zeros32(uint32_t x) {
     uint32_t r = 0;
     for (; 0 == (x & 1) && r < 32; ++r, x >>= 1);
     return r;
 }
+#endif
 #endif
 
 
@@ -1780,8 +1788,8 @@ void mpz_manager<SYNCH>::display_hex(std::ostream & out, mpz const & a, unsigned
 }
 
 void display_binary_data(std::ostream &out, unsigned val, unsigned numBits) {
-    SASSERT(numBits <= sizeof(unsigned)*8);
-    for (int shift = numBits-1; shift >= 0; --shift) {
+	for (unsigned shift = numBits; shift-- > 32; ) out << "0";
+    for (unsigned shift = std::min(32u, numBits); shift-- > 0; ) {
         if (val & (1 << shift)) {
             out << "1";
         } else {
@@ -2034,8 +2042,9 @@ void mpz_manager<SYNCH>::machine_div2k(mpz & a, unsigned k) {
         return;
     if (is_small(a)) {
         if (k < 32) {
-            int twok = 1 << k;
-            a.m_val /= twok;
+            int64_t twok = 1ull << ((int64_t)k);
+            int64_t val = a.m_val;
+            a.m_val = (int)(val/twok);
         }
         else {
             a.m_val = 0;

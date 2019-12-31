@@ -8,14 +8,15 @@
 from mk_util import *
 
 def init_version():
-    set_version(4, 8, 7, 0)
+    set_version(4, 8, 8, 0)
     
 # Z3 Project definition
 def init_project_def():
     init_version()
     add_lib('util', [], includes2install = ['z3_version.h'])
     add_lib('polynomial', ['util'], 'math/polynomial')
-    add_lib('sat', ['util'])
+    add_lib('dd', ['util'], 'math/dd')
+    add_lib('sat', ['util','dd'])
     add_lib('nlsat', ['polynomial', 'sat'])
     add_lib('lp', ['util','nlsat'], 'util/lp')
     add_lib('hilbert', ['util'], 'math/hilbert')
@@ -32,7 +33,7 @@ def init_project_def():
     add_lib('tactic', ['ast', 'model'])
     add_lib('substitution', ['ast', 'rewriter'], 'ast/substitution')
     add_lib('parser_util', ['ast'], 'parsers/util')
-    add_lib('grobner', ['ast'], 'math/grobner')
+    add_lib('grobner', ['ast', 'dd'], 'math/grobner')
     add_lib('euclid', ['util'], 'math/euclid')
     add_lib('proofs', ['rewriter', 'util'], 'ast/proofs')
     add_lib('solver', ['model', 'tactic', 'proofs'])

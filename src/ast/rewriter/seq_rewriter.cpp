@@ -551,7 +551,7 @@ br_status seq_rewriter::mk_app_core(func_decl * f, unsigned num_args, expr * con
     case _OP_STRING_STRIDOF: 
         UNREACHABLE();
     }
-    CTRACE("seq_verbose", st != BR_FAILED, tout << f->get_name() << " " << result << "\n";);
+    CTRACE("seq_verbose", st != BR_FAILED, tout << expr_ref(m().mk_app(f, num_args, args), m()) << " -> " << result << "\n";);
     return st;
 }
 
@@ -618,32 +618,31 @@ br_status seq_rewriter::mk_seq_length(expr* a, expr_ref& result) {
     m_util.str.get_concat(a, m_es);
     unsigned len = 0;
     unsigned j = 0;
-    for (unsigned i = 0; i < m_es.size(); ++i) {
-        if (m_util.str.is_string(m_es[i].get(), b)) {
+    for (expr* e : m_es) {
+        if (m_util.str.is_string(e, b)) {
             len += b.length();
         }
-        else if (m_util.str.is_unit(m_es[i].get())) {
+        else if (m_util.str.is_unit(e)) {
             len += 1;
         }
-        else if (m_util.str.is_empty(m_es[i].get())) {
+        else if (m_util.str.is_empty(e)) {
             // skip
         }
         else {
-            m_es[j] = m_es[i].get();
-            ++j;
+            m_es[j++] = e;
         }
     }
     if (j == 0) {
-        result = m_autil.mk_numeral(rational(len, rational::ui64()), true);
+        result = m_autil.mk_int(len);
         return BR_DONE;
     }
     if (j != m_es.size() || j != 1) {
         expr_ref_vector es(m());        
         for (unsigned i = 0; i < j; ++i) {
-            es.push_back(m_util.str.mk_length(m_es[i].get()));
+            es.push_back(m_util.str.mk_length(m_es.get(i)));
         }
         if (len != 0) {
-            es.push_back(m_autil.mk_numeral(rational(len, rational::ui64()), true));
+            es.push_back(m_autil.mk_int(len));
         }
         result = m_autil.mk_add(es.size(), es.c_ptr());
         return BR_REWRITE2;
@@ -1627,6 +1626,11 @@ br_status seq_rewriter::mk_str_in_regexp(expr* a, expr* b, expr_ref& result) {
         result = m().mk_true();
         return BR_DONE;
     }
+    expr* b1 = nullptr;
+    if (m_util.re.is_to_re(b, b1)) {
+        result = m().mk_eq(a, b1);
+        return BR_REWRITE1;
+    }
     scoped_ptr<eautomaton> aut;
     expr_ref_vector seq(m());
     if (!(aut = m_re2aut(b))) {
@@ -1740,6 +1744,10 @@ br_status seq_rewriter::mk_re_concat(expr* a, expr* b, expr_ref& result) {
         return BR_DONE;
     }
     expr* a1 = nullptr, *b1 = nullptr;
+    if (m_util.re.is_to_re(a, a1) && m_util.re.is_to_re(b, b1)) {
+        result = m_util.re.mk_to_re(m_util.str.mk_concat(a1, b1));
+        return BR_REWRITE2;
+    }
     if (m_util.re.is_star(a, a1) && m_util.re.is_star(b, b1) && a1 == b1) {
         result = a;
         return BR_DONE;
@@ -1750,8 +1758,7 @@ br_status seq_rewriter::mk_re_concat(expr* a, expr* b, expr_ref& result) {
     }
     unsigned lo1, hi1, lo2, hi2;
 
-    if (m_util.re.is_loop(a, a1, lo1, hi1) && m_util.re.is_loop(b, b1, lo2, hi2) && a1 == b1) {
-        SASSERT(lo1 <= hi1 && lo2 <= hi2);
+    if (m_util.re.is_loop(a, a1, lo1, hi1) && lo1 <= hi1 && m_util.re.is_loop(b, b1, lo2, hi2) && lo2 <= hi2 && a1 == b1) {
         result = m_util.re.mk_loop(a1, lo1 + lo2, hi1 + hi2);
         return BR_DONE;
     }
@@ -1761,8 +1768,7 @@ br_status seq_rewriter::mk_re_concat(expr* a, expr* b, expr_ref& result) {
     }
     for (unsigned i = 0; i < 2; ++i) {
         // (loop a lo1) + (loop a lo2 hi2) = (loop a lo1 + lo2) 
-        if (m_util.re.is_loop(a, a1, lo1) && m_util.re.is_loop(b, b1, lo2, hi2) && a1 == b1) {
-            SASSERT(lo2 <= hi2);
+        if (m_util.re.is_loop(a, a1, lo1) && m_util.re.is_loop(b, b1, lo2, hi2) && lo2 <= hi2 && a1 == b1) {
             result = m_util.re.mk_loop(a1, lo1 + lo2);
             return BR_DONE;
         }
@@ -1777,8 +1783,7 @@ br_status seq_rewriter::mk_re_concat(expr* a, expr* b, expr_ref& result) {
             return BR_DONE;
         }
         // (loop a lo1 hi1) + a = (loop a lo1+1 hi1+1)
-        if (m_util.re.is_loop(a, a1, lo1, hi1) && a1 == b) {
-            SASSERT(lo1 <= hi1);
+        if (m_util.re.is_loop(a, a1, lo1, hi1) && lo1 <= hi1 && a1 == b) {
             result = m_util.re.mk_loop(a1, lo1+1, hi1+1);
             return BR_DONE;
         }
@@ -1894,7 +1899,7 @@ br_status seq_rewriter::mk_re_loop(func_decl* f, unsigned num_args, expr* const*
         lo2 = np > 0 ? f->get_parameter(0).get_int() : 0;
         hi2 = np > 1 ? f->get_parameter(1).get_int() : 0;
         if  (np == 2 && lo2 > hi2) {
-            result = m_util.re.mk_loop(args[0], hi2, hi2);
+            result = m_util.re.mk_loop(args[0], lo2, lo2);
             return BR_REWRITE1;
         }
         // (loop (loop a lo) lo2) = (loop lo*lo2)

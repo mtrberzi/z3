@@ -51,6 +51,7 @@ namespace smt {
 
         class seq_value_proc;
         struct validate_model_proc;
+        struct compare_depth;
         
         // cache to track evaluations under equalities
         class eval_cache {
@@ -332,6 +333,7 @@ namespace smt {
             unsigned m_propagate_automata;
             unsigned m_check_length_coherence;
             unsigned m_branch_variable;
+            unsigned m_branch_nqs;
             unsigned m_solve_nqs;
             unsigned m_solve_eqs;
             unsigned m_add_axiom;
@@ -382,6 +384,7 @@ namespace smt {
         symbol           m_tail, m_seq_first, m_seq_last, m_indexof_left, m_indexof_right, m_aut_step;
         symbol           m_pre, m_post, m_eq, m_seq_align;
         ptr_vector<expr> m_todo;
+        unsigned         m_internalize_depth;
         expr_ref_vector  m_ls, m_rs, m_lhs, m_rhs;
 
         // maintain automata with regular expressions.
@@ -512,6 +515,8 @@ namespace smt {
         bool solve_nqs(unsigned i);
         bool solve_ne(unsigned i);
         bool solve_nc(unsigned i);
+        bool branch_nqs();
+        void branch_nq(ne const& n);
 
         struct cell {
             cell*       m_parent;
@@ -626,6 +631,8 @@ namespace smt {
         expr_ref mk_add(expr* a, expr* b);
         expr_ref mk_len(expr* s);
         enode* ensure_enode(expr* a);
+        ptr_vector<expr> m_ensure_todo;
+        void ensure_enodes(expr* e);
         enode* get_root(expr* a) { return ensure_enode(a)->get_root(); }
         dependency* mk_join(dependency* deps, literal lit);
         dependency* mk_join(dependency* deps, literal_vector const& lits);

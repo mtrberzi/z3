@@ -36,6 +36,7 @@ endforeach()
 # that has not yet been declared.
 add_subdirectory(util)
 add_subdirectory(math/polynomial)
+add_subdirectory(math/dd)
 add_subdirectory(sat)
 add_subdirectory(nlsat)
 add_subdirectory(util/lp)
@@ -106,7 +107,7 @@ set (object_files "")
 foreach (component ${Z3_LIBZ3_COMPONENTS_LIST})
   list(APPEND object_files $<TARGET_OBJECTS:${component}>)
 endforeach()
-if (BUILD_LIBZ3_SHARED)
+if (Z3_BUILD_LIBZ3_SHARED)
   set(lib_type "SHARED")
 else()
   set(lib_type "STATIC")
@@ -210,22 +211,36 @@ endif()
 ################################################################################
 # Z3 executable
 ################################################################################
-add_subdirectory(shell)
+cmake_dependent_option(Z3_BUILD_EXECUTABLE
+    "Build the z3 executable" ON
+    "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
+
+if (Z3_BUILD_EXECUTABLE)
+    add_subdirectory(shell)
+endif()
 
 ################################################################################
 # z3-test
 ################################################################################
-add_subdirectory(test)
+
+cmake_dependent_option(Z3_BUILD_TEST_EXECUTABLES
+    "Build test executables" ON
+    "CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR" OFF)
+
+
+if (Z3_BUILD_TEST_EXECUTABLES)
+    add_subdirectory(test)
+endif()
 
 
 ################################################################################
 # Z3 API bindings
 ################################################################################
-option(BUILD_PYTHON_BINDINGS "Build Python bindings for Z3" OFF)
-if (BUILD_PYTHON_BINDINGS)
-  if (NOT BUILD_LIBZ3_SHARED)
+option(Z3_BUILD_PYTHON_BINDINGS "Build Python bindings for Z3" OFF)
+if (Z3_BUILD_PYTHON_BINDINGS)
+  if (NOT Z3_BUILD_LIBZ3_SHARED)
     message(FATAL_ERROR "The python bindings will not work with a static libz3. "
-            "You either need to disable BUILD_PYTHON_BINDINGS or enable BUILD_LIBZ3_SHARED")
+            "You either need to disable Z3_BUILD_PYTHON_BINDINGS or enable Z3_BUILD_LIBZ3_SHARED")
   endif()
   add_subdirectory(api/python)
 endif()
@@ -233,11 +248,11 @@ endif()
 ################################################################################
 # .NET bindings
 ################################################################################
-option(BUILD_DOTNET_BINDINGS "Build .NET bindings for Z3" OFF)
-if (BUILD_DOTNET_BINDINGS)
-  if (NOT BUILD_LIBZ3_SHARED)
+option(Z3_BUILD_DOTNET_BINDINGS "Build .NET bindings for Z3" OFF)
+if (Z3_BUILD_DOTNET_BINDINGS)
+  if (NOT Z3_BUILD_LIBZ3_SHARED)
     message(FATAL_ERROR "The .NET bindings will not work with a static libz3. "
-      "You either need to disable BUILD_DOTNET_BINDINGS or enable BUILD_LIBZ3_SHARED")
+      "You either need to disable Z3_BUILD_DOTNET_BINDINGS or enable Z3_BUILD_LIBZ3_SHARED")
   endif()
   add_subdirectory(api/dotnet)
 endif()
@@ -245,11 +260,11 @@ endif()
 ################################################################################
 # Java bindings
 ################################################################################
-option(BUILD_JAVA_BINDINGS "Build Java bindings for Z3" OFF)
-if (BUILD_JAVA_BINDINGS)
-  if (NOT BUILD_LIBZ3_SHARED)
+option(Z3_BUILD_JAVA_BINDINGS "Build Java bindings for Z3" OFF)
+if (Z3_BUILD_JAVA_BINDINGS)
+  if (NOT Z3_BUILD_LIBZ3_SHARED)
     message(FATAL_ERROR "The Java bindings will not work with a static libz3. "
-      "You either need to disable BUILD_JAVA_BINDINGS or enable BUILD_LIBZ3_SHARED")
+      "You either need to disable Z3_BUILD_JAVA_BINDINGS or enable Z3_BUILD_LIBZ3_SHARED")
   endif()
   add_subdirectory(api/java)
 endif()

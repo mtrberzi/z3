@@ -3,7 +3,7 @@ Copyright (c) 2017 Microsoft Corporation
 
 Module Name:
 
-    sat_bdd.cpp
+    dd_bdd.cpp
 
 Abstract:
 
@@ -17,11 +17,11 @@ Revision History:
 
 --*/
 
-#include "sat/sat_bdd.h"
 #include "util/trace.h"
 #include "util/stopwatch.h"
+#include "math/dd/dd_bdd.h"
 
-namespace sat {
+namespace dd {
 
     bdd_manager::bdd_manager(unsigned num_vars) {
         m_cost_metric = bdd_cost;
@@ -83,13 +83,14 @@ namespace sat {
     bdd_manager::BDD bdd_manager::apply(BDD arg1, BDD arg2, bdd_op op) {
         bool first = true;
         SASSERT(well_formed());
+        scoped_push _sp(*this);
         while (true) {
             try {
                 return apply_rec(arg1, arg2, op);
             }
             catch (const mem_out &) {
-                try_reorder();
                 if (!first) throw;
+                try_reorder();
                 first = false;
             }
         }
@@ -542,13 +543,14 @@ namespace sat {
 
     bdd bdd_manager::mk_not(bdd b) {
         bool first = true;
+        scoped_push _sp(*this);
         while (true) {
             try {
                 return bdd(mk_not_rec(b.root), this);
             }
             catch (const mem_out &) {
-                try_reorder();
                 if (!first) throw;
+                try_reorder();
                 first = false;
             }
         }
@@ -571,13 +573,14 @@ namespace sat {
     
     bdd bdd_manager::mk_ite(bdd const& c, bdd const& t, bdd const& e) {         
         bool first = true;
+        scoped_push _sp(*this);
         while (true) {
             try {
                 return bdd(mk_ite_rec(c.root, t.root, e.root), this); 
             }
             catch (const mem_out &) {
-                try_reorder();
                 if (!first) throw;
+                try_reorder();
                 first = false;
             }
         }

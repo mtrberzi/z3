@@ -476,7 +476,7 @@ class theory_lra::imp {
                     internalize_eq(v, v1);                    
                 }
                 else if (a.is_idiv(n, n1, n2)) {
-                    if (!a.is_numeral(n2, r)) found_not_handled(n);
+                    if (!a.is_numeral(n2, r) || r.is_zero()) found_not_handled(n);
                     m_idiv_terms.push_back(n);
                     app * mod = a.mk_mod(n1, n2);
                     ctx().internalize(mod, false);
@@ -486,11 +486,11 @@ class theory_lra::imp {
                     if (!ctx().relevancy()) mk_idiv_mod_axioms(n1, n2);                    
                 }
                 else if (a.is_rem(n, n1, n2)) {
-                    if (!a.is_numeral(n2, r)) found_not_handled(n);
+                    if (!a.is_numeral(n2, r) || r.is_zero()) found_not_handled(n);
                     if (!ctx().relevancy()) mk_rem_axiom(n1, n2);                    
                 }
                 else if (a.is_div(n, n1, n2)) {
-                    if (!a.is_numeral(n2, r)) found_not_handled(n);
+                    if (!a.is_numeral(n2, r) || r.is_zero()) found_not_handled(n);
                     if (!ctx().relevancy()) mk_div_axiom(n1, n2);                    
                 }
                 else if (a.is_power(n)) {
@@ -974,6 +974,13 @@ public:
         m_arith_eq_adapter.new_diseq_eh(v1, v2);
     }
 
+    void apply_sort_cnstr(enode* n, sort*) {
+        if (!th.is_attached_to_var(n)) {
+            theory_var v = mk_var(n->get_owner(), false);
+            get_var_index(v);
+        }
+    }
+
     void push_scope_eh() {
         TRACE("arith", tout << "push\n";);
         m_scopes.push_back(scope());
@@ -1393,7 +1400,6 @@ public:
         
         if (v == null_theory_var || 
             v >= static_cast<theory_var>(m_theory_var2var_index.size())) {
-            TRACE("arith", tout << "Variable v" << v << " not internalized\n";);
             return rational::zero();
         }
             
@@ -1402,7 +1408,6 @@ public:
             return m_variable_values[vi];
         
         if (!m_solver->is_term(vi)) {
-            TRACE("arith", tout << "not a term v" << v << "\n";);
             return rational::zero();
         }
         
@@ -1448,7 +1453,8 @@ public:
         theory_var sz = static_cast<theory_var>(th.get_num_vars());
         for (theory_var v = 0; v < sz; ++v) {
             if (th.is_relevant_and_shared(get_enode(v))) { 
-                vars.push_back(m_theory_var2var_index[v]);
+                lp:: var_index vi = m_theory_var2var_index[v];
+                if (vi != UINT_MAX) vars.push_back(vi);
             }
         }
         if (vars.empty()) {
@@ -2702,21 +2708,21 @@ public:
         lp::var_index vi = m_theory_var2var_index[v];
         SASSERT(m_solver->is_term(vi));
         lp::lar_term const& term = m_solver->get_term(vi);
-        for (auto const & coeff : term.m_coeffs) {
-            lp::var_index wi = coeff.first;
+        for (auto const mono : term) {
+            lp::var_index wi = mono.var();
             lp::constraint_index ci;
             rational value;
             bool is_strict;
             if (m_solver->is_term(wi)) {
                 return false;
             }
-            if (coeff.second.is_neg() == is_lub) {
+            if (mono.coeff().is_neg() == is_lub) {
                 // -3*x ... <= lub based on lower bound for x.
                 if (!m_solver->has_lower_bound(wi, ci, value, is_strict)) {
                     return false;
                 }
                 if (is_strict) {
-                    r += inf_rational(rational::zero(), coeff.second.is_pos());
+                    r += inf_rational(rational::zero(), mono.coeff().is_pos());
                 }
             }
             else {
@@ -2724,10 +2730,10 @@ public:
                     return false;
                 }
                 if (is_strict) {
-                    r += inf_rational(rational::zero(), coeff.second.is_pos());
+                    r += inf_rational(rational::zero(), mono.coeff().is_pos());
                 }
             }                
-            r += value * coeff.second;
+            r += value * mono.coeff();
             set_evidence(ci);                    
         }
         TRACE("arith_verbose", tout << (is_lub?"lub":"glb") << " is " << r << "\n";);
@@ -3590,6 +3596,9 @@ bool theory_lra::use_diseqs() const {
 }
 void theory_lra::new_diseq_eh(theory_var v1, theory_var v2) {
     m_imp->new_diseq_eh(v1, v2);
+}
+void theory_lra::apply_sort_cnstr(enode* n, sort* s) {
+    m_imp->apply_sort_cnstr(n, s);
 }
 void theory_lra::push_scope_eh() {
     theory::push_scope_eh();

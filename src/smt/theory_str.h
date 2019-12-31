@@ -450,7 +450,6 @@ protected:
     expr_ref_vector m_delayed_axiom_setup_terms;
 
     ptr_vector<enode> m_basicstr_axiom_todo;
-    svector<std::pair<enode*,enode*> > m_str_eq_todo;
     ptr_vector<enode> m_concat_axiom_todo;
     ptr_vector<enode> m_string_constant_length_todo;
     ptr_vector<enode> m_concat_eval_todo;
@@ -627,6 +626,8 @@ protected:
     void assert_axiom(expr * e);
     void assert_implication(expr * premise, expr * conclusion);
     expr * rewrite_implication(expr * premise, expr * conclusion);
+    // Use the rewriter to simplify an axiom, then assert it.
+    void assert_axiom_rw(expr * e);
 
     expr * mk_string(zstring const& str);
     expr * mk_string(const char * str);
@@ -653,7 +654,7 @@ protected:
     void track_variable_scope(expr * var);
     app * mk_str_var(std::string name);
     app * mk_int_var(std::string name);
-    app * mk_nonempty_str_var();
+    app_ref mk_nonempty_str_var();
     app * mk_internal_xor_var();
     expr * mk_internal_valTest_var(expr * node, int len, int vTries);
     app * mk_regex_rep_var();

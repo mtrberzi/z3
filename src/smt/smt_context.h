@@ -79,10 +79,11 @@ namespace smt {
 
 
     protected:
-        ast_manager &               m_manager;
+        ast_manager &               m;
         smt_params &                m_fparams;
         params_ref                  m_params;
         setup                       m_setup;
+        unsigned                    m_relevancy_lvl;
         timer                       m_timer;
         asserted_formulas           m_asserted_formulas;
         th_rewriter                 m_rewriter;
@@ -95,9 +96,7 @@ namespace smt {
         progress_callback *         m_progress_callback;
         unsigned                    m_next_progress_sample;
         clause_proof                m_clause_proof;
-
         region                      m_region;
-
         fingerprint_set             m_fingerprints;
 
         expr_ref_vector             m_b_internalized_stack; // stack of the boolean expressions already internalized.
@@ -126,7 +125,6 @@ namespace smt {
         vector<enode_vector>        m_decl2enodes;  // decl -> enode (for decls with arity > 0)
         enode_vector                m_empty_vector;
         cg_table                    m_cg_table;
-        dyn_ack_manager             m_dyn_ack_manager;
         struct new_eq {
             enode *                 m_lhs;
             enode *                 m_rhs;
@@ -190,7 +188,9 @@ namespace smt {
 
         // A conflict is usually a single justification. That is, a justification
         // for false. If m_not_l is not null_literal, then m_conflict is a
-        // justification for l, and the conflict is union of m_no_l and m_conflict;
+        // justification for l, and the conflict is union of m_not_l and m_conflict;
+        // m_empty_clause is set to ensure that an empty clause generated in deep scope 
+        // levels survives to the base level.
         b_justification             m_conflict;
         literal                     m_not_l;
         scoped_ptr<conflict_resolution> m_conflict_resolution;
@@ -199,8 +199,9 @@ namespace smt {
 
         literal_vector              m_atom_propagation_queue;
 
-        obj_map<expr, unsigned>      m_cached_generation;
-        obj_hashtable<expr>          m_cache_generation_visited;
+        obj_map<expr, unsigned>     m_cached_generation;
+        obj_hashtable<expr>         m_cache_generation_visited;
+        dyn_ack_manager             m_dyn_ack_manager;
 
         // -----------------------------------
         //
@@ -258,7 +259,7 @@ namespace smt {
         // -----------------------------------
     public:
         ast_manager & get_manager() const {
-            return m_manager;
+            return m;
         }
 
         th_rewriter & get_rewriter() {
@@ -282,8 +283,10 @@ namespace smt {
         }
 
         bool relevancy() const {
-            return m_fparams.m_relevancy_lvl > 0;
+            return relevancy_lvl() > 0;
         }
+
+        unsigned relevancy_lvl() const;
 
         enode * get_enode(expr const * n) const {
             SASSERT(e_internalized(n));
@@ -519,17 +522,17 @@ namespace smt {
 
         void literal2expr(literal l, expr_ref & result) const {
             if (l == true_literal)
-                result = m_manager.mk_true();
+                result = m.mk_true();
             else if (l == false_literal)
-                result = m_manager.mk_false();
+                result = m.mk_false();
             else if (l.sign())
-                result = m_manager.mk_not(bool_var2expr(l.var()));
+                result = m.mk_not(bool_var2expr(l.var()));
             else
                 result = bool_var2expr(l.var());
         }
 
         expr_ref literal2expr(literal l) const {
-            expr_ref result(m_manager);
+            expr_ref result(m);
             literal2expr(l, result);
             return result;
         }
@@ -701,7 +704,7 @@ namespace smt {
         }
 
         bool lit_internalized(expr const * n) const {
-            return m_manager.is_false(n) || (m_manager.is_not(n) ? b_internalized(to_app(n)->get_arg(0)) : b_internalized(n));
+            return m.is_false(n) || (m.is_not(n) ? b_internalized(to_app(n)->get_arg(0)) : b_internalized(n));
         }
 
         bool e_internalized(expr const * n) const {
@@ -737,7 +740,7 @@ namespace smt {
 
     public:
         bool binary_clause_opt_enabled() const {
-            return !m_manager.proofs_enabled() && m_fparams.m_binary_clause_opt;
+            return !m.proofs_enabled() && m_fparams.m_binary_clause_opt;
         }
     protected:
         bool_var_data & get_bdata(expr const * n) {
@@ -1011,6 +1014,8 @@ namespace smt {
         }
 #endif
 
+        void add_eq(enode * n1, enode * n2, eq_justification js);
+
     protected:
         void push_new_th_eq(theory_id th, theory_var lhs, theory_var rhs);
 
@@ -1018,7 +1023,6 @@ namespace smt {
 
         friend class add_eq_trail;
 
-        void add_eq(enode * n1, enode * n2, eq_justification js);
 
         void remove_parents_from_cg_table(enode * r1);
 
@@ -1304,7 +1308,7 @@ namespace smt {
 
         std::ostream& display_literal(std::ostream & out, literal l) const;
 
-        std::ostream& display_detailed_literal(std::ostream & out, literal l) const { l.display(out, m_manager, m_bool_var2expr.c_ptr()); return out; }
+        std::ostream& display_detailed_literal(std::ostream & out, literal l) const { l.display(out, m, m_bool_var2expr.c_ptr()); return out; }
 
         void display_literal_info(std::ostream & out, literal l) const;
 
@@ -1316,7 +1320,11 @@ namespace smt {
 
         std::ostream& display_literal_smt2(std::ostream& out, literal lit) const;
 
+        std::ostream& display_literals_smt2(std::ostream& out, literal l1, literal l2) const { literal ls[2] = { l1, l2 }; return display_literals_smt2(out, 2, ls); }
+
         std::ostream& display_literals_smt2(std::ostream& out, unsigned num_lits, literal const* lits) const;
+
+        std::ostream& display_literals_smt2(std::ostream& out, literal_vector const& ls) const { return display_literals_smt2(out, ls.size(), ls.c_ptr()); }
 
         std::ostream& display_literal_verbose(std::ostream & out, literal lit) const;
 
@@ -1595,8 +1603,6 @@ namespace smt {
             if (relevancy())
                 m_case_split_queue->internalize_instance_eh(body, generation);
         }
-
-        bool already_internalized() const { return m_e_internalized_stack.size() > 2 || m_b_internalized_stack.size() > 1; }
 
         unsigned get_unsat_core_size() const {
             return m_unsat_core.size();

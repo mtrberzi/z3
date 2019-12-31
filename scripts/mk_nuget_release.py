@@ -105,7 +105,7 @@ Linux Dependencies:
         </description>
         <copyright>&#169; Microsoft Corporation. All rights reserved.</copyright>
         <tags>smt constraint solver theorem prover</tags>
-        <iconUrl>https://raw.githubusercontent.com/Z3Prover/z3/{1}/package/icon.jpg</iconUrl>
+        <iconUrl>https://raw.githubusercontent.com/Z3Prover/z3/{1}/resources/icon.jpg</iconUrl>
         <projectUrl>https://github.com/Z3Prover/z3</projectUrl>
         <licenseUrl>https://raw.githubusercontent.com/Z3Prover/z3/{1}/LICENSE.txt</licenseUrl>
         <repository
@@ -171,8 +171,8 @@ def sign_nuget_package():
     output_path = os.path.abspath("out").replace("\\","\\\\") 
     with open(input_file, 'w') as f:
         f.write(nuget_sign_input % (output_path, output_path, release_version, release_version))
-    subprocess.call(["EsrpClient.exe", "sign", "-a", "authorization.json", "-p", "policy.json", "-i", input_file, "-o", "out\\diagnostics.json"])
-    
+    r = subprocess.call(["EsrpClient.exe", "sign", "-a", "authorization.json", "-p", "policy.json", "-i", input_file, "-o", "out\\diagnostics.json"], shell=True, stderr=subprocess.STDOUT)
+    print(r)
     
 def main():
     mk_dir("packages")

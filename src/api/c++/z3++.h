@@ -80,11 +80,12 @@ namespace z3 {
     /**
        \brief Exception used to sign API usage errors.
     */
-    class exception {
+    class exception : public std::exception {
         std::string m_msg;
     public:
         exception(char const * msg):m_msg(msg) {}
         char const * msg() const { return m_msg.c_str(); }
+        char const * what() const noexcept { return m_msg.c_str(); }
         friend std::ostream & operator<<(std::ostream & out, exception const & e);
     };
     inline std::ostream & operator<<(std::ostream & out, exception const & e) { out << e.msg(); return out; }
@@ -1144,7 +1145,7 @@ namespace z3 {
         /**
            \brief FloatingPoint fused multiply-add.
           */
-        friend expr fma(expr const& a, expr const& b, expr const& c);
+        friend expr fma(expr const& a, expr const& b, expr const& c, expr const& rm);
 
         /**
            \brief sequence and regular expression operations.
@@ -1673,6 +1674,20 @@ namespace z3 {
         c.check_error();
         return func_decl(c, f);
     }
+
+    /**
+       \brief signed less than or equal to operator for bitvectors.
+    */
+    inline expr sle(expr const & a, expr const & b) { return to_expr(a.ctx(), Z3_mk_bvsle(a.ctx(), a, b)); }
+    inline expr sle(expr const & a, int b) { return sle(a, a.ctx().num_val(b, a.get_sort())); }
+    inline expr sle(int a, expr const & b) { return sle(b.ctx().num_val(a, b.get_sort()), b); }
+    /**
+       \brief signed less than operator for bitvectors.
+    */
+    inline expr slt(expr const & a, expr const & b) { return to_expr(a.ctx(), Z3_mk_bvslt(a.ctx(), a, b)); }
+    inline expr slt(expr const & a, int b) { return slt(a, a.ctx().num_val(b, a.get_sort())); }
+    inline expr slt(int a, expr const & b) { return slt(b.ctx().num_val(a, b.get_sort()), b); }
+
 
     /**
        \brief unsigned less than or equal to operator for bitvectors.
@@ -2337,7 +2352,7 @@ namespace z3 {
             check_error();
             return to_check_result(r);
         }
-        check_result check(expr_vector assumptions) {
+        check_result check(expr_vector const& assumptions) {
             unsigned n = assumptions.size();
             array<Z3_ast> _assumptions(n);
             for (unsigned i = 0; i < n; i++) {

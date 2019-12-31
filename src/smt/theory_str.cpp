@@ -243,7 +243,16 @@ namespace smt {
         m_trail.push_back(e);
 
         //TRACE("str", tout << "done asserting " << mk_ismt2_pp(e, get_manager()) << std::endl;);
+    }
 
+    void theory_str::assert_axiom_rw(expr * e) {
+        if (e == nullptr)
+            return;
+        context & ctx = get_context();
+        ast_manager & m = get_manager();
+        expr_ref _e(e, m);
+        ctx.get_rewriter()(_e);
+        assert_axiom(_e);
     }
 
     expr * theory_str::rewrite_implication(expr * premise, expr * conclusion) {
@@ -622,7 +631,7 @@ namespace smt {
         }
     }
 
-    app * theory_str::mk_nonempty_str_var() {
+    app_ref theory_str::mk_nonempty_str_var() {
         context & ctx = get_context();
         ast_manager & m = get_manager();
 
@@ -634,7 +643,7 @@ namespace smt {
         TRACE("str", tout << "creating nonempty string variable " << name << " at scope level " << sLevel << std::endl;);
 
         sort * string_sort = u.str.mk_string_sort();
-        app * a = mk_fresh_const(name.c_str(), string_sort);
+        app_ref a(mk_fresh_const(name.c_str(), string_sort), m);
 
         ctx.internalize(a, false);
         SASSERT(ctx.get_enode(a) != nullptr);
@@ -855,7 +864,7 @@ namespace smt {
     }
 
     bool theory_str::can_propagate() {
-        return !m_basicstr_axiom_todo.empty() || !m_str_eq_todo.empty()
+        return !m_basicstr_axiom_todo.empty()
             || !m_concat_axiom_todo.empty() || !m_concat_eval_todo.empty()
             || !m_library_aware_axiom_todo.empty()
             || !m_delayed_axiom_setup_terms.empty()
@@ -886,13 +895,6 @@ namespace smt {
             }
             m_basicstr_axiom_todo.reset();
             TRACE("str", tout << "reset m_basicstr_axiom_todo" << std::endl;);
-
-            for (auto const& pair : m_str_eq_todo) {
-                enode * lhs = pair.first;
-                enode * rhs = pair.second;
-                handle_equality(lhs->get_owner(), rhs->get_owner());
-            }
-            m_str_eq_todo.reset();
 
             for (auto const& el : m_concat_axiom_todo) {
                 instantiate_concat_axiom(el);
@@ -1907,6 +1909,18 @@ namespace smt {
             SASSERT(axiom1);
             assert_axiom(axiom1);
         }
+
+        // axiom 2: The only (str.from-int N) that starts with a "0" is "0".
+        {
+            expr_ref zero(mk_string("0"), m);
+            // let (the result starts with a "0") be p
+            expr_ref starts_with_zero(u.str.mk_prefix(zero, ex), m);
+            // let (the result is "0") be q  
+            expr_ref is_zero(ctx.mk_eq_atom(ex, zero), m);
+            // encoding: the result does NOT start with a "0" (~p) xor the result is "0" (q)
+            // ~p xor q == (~p or q) and (p or ~q)
+            assert_axiom(m.mk_and(m.mk_or(m.mk_not(starts_with_zero), is_zero), m.mk_or(starts_with_zero, m.mk_not(is_zero))));
+        }
     }
 
     expr * theory_str::mk_RegexIn(expr * str, expr * regexp) {
@@ -2143,7 +2157,6 @@ namespace smt {
 
         candidate_model.reset();
         m_basicstr_axiom_todo.reset();
-        m_str_eq_todo.reset();
         m_concat_axiom_todo.reset();
         pop_scope_eh(get_context().get_scope_level());
     }
@@ -3328,8 +3341,7 @@ namespace smt {
               << "split type " << splitType << std::endl;
               );
 
-        expr * t1 = nullptr;
-        expr * t2 = nullptr;
+        expr_ref t1(mgr), t2(mgr);
         expr * xorFlag = nullptr;
 
         std::pair<expr*, expr*> key1(concatAst1, concatAst2);
@@ -3436,7 +3448,7 @@ namespace smt {
 
                 if (m_params.m_StrongArrangements) {
                     expr_ref ax_strong(ctx.mk_eq_atom(ax_l, ax_r), mgr);
-                    assert_axiom(ax_strong);
+                    assert_axiom_rw(ax_strong);
                 } else {
                     assert_implication(ax_l, ax_r);
                 }
@@ -3499,7 +3511,7 @@ namespace smt {
 
                 if (m_params.m_StrongArrangements) {
                     expr_ref ax_strong(ctx.mk_eq_atom(ax_l, ax_r), mgr);
-                    assert_axiom(ax_strong);
+                    assert_axiom_rw(ax_strong);
                 } else {
                     assert_implication(ax_l, ax_r);
                 }
@@ -3646,7 +3658,7 @@ namespace smt {
                 expr_ref conclusion(mk_or(arrangement_disjunction), mgr);
                 if (m_params.m_StrongArrangements) {
                     expr_ref ax_strong(ctx.mk_eq_atom(premise, conclusion), mgr);
-                    assert_axiom(ax_strong);
+                    assert_axiom_rw(ax_strong);
                 } else {
                     assert_implication(premise, conclusion);
                 }
@@ -3733,7 +3745,7 @@ namespace smt {
         // setup
 
         expr * xorFlag = nullptr;
-        expr * temp1 = nullptr;
+        expr_ref temp1(mgr);
         std::pair<expr*, expr*> key1(concatAst1, concatAst2);
         std::pair<expr*, expr*> key2(concatAst2, concatAst1);
 
@@ -3850,7 +3862,7 @@ namespace smt {
 
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom(ax_l, ax_r), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ax_l, ax_r);
                     }
@@ -3927,7 +3939,7 @@ namespace smt {
 
                 if (m_params.m_StrongArrangements) {
                     expr_ref ax_strong(ctx.mk_eq_atom(ax_l, ax_r), mgr);
-                    assert_axiom(ax_strong);
+                    assert_axiom_rw(ax_strong);
                 } else {
                     assert_implication(ax_l, ax_r);
                 }
@@ -4010,7 +4022,7 @@ namespace smt {
                 if (m_params.m_StrongArrangements) {
                     expr_ref implyLHS(ctx.mk_eq_atom(concatAst1, concatAst2), mgr);
                     expr_ref ax_strong(ctx.mk_eq_atom(implyLHS, implyR), mgr);
-                    assert_axiom(ax_strong);
+                    assert_axiom_rw(ax_strong);
                 } else {
                     assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                 }
@@ -4201,7 +4213,7 @@ namespace smt {
 
                 if (m_params.m_StrongArrangements) {
                     expr_ref ax_strong(ctx.mk_eq_atom(ax_l, mk_and(r_items)), mgr);
-                    assert_axiom(ax_strong);
+                    assert_axiom_rw(ax_strong);
                 } else {
                     assert_implication(ax_l, mk_and(r_items));
                 }
@@ -4259,7 +4271,7 @@ namespace smt {
 
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom(ax_l, ax_r), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ax_l, ax_r);
                     }
@@ -4312,6 +4324,7 @@ namespace smt {
                     // adding length constraint for _ = constStr seems slowing things down.
 
                     expr_ref option1(mk_and(and_item), mgr);
+                    ctx.get_rewriter()(option1);
                     arrangement_disjunction.push_back(option1);
                     double priority;
                     if (i == strValue.length()) {
@@ -4372,7 +4385,7 @@ namespace smt {
                 if (m_params.m_StrongArrangements) {
                     expr_ref ax_lhs(ctx.mk_eq_atom(concatAst1, concatAst2), mgr);
                     expr_ref ax_strong(ctx.mk_eq_atom(ax_lhs, implyR), mgr);
-                    assert_axiom(ax_strong);
+                    assert_axiom_rw(ax_strong);
                 } else {
                     assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                 }
@@ -4451,7 +4464,7 @@ namespace smt {
                     expr_ref implyR(ctx.mk_eq_atom(n, tmpAst), mgr);
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom( ctx.mk_eq_atom(concatAst1, concatAst2), implyR ), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                     }
@@ -4463,7 +4476,7 @@ namespace smt {
 
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom( ctx.mk_eq_atom(concatAst1, concatAst2), implyR ), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                     }
@@ -4476,7 +4489,7 @@ namespace smt {
                     expr_ref implyR(ctx.mk_eq_atom(y, tmpAst), mgr);
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom( ctx.mk_eq_atom(concatAst1, concatAst2), implyR ), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                     }
@@ -4551,7 +4564,7 @@ namespace smt {
                     expr_ref implyR(ctx.mk_eq_atom(m, x_deltaStr), mgr);
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom( ctx.mk_eq_atom(concatAst1, concatAst2), implyR ), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                     }
@@ -4562,7 +4575,7 @@ namespace smt {
                     expr_ref implyR(ctx.mk_eq_atom(x, m), mgr);
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom( ctx.mk_eq_atom(concatAst1, concatAst2), implyR ), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                     }
@@ -4574,7 +4587,7 @@ namespace smt {
                     expr_ref implyR(ctx.mk_eq_atom(x, m_deltaStr), mgr);
                     if (m_params.m_StrongArrangements) {
                         expr_ref ax_strong(ctx.mk_eq_atom( ctx.mk_eq_atom(concatAst1, concatAst2), implyR ), mgr);
-                        assert_axiom(ax_strong);
+                        assert_axiom_rw(ax_strong);
                     } else {
                         assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
                     }
@@ -4670,7 +4683,7 @@ namespace smt {
         }
 
         //----------------------------------------------------------------
-        expr * commonVar = nullptr;
+        expr_ref commonVar(mgr);
         expr * xorFlag = nullptr;
         std::pair<expr*, expr*> key1(concatAst1, concatAst2);
         std::pair<expr*, expr*> key2(concatAst2, concatAst1);
@@ -4814,7 +4827,7 @@ namespace smt {
 
         if (m_params.m_StrongArrangements) {
             expr_ref ax_strong(ctx.mk_eq_atom( ctx.mk_eq_atom(concatAst1, concatAst2), implyR ), mgr);
-            assert_axiom(ax_strong);
+            assert_axiom_rw(ax_strong);
         } else {
             assert_implication(ctx.mk_eq_atom(concatAst1, concatAst2), implyR);
         }
@@ -5089,7 +5102,7 @@ namespace smt {
         }
 
         TRACE("str", tout << "length of " << mk_ismt2_pp(e, m) << " is " << val << std::endl;);
-        return val.is_int();
+        return val.is_int() && val.is_nonneg();
     }
 
     /*
@@ -7725,7 +7738,6 @@ namespace smt {
         }
         TRACE("str", tout << "add overlap assumption for theory_str" << std::endl;);
         const char* strOverlap = "!!TheoryStrOverlapAssumption!!";
-        seq_util m_sequtil(get_manager());
         sort * s = get_manager().mk_bool_sort();
         m_theoryStrOverlapAssumption_term = expr_ref(mk_fresh_const(strOverlap, s), get_manager());
         assumptions.push_back(get_manager().mk_not(m_theoryStrOverlapAssumption_term));
@@ -7734,11 +7746,11 @@ namespace smt {
     lbool theory_str::validate_unsat_core(expr_ref_vector & unsat_core) {
         app * target_term = to_app(get_manager().mk_not(m_theoryStrOverlapAssumption_term));
         get_context().internalize(target_term, false);
-		enode* e1 = get_context().get_enode(target_term);
+        enode* e1 = get_context().get_enode(target_term);
         for (unsigned i = 0; i < unsat_core.size(); ++i) {
             app * core_term = to_app(unsat_core.get(i));
             // not sure if this is the correct way to compare terms in this context
-			if (!get_context().e_internalized(core_term)) continue;
+            if (!get_context().e_internalized(core_term)) continue;
             enode *e2 = get_context().get_enode(core_term);
             if (e1 == e2) {
                 TRACE("str", tout << "overlap detected in unsat core, changing UNSAT to UNKNOWN" << std::endl;);
@@ -7774,10 +7786,6 @@ namespace smt {
             expr * ex = ctx.get_asserted_formula(i);
             set_up_axioms(ex);
         }
-
-        // this might be cheating but we need to make sure that certain maps are populated
-        // before the first call to new_eq_eh()
-        propagate();
 
         TRACE("str", tout << "search started" << std::endl;);
         search_started = true;

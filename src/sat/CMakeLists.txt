@@ -3,8 +3,8 @@ z3_add_component(sat
     ba_solver.cpp
     dimacs.cpp
     sat_asymm_branch.cpp
-    sat_bdd.cpp
     sat_big.cpp
+    sat_binspr.cpp
     sat_clause.cpp
     sat_clause_set.cpp
     sat_clause_use_list.cpp
@@ -30,6 +30,7 @@ z3_add_component(sat
     sat_watched.cpp
   COMPONENT_DEPENDENCIES
     util
+    dd
   PYG_FILES
     sat_asymm_branch_params.pyg
     sat_params.pyg

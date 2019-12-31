@@ -251,11 +251,11 @@ namespace qe {
         stats                  m_stats;
         statistics             m_st;
         obj_hashtable<expr>    m_free_vars;
-        obj_hashtable<expr>    m_aux_vars;
         expr_ref_vector        m_answer;
         expr_safe_replace      m_answer_simplify;
         expr_ref_vector        m_trail;
-        
+        ref<generic_model_converter> m_div_mc;
+
         lbool check_sat() {
             while (true) {
                 ++m_stats.m_num_rounds;
@@ -631,7 +631,6 @@ namespace qe {
              p = p', q = q' => div_pq = div_pq'
 
          */
-
         void ackermanize_div(expr_ref& fml, expr_ref_vector& paxioms) {
             is_pure_proc is_pure(*this);
             {
@@ -644,6 +643,7 @@ namespace qe {
                 div_rewriter_star rw(*this);
                 rw(fml, fml, pr);
                 vector<div> const& divs = rw.divs();
+                m_div_mc = alloc(generic_model_converter, m, "purify");
                 for (unsigned i = 0; i < divs.size(); ++i) {
                     expr_ref den_is0(m.mk_eq(divs[i].den, arith.mk_real(0)), m);
                     paxioms.push_back(m.mk_or(den_is0, m.mk_eq(divs[i].num, arith.mk_mul(divs[i].den, divs[i].name))));
@@ -653,6 +653,13 @@ namespace qe {
                                                   m.mk_eq(divs[i].name, divs[j].name)));
                     }
                 }
+                expr_ref body(arith.mk_real(0), m);
+                expr_ref v0(m.mk_var(0, arith.mk_real()), m);
+                expr_ref v1(m.mk_var(1, arith.mk_real()), m);
+                for (auto const& p : divs) {
+                    body = m.mk_ite(m.mk_and(m.mk_eq(v0, p.num), m.mk_eq(v1, p.den)), p.name, body);
+                }
+                m_div_mc->add(arith.mk_div0(), body);
             }
         }
 
@@ -661,7 +668,6 @@ namespace qe {
             m_st.reset();        
             s.m_solver.collect_statistics(m_st);
             m_free_vars.reset();
-            m_aux_vars.reset();
             m_answer.reset();
             m_answer_simplify.reset();
             m_trail.reset();
@@ -779,7 +785,7 @@ namespace qe {
             for (auto const& kv : s.m_t2x) {
                 nlsat::var x = kv.m_value;
                 expr * t = kv.m_key;
-                if (!is_uninterp_const(t) || !m_free_vars.contains(t) || m_aux_vars.contains(t))
+                if (!is_uninterp_const(t) || !m_free_vars.contains(t))
                     continue;
                 expr * v;
                 try {
@@ -797,7 +803,7 @@ namespace qe {
             for (auto const& kv : s.m_a2b) {
                 expr * a = kv.m_key;
                 nlsat::bool_var b = kv.m_value;
-                if (a == nullptr || !is_uninterp_const(a) || b == s.m_is_true.var() || !m_free_vars.contains(a) || m_aux_vars.contains(a))
+                if (a == nullptr || !is_uninterp_const(a) || b == s.m_is_true.var() || !m_free_vars.contains(a))
                     continue;
                 lbool val = s.m_bmodel0.get(b, l_undef);
                 if (val == l_undef)
@@ -817,8 +823,8 @@ namespace qe {
             m_nftactic(nullptr),
             m_answer(m),
             m_answer_simplify(m),
-            m_trail(m)
-        {
+            m_trail(m),
+            m_div_mc(nullptr) {
             s.m_solver.get_explain().set_signed_project(true);
             m_nftactic = mk_tseitin_cnf_tactic(m);
         }
@@ -878,7 +884,37 @@ namespace qe {
                 if (in->models_enabled()) {
                     model_converter_ref mc;
                     VERIFY(mk_model(mc));
+                    mc = concat(m_div_mc.get(), mc.get());                    
                     in->add(mc.get());
+                    
+#if 0
+                    model_ref mdl;
+                    model_converter2model(m, mc.get(), mdl);
+
+                    for (expr* f : fmls) {
+                        if (is_ground(f)) 
+                            std::cout << mk_pp(f, m) << " |-> " << (*mdl)(f) << "\n";
+                    }
+                    break;
+                    ptr_vector<expr> todo;
+                    todo.append(fmls.size(), fmls.c_ptr());
+                    ast_mark visited;
+                    while (!todo.empty()) {
+                        expr* e = todo.back();
+                        todo.pop_back();
+                        if (visited.is_marked(e)) continue;
+                        visited.mark(e, true);
+                        if (is_ground(e)) {
+                            std::cout << mk_pp(e, m) << " |-> " << (*mdl)(e) << "\n";
+                        }
+                        if (is_app(e)) {
+                            for (expr* arg : *to_app(e)) todo.push_back(arg);
+                        }
+                        else if (is_quantifier(e)) {
+                            todo.push_back(to_quantifier(e)->get_expr());
+                        }
+                    }
+#endif
                 }
                 break;
             case l_undef:

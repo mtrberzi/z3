@@ -520,6 +520,7 @@ namespace qe {
             if ((m.is_true(val_a) && m.is_false(val_b)) || 
                 (m.is_false(val_a) && m.is_true(val_b))) {
                 TRACE("qe", 
+                      tout << model << "\n";
                       tout << mk_pp(a, m) << " := " << val_a << "\n";
                       tout << mk_pp(b, m) << " := " << val_b << "\n";
                       tout << m_elevel.find(a) << "\n";);
@@ -1075,8 +1076,12 @@ namespace qe {
         bool validate_assumptions(model& mdl, expr_ref_vector const& core) {
             for (expr* c : core) {
                 if (!mdl.is_true(c)) {
-                    TRACE("qe", tout << "component of core is not true: " << mk_pp(c, m) << "\n";);
-                    return false;
+                    TRACE("qe", tout << "component of core is not true: " << mk_pp(c, m) << "\n";
+                          tout << mdl << "\n";
+                          );
+                    if (mdl.is_false(c)) {
+                        return false;
+                    }
                 }
             }
             return true;

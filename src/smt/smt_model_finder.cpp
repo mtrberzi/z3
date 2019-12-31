@@ -92,8 +92,9 @@ namespace smt {
             obj_map<expr, unsigned> const & get_elems() const { return m_elems; }
 
             void insert(expr * n, unsigned generation) {
-                if (m_elems.contains(n) || contains_model_value(n))
+                if (m_elems.contains(n) || contains_model_value(n)) {
                     return;
+                }
                 TRACE("model_finder", tout << mk_pp(n, m) << "\n";);
                 m.inc_ref(n);
                 m_elems.insert(n, generation);
@@ -255,8 +256,8 @@ namespace smt {
             void merge(node * other) {
                 node * r1 = get_root();
                 node * r2 = other->get_root();
-                SASSERT(r1->m_set == 0);
-                SASSERT(r2->m_set == 0);
+                SASSERT(r1->m_set == nullptr);
+                SASSERT(r2->m_set == nullptr);
                 SASSERT(r1->get_sort() == r2->get_sort());
                 if (r1 == r2)
                     return;
@@ -738,7 +739,7 @@ namespace smt {
                     }
                     // TBD: add support for the else of bitvectors.
                     // Idea: get the term t with the minimal interpretation and use t - 1.
-                }
+                } 
                 n->set_else((*(elems.begin())).m_key);
             }
 
@@ -880,7 +881,6 @@ namespace smt {
             }
 
             void mk_simple_proj(node * n) {
-                TRACE("model_finder", n->display(tout, m););
                 set_projection_else(n);
                 ptr_buffer<expr> values;
                 get_instantiation_set_values(n, values);
@@ -896,6 +896,7 @@ namespace smt {
                     pi->insert_new_entry(&v, v);
                 }
                 n->set_proj(p);
+                TRACE("model_finder", n->display(tout << p->get_name() << "\n", m););
             }
 
             void mk_projections() {

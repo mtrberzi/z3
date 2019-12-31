@@ -3,7 +3,7 @@ Copyright (c) 2017 Microsoft Corporation
 
 Module Name:
 
-    sat_bdd
+    dd_bdd
 
 Abstract:
 
@@ -16,14 +16,14 @@ Author:
 Revision History:
 
 --*/
-#ifndef SAT_BDD_H_
-#define SAT_BDD_H_
+#ifndef DD_BDD_H_
+#define DD_BDD_H_
 
 #include "util/vector.h"
 #include "util/map.h"
 #include "util/small_object_allocator.h"
 
-namespace sat {
+namespace dd {
 
     class bdd;
 
@@ -192,6 +192,13 @@ namespace sat {
 
         void reserve_var(unsigned v);
         bool well_formed();
+
+        struct scoped_push {
+            bdd_manager& m;
+            unsigned     m_size;
+            scoped_push(bdd_manager& m) :m(m), m_size(m.m_bdd_stack.size()) {}
+            ~scoped_push() { m.m_bdd_stack.shrink(m_size); }
+        };
 
     public:
         struct mem_out {};
