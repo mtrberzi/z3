@@ -95,6 +95,7 @@ namespace dd {
             }
         }
         SASSERT(well_formed());
+        return null_bdd;
     }
 
 

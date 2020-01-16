@@ -133,13 +133,14 @@ void theory_seq::solution_map::update(expr* e, expr* r, dependency* d) {
         return;
     }
     m_cache.reset();
-    std::pair<expr*, dependency*> value;
-    if (m_map.find(e, value)) {
-        add_trail(DEL, e, value.first, value.second);
+    expr_dep value;
+    if (find(e, value)) {
+        add_trail(DEL, e, value.e, value.d);
     }
-    value.first = r;
-    value.second = d;
-    m_map.insert(e, value);
+    value.v = e;
+    value.e = r;
+    value.d = d;
+    insert(value);
     add_trail(INS, e, r, d);
 }
 
@@ -151,7 +152,7 @@ void theory_seq::solution_map::add_trail(map_update op, expr* l, expr* r, depend
 }
 
 bool theory_seq::solution_map::is_root(expr* e) const {
-    return !m_map.contains(e);
+    return e->get_id() >= m_map.size() || m_map[e->get_id()].e == nullptr;
 }
 
 // e1 -> ... -> e2
@@ -159,22 +160,22 @@ bool theory_seq::solution_map::is_root(expr* e) const {
 // e1 -> .... -> e3
 
 // e1 -> ... x, e2 -> ... x
-void theory_seq::solution_map::find_rec(expr* e, svector<std::pair<expr*, dependency*> >& finds) {
+void theory_seq::solution_map::find_rec(expr* e, svector<expr_dep >& finds) {
     dependency* d = nullptr;
-    std::pair<expr*, dependency*> value(e, d);
+    expr_dep value(e, e, d);
     do {
-        e = value.first;
-        d = m_dm.mk_join(d, value.second);
+        e = value.e;
+        d = m_dm.mk_join(d, value.d);
         finds.push_back(value);
     }
-    while (m_map.find(e, value));
+    while (find(e, value));
 }
 
 bool theory_seq::solution_map::find1(expr* e, expr*& r, dependency*& d) {
-    std::pair<expr*, dependency*> value;    
-    if (m_map.find(e, value)) {
-        d = m_dm.mk_join(d, value.second);
-        r = value.first;
+    expr_dep value;
+    if (find(e, value)) {
+        d = m_dm.mk_join(d, value.d);
+        r = value.e;
         return true;
     }
     else {
@@ -183,22 +184,22 @@ bool theory_seq::solution_map::find1(expr* e, expr*& r, dependency*& d) {
 }
 
 expr* theory_seq::solution_map::find(expr* e, dependency*& d) {
-    std::pair<expr*, dependency*> value;
+    expr_dep value;
     d = nullptr;
     expr* result = e;
-    while (m_map.find(result, value)) {
-        d = m_dm.mk_join(d, value.second);
-        SASSERT(result != value.first);
-        SASSERT(e != value.first);
-        result = value.first;
+    while (find(result, value)) {
+        d = m_dm.mk_join(d, value.d);
+        SASSERT(result != value.e);
+        SASSERT(e != value.e);
+        result = value.e;
     }
     return result;
 }
 
 expr* theory_seq::solution_map::find(expr* e) {
-    std::pair<expr*, dependency*> value;
-    while (m_map.find(e, value)) {
-        e = value.first;
+    expr_dep value;
+    while (find(e, value)) {
+        e = value.e;
     }
     return e;
 }
@@ -209,10 +210,11 @@ void theory_seq::solution_map::pop_scope(unsigned num_scopes) {
     unsigned start = m_limit[m_limit.size() - num_scopes];
     for (unsigned i = m_updates.size(); i-- > start; ) {
         if (m_updates[i] == INS) {
-            m_map.remove(m_lhs.get(i));
+            unsigned id = m_lhs.get(i)->get_id();
+            if (id < m_map.size()) m_map[id] = expr_dep();
         }
         else {
-            m_map.insert(m_lhs.get(i), std::make_pair(m_rhs.get(i), m_deps[i]));
+            insert(expr_dep(m_lhs.get(i), m_rhs.get(i), m_deps[i]));
         }
     }
     m_updates.resize(start);
@@ -223,8 +225,8 @@ void theory_seq::solution_map::pop_scope(unsigned num_scopes) {
 }
 
 void theory_seq::solution_map::display(std::ostream& out) const {
-    for (auto const& kv : m_map) {
-        out << mk_bounded_pp(kv.m_key, m, 2) << " |-> " << mk_bounded_pp(kv.m_value.first, m, 2) << "\n";
+    for (auto const& ed : m_map) {
+        if (ed.v) out << mk_bounded_pp(ed.v, m, 2) << " |-> " << mk_bounded_pp(ed.e, m, 2) << "\n";
     }
 }
 
@@ -4275,13 +4277,17 @@ model_value_proc * theory_seq::mk_value(enode * n, model_generator & mg) {
     TRACE("seq", tout << mk_pp(n->get_owner(), m) << "\n";);
     e = get_ite_value(e);    
     if (m_util.is_seq(e)) {
-        ptr_vector<expr> concats;
-        get_ite_concat(e, concats);
+        unsigned start = m_concat.size();
+        SASSERT(m_todo.empty());
+        m_todo.push_back(e);
+        get_ite_concat(m_concat, m_todo);
         sort* srt = m.get_sort(e);
         seq_value_proc* sv = alloc(seq_value_proc, *this, srt);
        
+        unsigned end = m_concat.size();
         TRACE("seq", tout << mk_pp(e, m) << "\n";);
-        for (expr* c : concats) {
+        for (unsigned i = start; i < end; ++i) {
+            expr* c = m_concat[i];
             expr *c1;
             TRACE("seq", tout << mk_pp(c, m) << "\n";);
             if (m_util.str.is_unit(c, c1)) {
@@ -4301,6 +4307,7 @@ model_value_proc * theory_seq::mk_value(enode * n, model_generator & mg) {
                 sv->add_string(mk_value(to_app(c)));
             }
         }
+        m_concat.shrink(start);
         return sv;
     }
     else {
@@ -4485,10 +4492,10 @@ expr_ref theory_seq::try_expand(expr* e, dependency*& eqs){
     expr_ref result(m);
     expr_dep ed;
     if (m_rep.find_cache(e, ed)) {
-        if (e != ed.first) {
-            eqs = m_dm.mk_join(eqs, ed.second);
+        if (e != ed.e) {
+            eqs = m_dm.mk_join(eqs, ed.d);
         }
-        result = ed.first;
+        result = ed.e;
     }
     else {
         m_expand_todo.push_back(e);
@@ -4622,8 +4629,8 @@ bool theory_seq::expand1(expr* e0, dependency*& eqs, expr_ref& result) {
     if (result == e0) {
         deps = nullptr;
     }
-    expr_dep edr(result, deps);
-    m_rep.add_cache(e0, edr);
+    expr_dep edr(e0, result, deps);
+    m_rep.add_cache(edr);
     eqs = m_dm.mk_join(eqs, deps);
     TRACE("seq_verbose", tout << mk_pp(e0, m) << " |--> " << result << "\n";
           if (eqs) display_deps(tout, eqs););
@@ -5480,6 +5487,7 @@ void theory_seq::add_at_axiom(expr* e) {
     expr_ref len_s = mk_len(s);
     literal i_ge_0 = mk_simplified_literal(m_autil.mk_ge(i, zero));
     literal i_ge_len_s = mk_simplified_literal(m_autil.mk_ge(mk_sub(i, mk_len(s)), zero));
+    expr_ref len_e = mk_len(e);
 
     rational iv;
     if (m_autil.is_numeral(i, iv) && iv.is_unsigned()) {
@@ -5501,7 +5509,6 @@ void theory_seq::add_at_axiom(expr* e) {
         }
     }
     else {
-        expr_ref len_e = mk_len(e);
         expr_ref x =     mk_skolem(m_pre, s, i);
         expr_ref y =     mk_skolem(m_tail, s, i);
         expr_ref xey   = mk_concat(x, e, y);
@@ -5513,6 +5520,7 @@ void theory_seq::add_at_axiom(expr* e) {
 
     add_axiom(i_ge_0, mk_eq(e, emp, false));
     add_axiom(~i_ge_len_s, mk_eq(e, emp, false));
+    add_axiom(mk_literal(m_autil.mk_le(len_e, one)));
 }
 
 /**
@@ -6406,17 +6414,18 @@ bool theory_seq::canonizes(bool sign, expr* e) {
 }
 
 
-void theory_seq::get_ite_concat(expr* e, ptr_vector<expr>& concats) {
+void theory_seq::get_ite_concat(ptr_vector<expr>& concats, ptr_vector<expr>& todo) {
     expr* e1 = nullptr, *e2 = nullptr;
-    while (true) {
+    while (!todo.empty()) {
+        expr* e = todo.back();
+        todo.pop_back();
         e = m_rep.find(e);
         e = get_ite_value(e);
         if (m_util.str.is_concat(e, e1, e2)) {
-            get_ite_concat(e1, concats);
-            e = e2;
-            continue;
+            todo.push_back(e2, e1);
         }        
-        concats.push_back(e);        
-        return;
+        else {
+            concats.push_back(e);        
+        }
     }
 }

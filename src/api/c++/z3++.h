@@ -427,7 +427,7 @@ namespace z3 {
         if (s.kind() == Z3_INT_SYMBOL)
             out << "k!" << s.to_int();
         else
-            out << s.str().c_str();
+            out << s.str();
         return out;
     }
 
@@ -745,6 +745,7 @@ namespace z3 {
         bool is_numeral(std::string& s) const { if (!is_numeral()) return false; s = Z3_get_numeral_string(ctx(), m_ast); check_error(); return true; }
         bool is_numeral(std::string& s, unsigned precision) const { if (!is_numeral()) return false; s = Z3_get_numeral_decimal_string(ctx(), m_ast, precision); check_error(); return true; }
         bool is_numeral(double& d) const { if (!is_numeral()) return false; d = Z3_get_numeral_double(ctx(), m_ast); check_error(); return true; }
+
         /**
            \brief Return true if this expression is an application.
         */
@@ -895,18 +896,27 @@ namespace z3 {
             return expr(ctx(),r);
         }
 
+
+        /**
+           \brief Return true if this expression is a string literal. 
+           The string can be accessed using \c get_string() and \c get_escaped_string()
+         */
+        bool is_string_value() const { return Z3_is_string(ctx(), m_ast); }
+
         /**
            \brief for a string value expression return an escaped or unescaped string value.
            \pre expression is for a string value.
          */
 
-        std::string get_escaped_string() const {
+        std::string get_escaped_string() const {            
+            assert(is_string_value());
             char const* s = Z3_get_string(ctx(), m_ast);
             check_error();
             return std::string(s);
         }
 
         std::string get_string() const {
+            assert(is_string_value());
             unsigned n;
             char const* s = Z3_get_lstring(ctx(), m_ast, &n);
             check_error();
@@ -1862,6 +1872,8 @@ namespace z3 {
         ast_vector_tpl(context & c):object(c) { init(Z3_mk_ast_vector(c)); }
         ast_vector_tpl(context & c, Z3_ast_vector v):object(c) { init(v); }
         ast_vector_tpl(ast_vector_tpl const & s):object(s), m_vector(s.m_vector) { Z3_ast_vector_inc_ref(ctx(), m_vector); }
+        ast_vector_tpl(context& c, ast_vector_tpl const& src): object(c) { init(Z3_ast_vector_translate(src.ctx(), src, c)); }
+
         ~ast_vector_tpl() { Z3_ast_vector_dec_ref(ctx(), m_vector); }
         operator Z3_ast_vector() const { return m_vector; }
         unsigned size() const { return Z3_ast_vector_size(ctx(), m_vector); }
@@ -2768,6 +2780,11 @@ namespace z3 {
             Z3_optimize_inc_ref(o.ctx(), o.m_opt);
             m_opt = o.m_opt;
         }
+        optimize(context& c, optimize& src):object(c) {
+            m_opt = Z3_mk_optimize(c); Z3_optimize_inc_ref(c, m_opt);
+            add(expr_vector(c, src.assertions()));
+            for (expr const& o : expr_vector(c, src.objectives())) minimize(o);            
+        }
         optimize& operator=(optimize const& o) {
             Z3_optimize_inc_ref(o.ctx(), o.m_opt);
             Z3_optimize_dec_ref(ctx(), m_opt);
@@ -2780,6 +2797,9 @@ namespace z3 {
         void add(expr const& e) {
             assert(e.is_bool());
             Z3_optimize_assert(ctx(), m_opt, e);
+        }
+        void add(expr_vector const& es) {
+            for (expr const& e : es) add(e);
         }
         handle add(expr const& e, unsigned weight) {
             assert(e.is_bool());

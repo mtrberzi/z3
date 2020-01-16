@@ -39,12 +39,15 @@ Author:
 namespace dd {
 
     class pdd;
+    class pdd_manager;
+    class pdd_iterator;
 
     class pdd_manager {
     public:
         enum semantics { free_e, mod2_e, zero_one_vars_e };
     private:
         friend pdd;
+        friend pdd_iterator;
 
         typedef unsigned PDD;
         typedef vector<std::pair<rational,unsigned_vector>> monomials_t;
@@ -59,7 +62,8 @@ namespace dd {
             pdd_minus_op = 4,
             pdd_mul_op = 5,
             pdd_reduce_op = 6,
-            pdd_no_op = 7
+            pdd_subst_val_op = 7,
+            pdd_no_op = 8
         };
 
         struct node {
@@ -209,7 +213,14 @@ namespace dd {
         inline PDD level2pdd(unsigned l) const { return m_var2pdd[m_level2var[l]]; }
 
         unsigned dag_size(pdd const& p);
-        unsigned degree(pdd const& p);
+
+        mutable svector<unsigned>  m_dmark;
+        mutable unsigned           m_dmark_level;
+        void init_dmark();
+        void set_dmark(unsigned i) const { m_dmark[i] = m_dmark_level; }
+        bool is_dmarked(unsigned i) const { return m_dmark[i] == m_dmark_level; }
+        unsigned degree(pdd const& p) const;
+        unsigned degree(PDD p) const;
 
         bool var_is_leaf(PDD p, unsigned v);
 
@@ -224,6 +235,8 @@ namespace dd {
         rational m_pc, m_qc;
         pdd spoly(pdd const& a, pdd const& b, unsigned_vector const& p, unsigned_vector const& q, rational const& pc, rational const& qc);
         bool common_factors(pdd const& a, pdd const& b, unsigned_vector& p, unsigned_vector& q, rational& pc, rational& qc);
+        PDD first_leading(PDD p) const;
+        PDD next_leading(PDD p) const;
 
         monomials_t to_monomials(pdd const& p);
 
@@ -241,12 +254,15 @@ namespace dd {
         pdd_manager(unsigned nodes, semantics s = free_e);
         ~pdd_manager();
 
+        semantics get_semantics() const { return m_semantics; }
+
         void reset(unsigned_vector const& level2var);
         void set_max_num_nodes(unsigned n) { m_max_num_nodes = n; }
         unsigned_vector const& get_level2var() const { return m_level2var; }
 
         pdd mk_var(unsigned i);
         pdd mk_val(rational const& r);
+        pdd mk_val(unsigned r);
         pdd zero(); 
         pdd one(); 
         pdd minus(pdd const& a);
@@ -257,8 +273,10 @@ namespace dd {
         pdd mul(rational const& c, pdd const& b);
         pdd mk_or(pdd const& p, pdd const& q);
         pdd mk_xor(pdd const& p, pdd const& q);
+        pdd mk_xor(pdd const& p, unsigned q);
         pdd mk_not(pdd const& p);
         pdd reduce(pdd const& a, pdd const& b);
+        pdd subst_val(pdd const& a, vector<std::pair<unsigned, rational>> const& s);
 
         bool is_linear(PDD p);
         bool is_linear(pdd const& p);
@@ -274,6 +292,7 @@ namespace dd {
         bool lt(pdd const& a, pdd const& b);
         bool different_leading_term(pdd const& a, pdd const& b);
         double tree_size(pdd const& p);
+        unsigned num_vars() const { return m_var2pdd.size(); }
 
         unsigned_vector const& free_vars(pdd const& p);
 
@@ -285,6 +304,7 @@ namespace dd {
 
     class pdd {
         friend class pdd_manager;
+        friend class pdd_iterator;
         unsigned     root;
         pdd_manager& m;
         pdd(unsigned root, pdd_manager& m): root(root), m(m) { m.inc_ref(root); }
@@ -301,8 +321,10 @@ namespace dd {
         unsigned var() const { return m.var(root); }
         rational const& val() const { SASSERT(is_val()); return m.val(root); }
         bool is_val() const { return m.is_val(root); }
+        bool is_one() const { return m.is_one(root); }
         bool is_zero() const { return m.is_zero(root); }
         bool is_linear() const { return m.is_linear(root); }
+        bool is_unary() const { return !is_val() && lo().is_zero() && hi().is_val(); } 
         bool is_binary() const { return m.is_binary(root); }
         bool is_monomial() const { return m.is_monomial(root); }
         bool var_is_leaf(unsigned v) const { return m.var_is_leaf(root, v); }
@@ -314,6 +336,7 @@ namespace dd {
         pdd operator&(pdd const& other) const { return m.mul(*this, other); }
         pdd operator|(pdd const& other) const { return m.mk_or(*this, other); }
         pdd operator^(pdd const& other) const { return m.mk_xor(*this, other); }        
+        pdd operator^(unsigned other) const { return m.mk_xor(*this, other); }        
 
         pdd operator*(rational const& other) const { return m.mul(other, *this); }
         pdd operator+(rational const& other) const { return m.add(other, *this); }
@@ -322,14 +345,23 @@ namespace dd {
         pdd reduce(pdd const& other) const { return m.reduce(*this, other); }
         bool different_leading_term(pdd const& other) const { return m.different_leading_term(*this, other); }
 
+        pdd subst_val(vector<std::pair<unsigned, rational>> const& s) const { return m.subst_val(*this, s); }
+
         std::ostream& display(std::ostream& out) const { return m.display(out, *this); }
         bool operator==(pdd const& other) const { return root == other.root; }
         bool operator!=(pdd const& other) const { return root != other.root; }
         bool operator<(pdd const& other) const { return m.lt(*this, other); }
 
+
+
         unsigned dag_size() const { return m.dag_size(*this); }
         double tree_size() const { return m.tree_size(*this); }
         unsigned degree() const { return m.degree(*this); }
+        unsigned_vector const& free_vars() const { return m.free_vars(*this); }
+
+
+        pdd_iterator begin() const;
+        pdd_iterator end() const;
     };
 
     inline pdd operator*(rational const& r, pdd const& b) { return b * r; }
@@ -339,6 +371,9 @@ namespace dd {
     inline pdd operator+(rational const& r, pdd const& b) { return b + r; }
     inline pdd operator+(int x, pdd const& b) { return b + rational(x); }
     inline pdd operator+(pdd const& b, int x) { return b + rational(x); }
+
+    inline pdd operator^(unsigned x, pdd const& b) { return b + x; }
+    inline pdd operator^(bool x, pdd const& b) { return b + x; }
 
     inline pdd operator-(rational const& r, pdd const& b) { return b.rev_sub(r); }
     inline pdd operator-(int x, pdd const& b) { return rational(x) - b; }
@@ -352,6 +387,30 @@ namespace dd {
     inline pdd& operator+=(pdd & p, pdd const& q) { p = p + q; return p; }
 
     std::ostream& operator<<(std::ostream& out, pdd const& b);
+
+    struct pdd_monomial {
+        rational coeff;
+        unsigned_vector vars;
+    };
+
+    std::ostream& operator<<(std::ostream& out, pdd_monomial const& m);
+
+    class pdd_iterator {
+        friend class pdd;
+        pdd m_pdd;
+        svector<std::pair<bool, unsigned>> m_nodes;
+        pdd_monomial m_mono;
+        pdd_iterator(pdd const& p, bool at_start): m_pdd(p) { if (at_start) first(); }
+        void first();
+        void next();
+    public:
+        pdd_monomial const& operator*() const { return m_mono; }
+        pdd_monomial const* operator->() const { return &m_mono; }
+        pdd_iterator& operator++() { next(); return *this; }
+        pdd_iterator operator++(int) { auto tmp = *this; next(); return tmp; }
+        bool operator==(pdd_iterator const& other) const { return m_nodes == other.m_nodes; }
+        bool operator!=(pdd_iterator const& other) const { return m_nodes != other.m_nodes; }
+    };
 
 }
 

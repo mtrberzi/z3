@@ -120,6 +120,11 @@ namespace sat {
         unsigned           m_unit_walk_threads;
         bool               m_unit_walk;
         bool               m_binspr;
+        bool               m_aig_simplify;
+        unsigned           m_aig_delay;
+        bool               m_anf_simplify;
+        unsigned           m_anf_delay;
+        bool               m_anf_exlin;
         bool               m_lookahead_simplify;
         bool               m_lookahead_simplify_bca;
         cutoff_t           m_lookahead_cube_cutoff;
