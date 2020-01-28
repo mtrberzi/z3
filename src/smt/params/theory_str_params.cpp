@@ -46,6 +46,9 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_PreMilliseconds = p.str_pre_milliseconds();
     m_RewriterTactic = p.str_rewriter_tactic();
     m_StrTactic = p.str_tactic();
+    m_FixedLengthModels = p.str_fixed_length_models();
+    m_FixedLengthRefinement = p.str_fixed_length_refinement();
+    m_FixedLengthNaiveCounterexamples = p.str_fixed_length_naive_cex();
 }
 
 #define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;
@@ -75,4 +78,5 @@ void theory_str_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_PreMilliseconds);
     DISPLAY_PARAM(m_RewriterTactic);
     DISPLAY_PARAM(m_StrTactic);
+    DISPLAY_PARAM(m_FixedLengthNaiveCounterexamples);
 }
