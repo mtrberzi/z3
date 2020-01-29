@@ -421,7 +421,7 @@ namespace smt {
                 // needle[j] == haystack[i+j]
                 ENSURE(i+j < haystack_chars.size());
                 expr_ref cLHS(needle_chars.get(j), sub_m);
-                expr_ref cRHS(haystack_chars.get(j), sub_m);
+                expr_ref cRHS(haystack_chars.get(i+j), sub_m);
                 expr_ref _e(sub_ctx.mk_eq_atom(cLHS, cRHS), sub_m);
                 branch.push_back(_e);
             }
@@ -491,6 +491,7 @@ namespace smt {
                 ctx.get_rewriter()(cex);
                 return false;
             }
+            return true;
         } else {
             expr_ref_vector trail(m);
             u_map<expr*> maps[2];
@@ -572,8 +573,8 @@ namespace smt {
                 } else {
                     fixed_length_assumptions.push_back(sub_m.mk_not(result));
                 }
-                return true;
             }
+            return true;
         }
     }
 
@@ -735,7 +736,7 @@ namespace smt {
         ptr_vector<expr> rhs_chars(fixed_length_reduce_string_term(subsolver, rhs));
 
         if (lhsLen != rhsLen) {
-            TRACE("str", tout << "skip disequality: len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << std::endl;);
+            TRACE("str_fl", tout << "skip disequality: len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << std::endl;);
             return true;
         }
 
@@ -1058,7 +1059,7 @@ namespace smt {
                 TRACE("str_fl", tout << "unsat core has size " << subsolver.get_unsat_core_size() << std::endl;);
                 bool negate_pre = false;
                 for (unsigned i = 0; i < subsolver.get_unsat_core_size(); ++i) {
-                    TRACE("str", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
+                    TRACE("str_fl", tout << "entry " << i << " = " << mk_pp(subsolver.get_unsat_core_expr(i), m) << std::endl;);
                     rational index;
                     expr* lhs;
                     expr* rhs;
