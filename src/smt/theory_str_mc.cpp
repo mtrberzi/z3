@@ -362,7 +362,7 @@ namespace smt {
                 // needle[j] == haystack[i+j]
                 ENSURE(i+j < haystack_chars.size());
                 expr_ref cLHS(needle_chars.get(j), sub_m);
-                expr_ref cRHS(haystack_chars.get(j), sub_m);
+                expr_ref cRHS(haystack_chars.get(i+j), sub_m);
                 expr_ref _e(sub_ctx.mk_eq_atom(cLHS, cRHS), sub_m);
                 branch.push_back(_e);
             }
@@ -953,6 +953,23 @@ namespace smt {
         for (auto e : fixed_length_used_len_terms) {
             expr * var = &e.get_key();
             precondition.push_back(m.mk_eq(u.str.mk_length(var), mk_int(e.get_value())));
+        }
+
+        if (is_trace_enabled("str_fl")) {
+            TRACE_CODE(
+                tout << "bitvector formulas to be checked:" << std::endl;
+                for (auto e : fixed_length_assumptions) {
+                    tout << mk_pp(e, subsolver.m()) << std::endl;
+                }
+                tout << "variable-character mappings:" << std::endl;
+                for (auto &kv : var_to_char_subterm_map) {
+                    tout << mk_pp(kv.m_key, m) << ":";
+                    for (auto e : kv.m_value) {
+                        tout << " " << mk_pp(e, subsolver.m());
+                    }
+                    tout << std::endl;
+                }
+            );
         }
 
         TRACE("str_fl", tout << "calling subsolver" << std::endl;);
