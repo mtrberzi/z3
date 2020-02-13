@@ -39,6 +39,7 @@ namespace sat {
         and_op,
         ite_op,
         xor_op,
+        lut_op,
         no_op
     };
 
@@ -48,6 +49,7 @@ namespace sat {
         case and_op: return out << "&";
         case ite_op: return out << "?";
         case xor_op: return out << "^";
+        case lut_op: return out << "#";
         default: return out << "";
         }
     }
@@ -61,7 +63,7 @@ namespace sat {
             unsigned m_max_aux;
             unsigned m_max_insertions;
             bool     m_full;
-        config(): m_max_cutset_size(10), m_max_aux(5), m_max_insertions(10), m_full(false) {}
+        config(): m_max_cutset_size(20), m_max_aux(5), m_max_insertions(20), m_full(true) {}
         };
     private:
 
@@ -69,6 +71,7 @@ namespace sat {
         class node {
             bool     m_sign;
             bool_op  m_op;
+            uint64_t m_lut;
             unsigned m_size;
             unsigned m_offset;
         public:
@@ -78,17 +81,21 @@ namespace sat {
                 m_sign(false), m_op(var_op), m_size(0), m_offset(v) {}
             explicit node(bool sign, bool_op op, unsigned nc, unsigned o) : 
                 m_sign(sign), m_op(op), m_size(nc), m_offset(o) {}
+            explicit node(uint64_t lut, unsigned nc, unsigned o):
+                m_sign(false), m_op(lut_op), m_lut(lut), m_size(nc), m_offset(o) {}
             bool is_valid() const { return m_offset != UINT_MAX; }
             bool_op op() const { return m_op; }
             bool is_var() const { return m_op == var_op; }
             bool is_and() const { return m_op == and_op; }
             bool is_xor() const { return m_op == xor_op; }
             bool is_ite() const { return m_op == ite_op; }
+            bool is_lut() const { return m_op == lut_op; }
             bool is_const() const { return is_and() && size() == 0; }
             unsigned var() const { SASSERT(is_var()); return m_offset; }
             bool sign() const { return m_sign; }
             unsigned size() const { return m_size; }
             unsigned offset() const { return m_offset; }
+            uint64_t lut() const { return m_lut; }
         };
         random_gen            m_rand;
         config                m_config;
@@ -97,6 +104,7 @@ namespace sat {
         region                m_region;
         cut_set               m_cut_set1, m_cut_set2;
         vector<cut_set>       m_cuts;
+        unsigned_vector       m_max_cutset_size;
         unsigned_vector       m_last_touched;
         unsigned              m_num_cut_calls;
         unsigned              m_num_cuts;
@@ -105,8 +113,10 @@ namespace sat {
         on_clause_t           m_on_clause_add, m_on_clause_del;
         cut_set::on_update_t  m_on_cut_add, m_on_cut_del;
         literal_vector        m_clause;
+        cut const*            m_tables[6];
+        uint64_t              m_luts[6];
 
-        bool is_touched(node const& n);
+        bool is_touched(bool_var v, node const& n);
         bool is_touched(literal lit) const { return is_touched(lit.var()); }
         bool is_touched(bool_var v) const { return m_last_touched[v] + m_aig.size() >= m_num_cut_calls * m_aig.size(); }
         void reserve(unsigned v);
@@ -118,17 +128,22 @@ namespace sat {
         unsigned_vector filter_valid_nodes() const;
         void augment(unsigned_vector const& ids);
         void augment(unsigned id, node const& n);
-        void augment_ite(unsigned v, node const& n, cut_set& cs);
+        void augment_ite(unsigned v,  node const& n, cut_set& cs);
         void augment_aig0(unsigned v, node const& n, cut_set& cs);
         void augment_aig1(unsigned v, node const& n, cut_set& cs);
         void augment_aig2(unsigned v, node const& n, cut_set& cs);
         void augment_aigN(unsigned v, node const& n, cut_set& cs);
+
+        void augment_lut(unsigned v,  node const& n, cut_set& cs);        
+        void augment_lut_rec(unsigned v, node const& n, cut& a, unsigned idx, cut_set& cs);
 
         bool insert_cut(unsigned v, cut const& c, cut_set& cs);
 
         void flush_roots();
         void flush_roots(literal_vector const& to_root, node& n);
         void flush_roots(literal_vector const& to_root, cut_set& cs);
+
+        cut_val eval(node const& n, cut_eval const& env) const;
 
         std::ostream& display(std::ostream& out, node const& n) const;
 
@@ -150,15 +165,21 @@ namespace sat {
         void validate_aig2(cut const& a, cut const& b, unsigned v, node const& n, cut const& c);
         void validate_aigN(unsigned v, node const& n, cut const& c); 
 
+        void add_node(bool_var v, node const& n);
     public:
 
         aig_cuts();
         void add_var(unsigned v);
         void add_node(literal head, bool_op op, unsigned sz, literal const* args);
+        void add_node(bool_var head, uint64_t lut, unsigned sz, bool_var const* args);
+        void add_cut(bool_var v, uint64_t lut, bool_var_vector const& args);
         void set_root(bool_var v, literal r);
 
         void set_on_clause_add(on_clause_t& on_clause_add);
         void set_on_clause_del(on_clause_t& on_clause_del);
+
+        void inc_max_cutset_size(unsigned v) { m_max_cutset_size[v] += 10; touch(v); }
+        unsigned max_cutset_size(unsigned v) const { return v == UINT_MAX ? m_config.m_max_cutset_size : m_max_cutset_size[v]; }
 
         vector<cut_set> const & operator()();
         unsigned num_cuts() const { return m_num_cuts; }
@@ -167,6 +188,7 @@ namespace sat {
 
         void touch(bool_var v) { m_last_touched[v] = v + m_num_cut_calls * m_aig.size(); }
 
+        cut_eval simulate(unsigned num_rounds);
 
         std::ostream& display(std::ostream& out) const;
 

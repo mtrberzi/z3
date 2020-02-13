@@ -9754,6 +9754,21 @@ namespace smt {
         if (hasEqc) {
             return to_app(n_eqc);
         } else {
+            theory_var curr = get_var(n);
+            if (curr != null_theory_var) {
+                curr = m_find.find(curr);
+                theory_var first = curr;
+                do {
+                    expr* a = get_ast(curr);
+                    zstring val;
+                    if (candidate_model.find(a, val)) {
+                        return to_app(mk_string(val));
+                    }
+                    curr = m_find.next(curr);
+                }
+                while (curr != first && curr != null_theory_var);
+            }
+            // fail to find
             return nullptr;
         }
     }
@@ -9991,12 +10006,11 @@ namespace smt {
             arith_value v(m);
             v.init(&ctx);
             rational val;
-            bool val_exists = v.get_value(fromInt, val);
-            SASSERT(val_exists);
+            VERIFY(v.get_value(fromInt, val));
 
             std::string s = std::to_string(val.get_int32());
             extra_deps.push_back(ctx.mk_eq_atom(fromInt, mk_int(val)));
-            return s.length();
+            return static_cast<unsigned>(s.length());
 
         } else if (u.str.is_at(ex)) {
             expr* substrBase = nullptr;
@@ -10005,9 +10019,7 @@ namespace smt {
             arith_value v(m);
             v.init(&ctx);
             rational pos;
-            bool pos_exists = v.get_value(substrPos, pos);
-
-            SASSERT(pos_exists);
+            VERIFY(v.get_value(substrPos, pos));
             extra_deps.push_back(ctx.mk_eq_atom(substrPos, mk_int(pos)));
             return 1;
 
@@ -10019,10 +10031,8 @@ namespace smt {
             arith_value v(m);
             v.init(&ctx);
             rational len, pos;
-            bool len_exists = v.get_value(substrLen, len);
-            bool pos_exists = v.get_value(substrPos, pos);
-
-            SASSERT(len_exists && pos_exists);
+            VERIFY(v.get_value(substrLen, len));
+            VERIFY(v.get_value(substrPos, pos));
             extra_deps.push_back(ctx.mk_eq_atom(substrPos, mk_int(pos)));
             return len.get_unsigned();
 
@@ -10195,8 +10205,7 @@ namespace smt {
 
     expr* theory_str::refine_function(expr* f) {
         //Can we learn something better?
-        ast_manager & m = get_manager();
-        TRACE("str", tout << "learning not " << mk_pp(f, m) << std::endl;);
+        TRACE("str", tout << "learning not " << mk_pp(f, get_manager()) << std::endl;);
         return f;
     }
 

@@ -28,6 +28,7 @@
 #include "ast/rewriter/seq_rewriter.h"
 #include "ast/rewriter/expr_replacer.h"
 #include "smt_kernel.h"
+#include "model/model_smt2_pp.h"
 
 namespace smt {
 
@@ -266,9 +267,8 @@ namespace smt {
         ast_manager & sub_m = subsolver.m();
         context & sub_ctx = subsolver.get_context();
 
-        expr * full;
-        expr * pref;
-        u.str.is_prefix(f, pref, full);
+        expr * pref = nullptr, *full = nullptr;
+        VERIFY(u.str.is_prefix(f, pref, full));
 
         expr_ref haystack(full, m);
         expr_ref needle(pref, m);
@@ -383,9 +383,8 @@ namespace smt {
         ast_manager & sub_m = subsolver.m();
         context & sub_ctx = subsolver.get_context();
 
-        expr * full;
-        expr * small;
-        u.str.is_contains(f, full, small);
+        expr * small = nullptr, *full = nullptr;
+        VERIFY(u.str.is_contains(f, full, small));
 
         expr_ref haystack(full, m);
         expr_ref needle(small, m);
@@ -472,8 +471,7 @@ namespace smt {
             } else {
                 unsigned_vector eps_states;
                 aut->get_epsilon_closure(initial_state, eps_states);
-                for (unsigned_vector::iterator it = eps_states.begin(); it != eps_states.end(); ++it) {
-                    unsigned state = *it;
+                for (unsigned state : eps_states) {
                     if (aut->is_final_state(state)) {
                         zero_solution = true;
                         break;
@@ -490,22 +488,23 @@ namespace smt {
                 cex = m.mk_or(f, m.mk_not(ctx.mk_eq_atom(mk_strlen(str), mk_int(0))));
                 ctx.get_rewriter()(cex);
                 return false;
+            } else {
+                TRACE("str_fl", tout << "regex constraint satisfied without asserting constraints to subsolver" << std::endl;);
+                return true;
             }
-            return true;
         } else {
             expr_ref_vector trail(m);
             u_map<expr*> maps[2];
             bool select_map = false;
-            expr_ref ch(m), cond(m);
+            expr_ref cond(m);
             eautomaton::moves mvs;
             maps[0].insert(aut->init(), m.mk_true());
             // is_accepted(a, aut) & some state in frontier is final.
 
-            for (unsigned i = 0; i < str_chars.size(); ++i) {
+            for (auto& ch : str_chars) {
                 u_map<expr*>& frontier = maps[select_map];
                 u_map<expr*>& next = maps[!select_map];
                 select_map = !select_map;
-                ch = str_chars.get(i);
                 next.reset();
                 u_map<expr*>::iterator it = frontier.begin(), end = frontier.end();
                 for (; it != end; ++it) {
@@ -513,8 +512,7 @@ namespace smt {
                     unsigned state = it->m_key;
                     expr*    acc  = it->m_value;
                     aut->get_moves_from(state, mvs, false);
-                    for (unsigned j = 0; j < mvs.size(); ++j) {
-                        eautomaton::move const& mv = mvs[j];
+                    for (eautomaton::move& mv : mvs) {
                         SASSERT(mv.t());
                         if (mv.t()->is_char() && m.is_value(mv.t()->get_char()) && m.is_value(ch)) {
                             if (mv.t()->get_char() == ch) {
@@ -565,6 +563,9 @@ namespace smt {
                     cex = m.mk_or(m.mk_not(f), m.mk_not(ctx.mk_eq_atom(mk_strlen(str), mk_int(str_chars.size()))));
                     ctx.get_rewriter()(cex);
                     return false;
+                } else {
+                    TRACE("str_fl", tout << "regex constraint satisfied without asserting constraints to subsolver" << std::endl;);
+                    return true;
                 }
             } else {
                 // TODO fixed_length_lesson?
@@ -573,8 +574,8 @@ namespace smt {
                 } else {
                     fixed_length_assumptions.push_back(sub_m.mk_not(result));
                 }
+                return true;
             }
-            return true;
         }
     }
 
@@ -642,7 +643,7 @@ namespace smt {
             bool len_exists = v.get_value(arg2, len);
             ENSURE(pos_exists);
             ENSURE(len_exists);
-            TRACE("str_fl", tout << "reduce substring term: base=" << mk_pp(term, m) << ", pos=" << pos.to_string() << ", len=" << len.to_string() << std::endl;);
+            TRACE("str_fl", tout << "reduce substring term: base=" << mk_pp(term, m) << " (length="<<base_chars.size()<<"), pos=" << pos.to_string() << ", len=" << len.to_string() << std::endl;);
             // Case 1: pos < 0 or pos >= strlen(base) or len < 0
             // ==> (Substr ...) = ""
             if (pos.is_neg() || pos >= rational(base_chars.size()) || len.is_neg()) {
@@ -736,7 +737,7 @@ namespace smt {
         ptr_vector<expr> rhs_chars(fixed_length_reduce_string_term(subsolver, rhs));
 
         if (lhsLen != rhsLen) {
-            TRACE("str_fl", tout << "skip disequality: len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << std::endl;);
+            TRACE("str", tout << "skip disequality: len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << std::endl;);
             return true;
         }
 
@@ -772,17 +773,15 @@ namespace smt {
             }
         }
 
-        if (is_trace_enabled("str")) {
-            TRACE_CODE(
-                    ast_manager & m = get_manager();
+        TRACE("str",
+            ast_manager & m = get_manager();
             context & ctx = get_context();
             tout << "dumping all formulas:" << std::endl;
             for (expr_ref_vector::iterator i = formulas.begin(); i != formulas.end(); ++i) {
                 expr * ex = *i;
                 tout << mk_pp(ex, m) << (ctx.is_relevant(ex) ? "" : " (NOT REL)") << std::endl;
             }
-            );
-        }
+        );
 
         fixed_length_subterm_trail.reset();
         fixed_length_used_len_terms.reset();
@@ -904,7 +903,7 @@ namespace smt {
                     } else if (u.str.is_in_re(subterm)) {
                         TRACE("str_fl", tout << "reduce negative regex membership: " << mk_pp(f, m) << std::endl;);
                         expr_ref cex_clause(m);
-                        expr_ref re(f, m);
+                        expr_ref re(subterm, m);
                         if (!fixed_length_reduce_regex_membership(subsolver, re, cex_clause, false)) {
                             assert_axiom(cex_clause);
                             add_persisted_axiom(cex_clause);
@@ -955,22 +954,20 @@ namespace smt {
             precondition.push_back(m.mk_eq(u.str.mk_length(var), mk_int(e.get_value())));
         }
 
-        if (is_trace_enabled("str_fl")) {
-            TRACE_CODE(
-                tout << "bitvector formulas to be checked:" << std::endl;
-                for (auto e : fixed_length_assumptions) {
-                    tout << mk_pp(e, subsolver.m()) << std::endl;
+        TRACE("str_fl",
+            tout << "formulas asserted to bitvector subsolver:" << std::endl;
+            for (auto e : fixed_length_assumptions) {
+                tout << mk_pp(e, subsolver.m()) << std::endl;
+            }
+            tout << "variable to character mappings:" << std::endl;
+            for (auto &entry : var_to_char_subterm_map) {
+                tout << mk_pp(entry.m_key, get_manager()) << ":";
+                for (auto e : entry.m_value) {
+                    tout << " " << mk_pp(e, subsolver.m());
                 }
-                tout << "variable-character mappings:" << std::endl;
-                for (auto &kv : var_to_char_subterm_map) {
-                    tout << mk_pp(kv.m_key, m) << ":";
-                    for (auto e : kv.m_value) {
-                        tout << " " << mk_pp(e, subsolver.m());
-                    }
-                    tout << std::endl;
-                }
-            );
-        }
+                tout << std::endl;
+            }
+        );
 
         TRACE("str_fl", tout << "calling subsolver" << std::endl;);
 
@@ -984,7 +981,7 @@ namespace smt {
 
             expr_substitution subst(m);
 
-            // model_smt2_pp(std::cout, m, *subModel, 2);
+            //model_smt2_pp(std::cout, m, *subModel, 2);
             for (auto entry : var_to_char_subterm_map) {
                 svector<unsigned> assignment;
                 expr * var = entry.m_key;
@@ -1002,6 +999,11 @@ namespace smt {
                 model.insert(var, strValue);
                 subst.insert(var, mk_string(strValue));
             }
+            TRACE("str_fl",
+                for (auto entry : model) {
+                    tout << mk_pp(entry.m_key, m) << " = " << entry.m_value << std::endl;
+                }
+            );
             for (auto entry : uninterpreted_to_char_subterm_map) {
                 svector<unsigned> assignment;
                 expr * var = entry.m_key;
@@ -1039,10 +1041,8 @@ namespace smt {
                             // do nothing
                         } else if (m.is_false(f_new)) {
                             context & ctx = get_context();
-                            if (u.str.is_contains(f)) {
-                                expr * haystack;
-                                expr * needle;
-                                u.str.is_contains(f, haystack, needle);
+                            expr * needle = nullptr, *haystack = nullptr;
+                            if (u.str.is_contains(f, haystack, needle)) {
                                 expr_ref haystack_assignment(m);
                                 expr_ref needle_assignment(m);
                                 (*replacer)(haystack, haystack_assignment);
