@@ -9102,7 +9102,12 @@ namespace smt {
 
                 // check satisfiability of (assignment AND precondition AND model)
 
-                for (auto ex : assignments) {
+                for (expr * ex : assignments) {
+                    if (!get_context().is_relevant(ex)) {
+                        TRACE("str_fl", tout << "skip asserting assignment to subsolver " << mk_pp(ex, m) << ", not relevant" << std::endl;);
+                        continue;
+                    }
+                    TRACE("str_fl", tout << "asserting assignment to subsolver " << mk_pp(ex, m) << std::endl;);
                     subsolver.assert_expr(ex);
                 }
                 for (auto ex : precondition) {
