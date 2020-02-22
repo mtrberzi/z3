@@ -15,6 +15,7 @@
 #include "util/region.h"
 #include "util/debug.h"
 #include "util/util.h"
+#include "util/lbool.h"
 #include "util/vector.h"
 #include <algorithm>
 #include <cstring>
@@ -62,6 +63,8 @@ namespace sat {
         cut_val eval(cut_eval const& env) const;
 
         unsigned size() const { return m_size; }
+
+        unsigned filter() const { return m_filter; }
 
         static unsigned max_cut_size() { return 5; }
 
@@ -158,6 +161,10 @@ namespace sat {
         }
 
         std::ostream& display(std::ostream& out) const;
+
+        static std::ostream& display_table(std::ostream& out, unsigned num_input, uint64_t table);
+
+        static std::string table2string(unsigned num_input, uint64_t table);
     };
 
     class cut_set {

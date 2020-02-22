@@ -115,6 +115,20 @@ namespace sat {
         literal_vector        m_clause;
         cut const*            m_tables[6];
         uint64_t              m_luts[6];
+        literal               m_lits[6];
+
+        class lut {
+            aig_cuts& a;
+            node const* n;
+            cut const* c;
+        public:
+            lut(aig_cuts& a, node const& n) : a(a), n(&n), c(nullptr) {}
+            lut(aig_cuts& a, cut const& c) : a(a), n(nullptr), c(&c) {}
+            unsigned size() const { return n ? n->size() : c->size(); }
+            literal child(unsigned idx) const { return n ? a.child(*n, idx) : a.child(*c, idx); }
+            uint64_t table() const { return n ? n->lut() : c->table(); }
+            std::ostream& display(std::ostream& out) const { return n ? a.display(out, *n) : out << *c; }
+        };
 
         bool is_touched(bool_var v, node const& n);
         bool is_touched(literal lit) const { return is_touched(lit.var()); }
@@ -124,6 +138,7 @@ namespace sat {
         void init_cut_set(unsigned id);
 
         bool eq(node const& a, node const& b);
+        bool similar(node const& a, node const& b);
 
         unsigned_vector filter_valid_nodes() const;
         void augment(unsigned_vector const& ids);
@@ -134,20 +149,25 @@ namespace sat {
         void augment_aig2(unsigned v, node const& n, cut_set& cs);
         void augment_aigN(unsigned v, node const& n, cut_set& cs);
 
-        void augment_lut(unsigned v,  node const& n, cut_set& cs);        
-        void augment_lut_rec(unsigned v, node const& n, cut& a, unsigned idx, cut_set& cs);
+
+        void augment_lut(unsigned v,  lut const& n, cut_set& cs);        
+        void augment_lut_rec(unsigned v, lut const& n, cut& a, unsigned idx, cut_set& cs);
+
+        cut_set const& lit2cuts(literal lit) const { return m_cuts[lit.var()]; }
 
         bool insert_cut(unsigned v, cut const& c, cut_set& cs);
 
         void flush_roots();
-        void flush_roots(literal_vector const& to_root, node& n);
+        bool flush_roots(bool_var var, literal_vector const& to_root, node& n);
         void flush_roots(literal_vector const& to_root, cut_set& cs);
 
         cut_val eval(node const& n, cut_eval const& env) const;
+        lbool get_value(bool_var v) const;
 
         std::ostream& display(std::ostream& out, node const& n) const;
 
         literal child(node const& n, unsigned idx) const { SASSERT(!n.is_var()); SASSERT(idx < n.size()); return m_literals[n.offset() + idx]; }
+        literal child(cut const& n, unsigned idx) const { SASSERT(idx < n.size()); return literal(n[idx], false); }
 
         void on_node_add(unsigned v, node const& n);
         void on_node_del(unsigned v, node const& n);

@@ -15,9 +15,9 @@
 
   --*/
 
+#include "util/trace.h"
 #include "sat/sat_aig_cuts.h"
 #include "sat/sat_solver.h"
-#include "util/trace.h"
 
 namespace sat {
         
@@ -47,6 +47,19 @@ namespace sat {
             for (node const& n : m_aig[id]) {
                 augment(id, n);
             }
+
+#if 0
+            // augment cuts directly       
+            m_cut_save.reset();
+            cut_set& cs = m_cuts[id];
+            for (cut const& c : cs) {
+                if (c.size() > 1) m_cut_save.push_back(c);
+            }
+            for (cut const& c : m_cut_save) {
+                lut lut(*this, c);
+                augment_lut(id, lut, cs);
+            }
+#endif
             IF_VERBOSE(20, m_cuts[id].display(verbose_stream() << "after\n"));            
         }
     }
@@ -62,7 +75,8 @@ namespace sat {
             SASSERT(!n.sign());
         }
         else if (n.is_lut()) {
-            augment_lut(id, n, cs);
+            lut lut(*this, n);
+            augment_lut(id, lut, cs);
         }
         else if (n.is_ite()) {
             augment_ite(id, n, cs);
@@ -100,28 +114,32 @@ namespace sat {
         return true;
     }
 
-    void aig_cuts::augment_lut(unsigned v, node const& n, cut_set& cs) {
-        IF_VERBOSE(4, display(verbose_stream() << "augment_lut " << v << " ", n) << "\n");
-        literal l1 = child(n, 0);
-        for (auto const& a : m_cuts[l1.var()]) {
+    void aig_cuts::augment_lut(unsigned v, lut const& n, cut_set& cs) {
+        IF_VERBOSE(4, n.display(verbose_stream() << "augment_lut " << v << " ") << "\n");
+        literal l1 = n.child(0);
+        VERIFY(&cs != &lit2cuts(l1));
+        for (auto const& a : lit2cuts(l1)) {
             m_tables[0] = &a;
+            m_lits[0] = l1;
             cut b(a);
-            augment_lut_rec(v, n, b, 1, cs);            
+            augment_lut_rec(v, n, b, 1, cs);                        
         }
     }
 
-    void aig_cuts::augment_lut_rec(unsigned v, node const& n, cut& a, unsigned idx, cut_set& cs) {
+    void aig_cuts::augment_lut_rec(unsigned v, lut const& n, cut& a, unsigned idx, cut_set& cs) {
         if (idx < n.size()) {
-            for (auto const& b : m_cuts[child(n, idx).var()]) {
+            literal lit = n.child(idx); 
+            VERIFY(&cs != &lit2cuts(lit));
+            for (auto const& b : lit2cuts(lit)) {
                 cut ab;
-                if (ab.merge(a, b)) {
-                    m_tables[idx] = &b;
-                    augment_lut_rec(v, n, ab, idx + 1, cs);
-                }
+                if (!ab.merge(a, b)) continue;
+                m_tables[idx] = &b;
+                m_lits[idx] = lit;
+                augment_lut_rec(v, n, ab, idx + 1, cs);                
             }
             return;
         }
-        for (unsigned i = 0; i < n.size(); ++i) {
+        for (unsigned i = n.size(); i-- > 0; ) { 
             m_luts[i] = m_tables[i]->shift_table(a);            
         }
         uint64_t r = 0;
@@ -132,31 +150,36 @@ namespace sat {
             // when computing the output at position j, 
             // the i'th bit to index into n.lut() is 
             // based on the j'th output bit in lut[i]
+            // m_lits[i].sign() tracks if output bit is negated
             for (unsigned i = n.size(); i-- > 0; ) {
-                w |= ((m_luts[i] >> j) & 0x1) << i;
+                w |= (((m_luts[i] >> j) ^ (uint64_t)m_lits[i].sign()) & 1u) << i;
             }
-            r |= ((n.lut() >> w) & 0x1) << j;
+            r |= ((n.table() >> w) & 1u) << j;
         } 
         a.set_table(r);
+        IF_VERBOSE(8,
+            verbose_stream() << "lut: " << v << " - " << a << "\n";
+            for (unsigned i = 0; i < n.size(); ++i) {
+                verbose_stream() << m_lits[i] << ": " << *m_tables[i] << "\n";
+            });
         insert_cut(v, a, cs);
-    }
+    }  
 
     void aig_cuts::augment_ite(unsigned v, node const& n, cut_set& cs) {
         IF_VERBOSE(4, display(verbose_stream() << "augment_ite " << v << " ", n) << "\n");
         literal l1 = child(n, 0);
         literal l2 = child(n, 1);
         literal l3 = child(n, 2);
-        for (auto const& a : m_cuts[l1.var()]) {
-            for (auto const& b : m_cuts[l2.var()]) {
+        VERIFY(&cs != &lit2cuts(l1)); 
+        VERIFY(&cs != &lit2cuts(l2));  
+        VERIFY(&cs != &lit2cuts(l3));  
+        for (auto const& a : lit2cuts(l1)) {
+            for (auto const& b : lit2cuts(l2)) {
                 cut ab;
-                if (!ab.merge(a, b)) {
-                    continue;
-                }
-                for (auto const& c : m_cuts[l3.var()]) {
+                if (!ab.merge(a, b)) continue;                
+                for (auto const& c : lit2cuts(l3)) {
                     cut abc;
-                    if (!abc.merge(ab, c)) {
-                        continue;
-                    }
+                    if (!abc.merge(ab, c)) continue;                    
                     uint64_t t1 = a.shift_table(abc);
                     uint64_t t2 = b.shift_table(abc);
                     uint64_t t3 = c.shift_table(abc);
@@ -175,7 +198,7 @@ namespace sat {
         IF_VERBOSE(4, display(verbose_stream() << "augment_unit " << v << " ", n) << "\n");
         SASSERT(n.is_and() && n.size() == 0);
         reset(cs);
-        cut c;          
+        cut c;
         c.set_table(n.sign() ? 0x0 : 0x1);
         push_back(cs, c);
     }
@@ -184,10 +207,11 @@ namespace sat {
         IF_VERBOSE(4, display(verbose_stream() << "augment_aig1 " << v << " ", n) << "\n");
         SASSERT(n.is_and());
         literal lit = child(n, 0);
-        for (auto const& a : m_cuts[lit.var()]) {
+        VERIFY(&cs != &lit2cuts(lit));
+        for (auto const& a : lit2cuts(lit)) {
             cut c(a);
             if (n.sign()) c.negate();
-            if (!insert_cut(v, c, cs)) return; 
+            if (!insert_cut(v, c, cs)) return;             
         }
     }
 
@@ -196,12 +220,12 @@ namespace sat {
         SASSERT(n.is_and() || n.is_xor());
         literal l1 = child(n, 0);
         literal l2 = child(n, 1);
-        for (auto const& a : m_cuts[l1.var()]) {
-            for (auto const& b : m_cuts[l2.var()]) {
-                cut c;
-                if (!c.merge(a, b)) {
-                    continue;
-                }
+        VERIFY(&cs != &lit2cuts(l1));
+        VERIFY(&cs != &lit2cuts(l2));
+        for (auto const& a : lit2cuts(l1)) {
+            for (auto const& b : lit2cuts(l2)) {
+                cut c;            
+                if (!c.merge(a, b)) continue;                
                 uint64_t t1 = a.shift_table(c);
                 uint64_t t2 = b.shift_table(c);
                 if (l1.sign()) t1 = ~t1;
@@ -220,7 +244,7 @@ namespace sat {
         m_cut_set1.reset(m_on_cut_del);
         SASSERT(n.is_and() || n.is_xor());
         literal lit = child(n, 0);
-        for (auto const& a : m_cuts[lit.var()]) {
+        for (auto const& a : lit2cuts(lit)) {
             cut b(a);
             if (lit.sign()) {
                 b.negate();
@@ -232,11 +256,9 @@ namespace sat {
             lit = child(n, i);
             m_insertions = 0;
             for (auto const& a : m_cut_set1) {
-                for (auto const& b : m_cuts[lit.var()]) {
+                for (auto const& b : lit2cuts(lit)) {
                     cut c;
-                    if (!c.merge(a, b)) {
-                        continue;
-                    }
+                    if (!c.merge(a, b)) continue;
                     uint64_t t1 = a.shift_table(c);
                     uint64_t t2 = b.shift_table(c);
                     if (lit.sign()) t2 = ~t2;
@@ -310,7 +332,7 @@ namespace sat {
     }
 
     void aig_cuts::add_node(bool_var v, uint64_t lut, unsigned sz, bool_var const* args) {
-        TRACE("aig_simplifier", tout << v << " == " << lut << " " << bool_var_vector(sz, args) << "\n";);
+        TRACE("aig_simplifier", tout << v << " == " << cut::table2string(sz, lut) << " " << bool_var_vector(sz, args) << "\n";);
         reserve(v);
         unsigned offset = m_literals.size();
         node n(lut, sz, offset);
@@ -369,9 +391,13 @@ namespace sat {
                 reset(m_cuts[i]);
             }
             else {
+                unsigned j = 0;
                 for (node & n : m_aig[i]) {
-                    flush_roots(to_root, n);
+                    if (flush_roots(i, to_root, n)) {
+                        m_aig[i][j++] = n;
+                    }
                 }
+                m_aig[i].shrink(j);
             }
         }
         for (cut_set& cs : m_cuts) {
@@ -381,18 +407,23 @@ namespace sat {
         TRACE("aig_simplifier", display(tout););
     }
 
-    void aig_cuts::flush_roots(literal_vector const& to_root, node& n) {
+    bool aig_cuts::flush_roots(bool_var var, literal_vector const& to_root, node& n) {
         bool changed = false;
         for (unsigned i = 0; i < n.size(); ++i) {
             literal& lit = m_literals[n.offset() + i];
-            if (to_root[lit.var()] != lit) {
+            literal r = to_root[lit.var()];
+            if (r != lit) {
                 changed = true;
-                lit = lit.sign() ? ~to_root[lit.var()] : to_root[lit.var()];
+                lit = lit.sign() ? ~r : r;
+            }
+            if (lit.var() == var) {
+                return false;
             }
         }
         if (changed && (n.is_and() || n.is_xor())) {
             std::sort(m_literals.c_ptr() + n.offset(), m_literals.c_ptr() + n.offset() + n.size());
         }
+        return true;
     }
 
     void aig_cuts::flush_roots(literal_vector const& to_root, cut_set& cs) {
@@ -404,6 +435,12 @@ namespace sat {
                 }
             }
         }
+    }
+
+    lbool aig_cuts::get_value(bool_var v) const {
+        return (m_aig[v].size() == 1 && m_aig[v][0].is_const()) ? 
+            (m_aig[v][0].sign() ? l_false : l_true) : 
+            l_undef;
     }
 
     void aig_cuts::init_cut_set(unsigned id) {
@@ -418,23 +455,31 @@ namespace sat {
     bool aig_cuts::eq(node const& a, node const& b) {
         if (a.is_valid() != b.is_valid()) return false;
         if (!a.is_valid()) return true;
-        if (a.op() != b.op() || a.sign() != b.sign() || a.size() != b.size()) return false;
-        for (unsigned i = 0; i < a.size(); ++i) {
-            if (m_literals[a.offset() + i] != m_literals[b.offset() + i]) return false;
+        if (a.op() != b.op() || a.sign() != b.sign() || a.size() != b.size()) 
+            return false;
+        for (unsigned i = a.size(); i-- > 0; ) {
+            if (m_literals[a.offset() + i] != m_literals[b.offset() + i]) 
+                return false;
         }
         return true;
+    }
+
+    bool aig_cuts::similar(node const& a, node const& b) {
+        bool sim = true;
+        sim = a.is_lut() && !b.is_lut() && a.size() == b.size();
+        for (unsigned i = a.size(); sim && i-- > 0; ) {
+            sim = m_literals[a.offset() + i].var() == m_literals[b.offset() + i].var();
+        }
+        return sim;
     }
 
     bool aig_cuts::insert_aux(unsigned v, node const& n) {
         if (!m_config.m_full) return false;
         unsigned num_gt = 0, num_eq = 0;
         for (node const& n2 : m_aig[v]) {
-            if (eq(n, n2)) return false;
+            if (eq(n, n2) || similar(n, n2)) return false;
             else if (n.size() < n2.size()) num_gt++;
             else if (n.size() == n2.size()) num_eq++;
-            // avoid inserting LUTs that are likely to collide
-            if (n.is_lut() && !n2.is_lut() && n.size() == n2.size()) 
-                return false;
         }
         if (m_aig[v].size() < m_config.m_max_aux) {
             on_node_add(v, n);
