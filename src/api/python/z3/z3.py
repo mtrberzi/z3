@@ -6907,9 +6907,9 @@ class Solver(Z3PPObject):
         """
         return Z3_solver_to_string(self.ctx.ref(), self.solver)
 
-    def dimacs(self):
+    def dimacs(self, include_names=True):
         """Return a textual representation of the solver in DIMACS format."""
-        return Z3_solver_to_dimacs_string(self.ctx.ref(), self.solver)
+        return Z3_solver_to_dimacs_string(self.ctx.ref(), self.solver, include_names)
 
     def to_smt2(self):
         """return SMTLIB2 formatted benchmark for solver's assertions"""
@@ -10032,10 +10032,13 @@ class SeqRef(ExprRef):
     def is_string_value(self):
         return Z3_is_string(self.ctx_ref(), self.as_ast())
 
+
     def as_string(self):
         """Return a string representation of sequence expression."""
         if self.is_string_value():
-           return Z3_get_string(self.ctx_ref(), self.as_ast())
+            string_length = ctypes.c_uint()
+            chars = Z3_get_lstring(self.ctx_ref(), self.as_ast(), byref(string_length))
+            return string_at(chars, size=string_length.value).decode('ascii')
         return Z3_ast_to_string(self.ctx_ref(), self.as_ast())
 
     def __le__(self, other):

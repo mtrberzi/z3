@@ -79,6 +79,9 @@ namespace sat {
 
     void cut_set::push_back(on_update_t& on_add, cut const& c) {
         SASSERT(m_max_size > 0);
+        if (!m_cuts) {
+            m_cuts = new (*m_region) cut[m_max_size];
+        }
         if (m_size == m_max_size) {
             m_max_size *= 2;
             cut* new_cuts = new (*m_region) cut[m_max_size]; 
@@ -87,6 +90,15 @@ namespace sat {
         }
         if (m_var != UINT_MAX && on_add) on_add(m_var, c);
         m_cuts[m_size++] = c; 
+    }
+
+    void cut_set::evict(on_update_t& on_del, cut const& c) {
+        for (unsigned i = 0; i < m_size; ++i) {
+            if (m_cuts[i] == c) {
+                evict(on_del, i);
+                break;
+            }
+        }
     }
 
     void cut_set::evict(on_update_t& on_del, unsigned idx) {
@@ -100,9 +112,9 @@ namespace sat {
         SASSERT(!m_region || m_cuts);
         VERIFY(!m_region || m_max_size > 0);
         if (!m_region) {
-            m_max_size = max_sz;
+            m_max_size = 2; // max_sz;
             m_region = &r;
-            m_cuts = new (r) cut[max_sz];
+            m_cuts = nullptr;
         }
     }
 
@@ -164,6 +176,56 @@ namespace sat {
             if ((*this)[i] != other[i]) return false;
         }
         return true;
+    }
+
+    /**
+     * \brief create the masks
+     * i = 0: 101010101010101
+     * i = 1: 1100110011001100
+     * i = 2: 1111000011110000
+     * i = 3: 111111110000000011111111
+     */
+
+    uint64_t cut::effect_mask(unsigned i) {
+        SASSERT(i <= 6);
+        uint64_t m = 0;
+        if (i == 6) {
+            m = ~((uint64_t)0);
+        }
+        else {
+            m = (1ull << (1u << i)) - 1;   // i = 0: m = 1
+            unsigned w = 1u << (i + 1);    // i = 0: w = 2
+            while (w < 64) {
+                m |= (m << w);             // i = 0: m = 1 + 4
+                w *= 2;
+            }
+        }
+        return m;
+    }
+
+    /**
+       remove element from cut as it is deemed a don't care
+     */
+    void cut::remove_elem(unsigned i) {
+        for (unsigned j = i + 1; j < m_size; ++j) {
+            m_elems[j-1] = m_elems[j]; 
+        }
+        --m_size;
+        uint64_t m = effect_mask(i);
+        uint64_t t = 0;
+        for (unsigned j = 0, offset = 0; j < 64; ++j) {
+            if (0 != (m & (1ull << j))) {
+                t |= ((m_table >> j) & 1u) << offset;
+                ++offset;
+            }
+        }
+        m_table = t;
+        m_dont_care = 0;
+        unsigned f = 0;
+        for (unsigned e : *this) {
+            f |= (1u << (e & 0x1F));
+        }
+        m_filter = f;
     }
 
     /**
