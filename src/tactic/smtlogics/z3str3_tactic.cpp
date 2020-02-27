@@ -178,8 +178,9 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     }
 
     // introduce search_overlaps arm which is always used immediately after z3str3 fails
-    // TODO parameterize search time
-    z3str3_2 = or_else(z3str3_2, using_params(try_for(mk_smt_tactic(m), 5000), search_overlaps_p));
+    if (m_smt_params.m_SearchOverlaps) {
+        z3str3_2 = or_else(z3str3_2, using_params(try_for(mk_smt_tactic(m), m_smt_params.m_SearchOverlapsMilliseconds), search_overlaps_p));
+    }
 
     tactic * z3str3_1 = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), preprocess_p);
     tactic * z3seq = nullptr;
