@@ -189,7 +189,7 @@ struct theory_str_params {
         m_UseFastValueTesterCache(true),
         m_StringConstantCache(true),
         m_FiniteOverlapModels(false),
-        m_SearchOverlaps(true),
+        m_SearchOverlaps(false),
         m_UseBinarySearch(false),
         m_BinarySearchInitialUpperBound(64),
         m_OverlapTheoryAwarePriority(-0.1),
