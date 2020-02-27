@@ -1511,10 +1511,10 @@ namespace smt {
         {
             expr_ref premiseNEmpty(ctx.mk_eq_atom(N, empty_string), m);
             // range check
-            expr_ref premiseRangeLower(m_autil.mk_le(i, minus_one), m);
-            expr_ref premiseRangeUpper(m_autil.mk_ge(m_autil.mk_add(i, m_autil.mk_mul(minus_one, mk_strlen(H))), zero), m);
-            expr_ref premiseRange(m.mk_or(premiseRangeLower, premiseRangeUpper), m);
-            expr_ref premise(m.mk_and(premiseNEmpty, premiseRange), m);
+            expr_ref premiseRangeLower(m_autil.mk_ge(i, zero), m);
+            expr_ref premiseRangeUpper(m_autil.mk_le(i, mk_strlen(H)), m);
+            expr_ref premiseRange(m.mk_and(premiseRangeLower, premiseRangeUpper), m);
+            expr_ref premise(m.mk_and(premiseNEmpty, m.mk_not(premiseRange)), m);
             expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
             expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
             rw(finalAxiom);
@@ -1525,9 +1525,9 @@ namespace smt {
         {
             expr_ref premiseNEmpty(ctx.mk_eq_atom(N, empty_string), m);
             // range check
-            expr_ref premiseRangeLower(m_autil.mk_le(i, minus_one), m);
-            expr_ref premiseRangeUpper(m_autil.mk_ge(m_autil.mk_add(i, m_autil.mk_mul(minus_one, mk_strlen(H))), zero), m);
-            expr_ref premiseRange(m.mk_not(m.mk_or(premiseRangeLower, premiseRangeUpper)), m);
+            expr_ref premiseRangeLower(m_autil.mk_ge(i, zero), m);
+            expr_ref premiseRangeUpper(m_autil.mk_le(i, mk_strlen(H)), m);
+            expr_ref premiseRange(m.mk_and(premiseRangeLower, premiseRangeUpper), m);
             expr_ref premise(m.mk_and(premiseNEmpty, premiseRange), m);
             expr_ref conclusion(ctx.mk_eq_atom(e, i), m);
             expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
@@ -3453,6 +3453,10 @@ namespace smt {
                     assert_implication(ax_l, ax_r);
                 }
             } else {
+                if (m_params.m_SearchOverlaps) {
+                    TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                    return;
+                }
                 loopDetected = true;
                 if (m_params.m_FiniteOverlapModels) {
                     expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
@@ -3516,6 +3520,10 @@ namespace smt {
                     assert_implication(ax_l, ax_r);
                 }
             } else {
+                if (m_params.m_SearchOverlaps) {
+                    TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                    return;
+                }
                 loopDetected = true;
                 if (m_params.m_FiniteOverlapModels) {
                     expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
@@ -3572,6 +3580,10 @@ namespace smt {
                 add_cut_info_merge(t1, ctx.get_scope_level(), m);
                 add_cut_info_merge(t1, ctx.get_scope_level(), y);
             } else {
+                if (m_params.m_SearchOverlaps) {
+                    TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                    return;
+                }
                 loopDetected = true;
                 if (m_params.m_FiniteOverlapModels) {
                     expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
@@ -3621,6 +3633,10 @@ namespace smt {
                 add_cut_info_merge(t2, ctx.get_scope_level(), x);
                 add_cut_info_merge(t2, ctx.get_scope_level(), n);
             } else {
+                if (m_params.m_SearchOverlaps) {
+                    TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                    return;
+                }
                 loopDetected = true;
                 if (m_params.m_FiniteOverlapModels) {
                     expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
@@ -3867,6 +3883,10 @@ namespace smt {
                         assert_implication(ax_l, ax_r);
                     }
                 } else {
+                    if (m_params.m_SearchOverlaps) {
+                        TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                        return;
+                    }
                     loopDetected = true;
 
                     if (m_params.m_FiniteOverlapModels) {
@@ -3974,6 +3994,10 @@ namespace smt {
                     add_cut_info_merge(temp1, ctx.get_scope_level(), y);
                     add_cut_info_merge(temp1, ctx.get_scope_level(), m);
                 } else {
+                    if (m_params.m_SearchOverlaps) {
+                        TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                        return;
+                    }
                     loopDetected = true;
                     if (m_params.m_FiniteOverlapModels) {
                         expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
@@ -4276,6 +4300,10 @@ namespace smt {
                         assert_implication(ax_l, ax_r);
                     }
                 } else {
+                    if (m_params.m_SearchOverlaps) {
+                        TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                        return;
+                    }
                     loopDetected = true;
                     if (m_params.m_FiniteOverlapModels) {
                         expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
@@ -4361,6 +4389,10 @@ namespace smt {
                     add_cut_info_merge(temp1, sLevel, x);
                     add_cut_info_merge(temp1, sLevel, n);
                 } else {
+                    if (m_params.m_SearchOverlaps) {
+                        TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                        return;
+                    }
                     loopDetected = true;
                     if (m_params.m_FiniteOverlapModels) {
                         expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
@@ -4766,6 +4798,10 @@ namespace smt {
             arrangement_disjunction.push_back(option1);
             add_theory_aware_branching_info(option1, 0.1, l_true);
         } else {
+            if (m_params.m_SearchOverlaps) {
+                TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
+                return;
+            }
             loopDetected = true;
 
             if (m_params.m_FiniteOverlapModels) {

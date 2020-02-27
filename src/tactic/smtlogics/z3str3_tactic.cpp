@@ -154,9 +154,18 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     general_p.set_bool("str.multiset_check", false);
     general_p.set_bool("str.count_abstraction", false);
     general_p.set_sym("string_solver", symbol("z3str3"));
+    general_p.set_bool("str.search_overlaps", false);
 
     params_ref seq_p = p;
     seq_p.set_sym("string_solver", symbol("seq"));
+
+    params_ref search_overlaps_p = p;
+    search_overlaps_p.set_bool("str.fixed_length_preprocessing", false);
+    search_overlaps_p.set_bool("str.fixed_length_models", true);
+    search_overlaps_p.set_bool("str.multiset_check", false);
+    search_overlaps_p.set_bool("str.count_abstraction", false);
+    search_overlaps_p.set_sym("string_solver", symbol("z3str3"));
+    search_overlaps_p.set_bool("str.search_overlaps", true);
 
     tactic * z3str3_2;
     if (m_smt_params.m_RewriterTactic)
@@ -167,6 +176,10 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     {
         z3str3_2 = using_params(mk_smt_tactic(m), general_p);
     }
+
+    // introduce search_overlaps arm which is always used immediately after z3str3 fails
+    // TODO parameterize search time
+    z3str3_2 = or_else(z3str3_2, using_params(try_for(mk_smt_tactic(m), 5000), search_overlaps_p));
 
     tactic * z3str3_1 = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), preprocess_p);
     tactic * z3seq = nullptr;

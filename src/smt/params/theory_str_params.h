@@ -75,6 +75,14 @@ struct theory_str_params {
      */
     bool m_FiniteOverlapModels;
 
+    /*
+     * If SearchOverlaps is set to true,
+     * arrangements that result in overlapping variables will be searched as far as possible,
+     * potentially allowing model construction to take place, instead of skipping the
+     * branch and returning UNKNOWN.
+     */
+    bool m_SearchOverlaps;
+
     bool m_UseBinarySearch;
     unsigned m_BinarySearchInitialUpperBound;
 
@@ -181,6 +189,7 @@ struct theory_str_params {
         m_UseFastValueTesterCache(true),
         m_StringConstantCache(true),
         m_FiniteOverlapModels(false),
+        m_SearchOverlaps(false),
         m_UseBinarySearch(false),
         m_BinarySearchInitialUpperBound(64),
         m_OverlapTheoryAwarePriority(-0.1),
