@@ -202,8 +202,9 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         tactic * st = using_params(and_then(mk_simplify_tactic(m, p), z3str3_2), p);
         return st;
     } else if (m_smt_params.m_StrTactic == 3) {
-        // Uses length abstraction iteration time to quit early
-        z3seq       = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
+        // Dynamic Algorithm Selection
+        seq_p.set_bool("seq.quit_early", true);
+        z3seq       = using_params(mk_smt_tactic(m), seq_p);
         tactic * st = using_params(and_then(mk_simplify_tactic(m, p), cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
         return st;
     } else {

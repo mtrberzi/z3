@@ -412,6 +412,10 @@ final_check_status theory_seq::final_check_eh() {
         return FC_CONTINUE;
     }
     if (branch_nqs()) {
+        if (m_params.m_quit_early) {
+            TRACE("str_fl", tout << "sequence solver got to branching on nqs -- giving up!" << std::endl;);
+            return FC_GIVEUP;
+        }
         ++m_stats.m_branch_nqs;
         TRACEFIN("branch_ne");
         return FC_CONTINUE;
