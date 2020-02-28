@@ -3453,6 +3453,12 @@ namespace smt {
                     assert_implication(ax_l, ax_r);
                 }
             } else {
+                if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                    TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                    expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                    assert_axiom(negated_equality);
+                    return;
+                }
                 if (m_params.m_SearchOverlaps) {
                     TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                     return;
@@ -3520,6 +3526,12 @@ namespace smt {
                     assert_implication(ax_l, ax_r);
                 }
             } else {
+                if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                    TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                    expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                    assert_axiom(negated_equality);
+                    return;
+                }
                 if (m_params.m_SearchOverlaps) {
                     TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                     return;
@@ -3580,6 +3592,12 @@ namespace smt {
                 add_cut_info_merge(t1, ctx.get_scope_level(), m);
                 add_cut_info_merge(t1, ctx.get_scope_level(), y);
             } else {
+                if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                    TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                    expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                    assert_axiom(negated_equality);
+                    return;
+                }
                 if (m_params.m_SearchOverlaps) {
                     TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                     return;
@@ -3633,6 +3651,12 @@ namespace smt {
                 add_cut_info_merge(t2, ctx.get_scope_level(), x);
                 add_cut_info_merge(t2, ctx.get_scope_level(), n);
             } else {
+                if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                    TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                    expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                    assert_axiom(negated_equality);
+                    return;
+                }
                 if (m_params.m_SearchOverlaps) {
                     TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                     return;
@@ -3883,6 +3907,12 @@ namespace smt {
                         assert_implication(ax_l, ax_r);
                     }
                 } else {
+                    if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                        TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                        expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                        assert_axiom(negated_equality);
+                        return;
+                    }
                     if (m_params.m_SearchOverlaps) {
                         TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                         return;
@@ -3994,6 +4024,12 @@ namespace smt {
                     add_cut_info_merge(temp1, ctx.get_scope_level(), y);
                     add_cut_info_merge(temp1, ctx.get_scope_level(), m);
                 } else {
+                    if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                        TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                        expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                        assert_axiom(negated_equality);
+                        return;
+                    }
                     if (m_params.m_SearchOverlaps) {
                         TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                         return;
@@ -4300,6 +4336,12 @@ namespace smt {
                         assert_implication(ax_l, ax_r);
                     }
                 } else {
+                    if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                        TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                        expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                        assert_axiom(negated_equality);
+                        return;
+                    }
                     if (m_params.m_SearchOverlaps) {
                         TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                         return;
@@ -4389,6 +4431,12 @@ namespace smt {
                     add_cut_info_merge(temp1, sLevel, x);
                     add_cut_info_merge(temp1, sLevel, n);
                 } else {
+                    if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                        TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                        expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                        assert_axiom(negated_equality);
+                        return;
+                    }
                     if (m_params.m_SearchOverlaps) {
                         TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                         return;
@@ -4798,6 +4846,12 @@ namespace smt {
             arrangement_disjunction.push_back(option1);
             add_theory_aware_branching_info(option1, 0.1, l_true);
         } else {
+            if (is_unsat_under_multiset_check(concatAst1, concatAst2)) {
+                TRACE("str", tout << "equality " << mk_pp(concatAst1, mgr) << " = " << mk_pp(concatAst2, mgr) << " overlaps, but proven to be UNSAT" << std::endl;);
+                expr_ref negated_equality(mgr.mk_not(ctx.mk_eq_atom(concatAst1, concatAst2)), mgr);
+                assert_axiom(negated_equality);
+                return;
+            }
             if (m_params.m_SearchOverlaps) {
                 TRACE("str", tout << "SearchOverlaps enabled, continuing the search in this branch." << std::endl;);
                 return;
@@ -9836,26 +9890,32 @@ namespace smt {
         out << "TODO: theory_str display" << std::endl;
     }
 
-    /*
-     * Quickly check that we can balance the equations
-     */
-    void theory_str::multiset_check(expr * lhs, expr * rhs) {
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-
+    bool theory_str::is_unsat_under_multiset_check(expr * lhs, expr * rhs) {
         std::multiset<expr*> left_v_set;
         std::multiset<expr*> left_c_set;
         if(!get_multisets(lhs, &left_c_set, &left_v_set)){
-            return;
+            return false;
         }
 
         std::multiset<expr*> right_v_set;
         std::multiset<expr*> right_c_set;
         if(!get_multisets(rhs, &right_c_set, &right_v_set)){
-            return;
+            return false;
         }
 
         if (left_v_set == right_v_set && left_c_set != right_c_set) {
+            return true;
+        }
+        return false;
+    }
+
+    /*
+     * Quickly check that we can balance the equations
+     */
+    void theory_str::multiset_check(expr * lhs, expr * rhs) {
+        if (is_unsat_under_multiset_check(lhs, rhs)) {
+            context & ctx = get_context();
+            ast_manager & m = get_manager();
             // build premise: (lhs == rhs)
             expr_ref premise(ctx.mk_eq_atom(lhs, rhs), m);
             TRACE("str_fl", tout << "Multiset Contradiction! " << mk_ismt2_pp(premise, m) << std::endl;);
@@ -9863,7 +9923,6 @@ namespace smt {
             expr_ref conflict(m.mk_false(), m);
             assert_implication(premise, conflict);
         }
-        
     }
 
     bool theory_str::get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set) {
