@@ -9238,7 +9238,7 @@ namespace smt {
                 preprocessing_iteration_count += 1;
                 m_stats.m_fixed_length_iterations++;
                 // if each iteration is taking too long then give up.
-                if (m_params.m_StrTactic == 3 && duration.count() > 50) {
+                if (m_params.m_StrTactic == 3 && duration.count() > 75) {
                     TRACE("str_fl", tout << "fixed-length preprocessing iteration took too long -- giving up!" << std::endl;);
                     return FC_GIVEUP;
                 }
@@ -9259,7 +9259,7 @@ namespace smt {
                 preprocessing_iteration_count += 1;
                 m_stats.m_fixed_length_iterations++;
                 // if each iteration is taking too long then give up.
-                if (m_params.m_StrTactic == 3 && duration.count() > 50) {
+                if (m_params.m_StrTactic == 3 && duration.count() > 75) {
                     TRACE("str_fl", tout << "fixed-length preprocessing iteration took too long -- giving up!" << std::endl;);
                     return FC_GIVEUP;
                 }
