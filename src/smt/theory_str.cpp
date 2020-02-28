@@ -31,6 +31,9 @@
 #include "smt_kernel.h"
 #include "model/model_smt2_pp.h"
 
+#include <chrono> 
+using namespace std::chrono; 
+
 namespace smt {
 
     theory_str::theory_str(ast_manager & m, theory_str_params const & params):
@@ -9170,7 +9173,11 @@ namespace smt {
             for (auto &e : variable_set) {
                 toplevel_vars.push_back(e);
             }
+
+            auto start = high_resolution_clock::now(); 
             lbool model_status = fixed_length_model_construction(assignments, precondition, toplevel_vars, model, cex);
+            auto stop = high_resolution_clock::now(); 
+            auto duration = duration_cast<milliseconds>(stop - start);
 
             if (model_status == l_true) {
                 // SAT
@@ -9230,6 +9237,11 @@ namespace smt {
                 // UNSAT
                 preprocessing_iteration_count += 1;
                 m_stats.m_fixed_length_iterations++;
+                // if each iteration is taking too long then give up.
+                if (m_params.m_StrTactic == 3 && duration.count() > 50) {
+                    TRACE("str_fl", tout << "fixed-length preprocessing iteration took too long -- giving up!" << std::endl;);
+                    return FC_GIVEUP;
+                }
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str_fl", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     return FC_GIVEUP;
@@ -9246,6 +9258,11 @@ namespace smt {
                 // UNKNOWN
                 preprocessing_iteration_count += 1;
                 m_stats.m_fixed_length_iterations++;
+                // if each iteration is taking too long then give up.
+                if (m_params.m_StrTactic == 3 && duration.count() > 50) {
+                    TRACE("str_fl", tout << "fixed-length preprocessing iteration took too long -- giving up!" << std::endl;);
+                    return FC_GIVEUP;
+                }
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str_fl", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     return FC_GIVEUP;
