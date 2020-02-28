@@ -10091,8 +10091,6 @@ namespace smt {
             ++m_stats.m_refine_eq;
             return refine_eq(lhs, rhs, offset.get_unsigned());
         }
-        // Let's just giveup if we find ourselves in the disjunctive fragment.
-        preprocessing_iteration_count = m_params.m_FixedLengthIterations + 1;
         if (offset == rational(-1)) { // negative equation
             ++m_stats.m_refine_neq;
             return refine_dis(lhs, rhs);
