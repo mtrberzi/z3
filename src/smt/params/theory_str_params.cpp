@@ -50,6 +50,7 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_FixedLengthRefinement = p.str_fixed_length_refinement();
     m_FixedLengthNaiveCounterexamples = p.str_fixed_length_naive_cex();
     m_SearchOverlaps = p.str_search_overlaps();
+    m_SearchOverlapsMilliseconds = p.str_search_overlaps_milliseconds();
 }
 
 #define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;

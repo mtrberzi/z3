@@ -671,6 +671,7 @@ protected:
     app * mk_strcount(expr * x, expr * y);
     bool instantiate_str_eq_count_axiom(enode * lhs, enode * rhs);
     void multiset_check(expr * lhs, expr * rhs);
+    bool is_unsat_under_multiset_check(expr * lhs, expr * rhs);
     bool get_sets(expr * ex, std::set<expr*> *characterSet, std::set<expr*> *varSet);
     bool get_multisets(expr * ex,  std::multiset<expr*> *c_set, std::multiset<expr*> *v_set);
     expr* refine(expr* lhs, expr* rhs, rational offset);

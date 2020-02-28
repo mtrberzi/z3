@@ -82,6 +82,8 @@ struct theory_str_params {
      * branch and returning UNKNOWN.
      */
     bool m_SearchOverlaps;
+    // Number of milliseconds to try searching overlaps with the arrangement solver.
+    unsigned m_SearchOverlapsMilliseconds;
 
     bool m_UseBinarySearch;
     unsigned m_BinarySearchInitialUpperBound;
@@ -189,7 +191,8 @@ struct theory_str_params {
         m_UseFastValueTesterCache(true),
         m_StringConstantCache(true),
         m_FiniteOverlapModels(false),
-        m_SearchOverlaps(false),
+        m_SearchOverlaps(true),
+        m_SearchOverlapsMilliseconds(5000),
         m_UseBinarySearch(false),
         m_BinarySearchInitialUpperBound(64),
         m_OverlapTheoryAwarePriority(-0.1),
