@@ -204,7 +204,7 @@ struct theory_str_params {
         m_RegexAutomata_LengthAttemptThreshold(10),
         m_FixedLengthModels(true),
         m_FixedLengthPreprocessing(true),
-        m_FixedLengthIterations(1000),
+        m_FixedLengthIterations(5),
         m_FixedLengthRefinement(false),
         m_PreMilliseconds(1000),
         m_MultisetCheck(false),

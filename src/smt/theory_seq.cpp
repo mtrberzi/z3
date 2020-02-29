@@ -396,9 +396,50 @@ final_check_status theory_seq::final_check_eh() {
         TRACEFIN("branch_binary_variable");
         return FC_CONTINUE;
     }
-    if (branch_variable()) {
+    // "inline" call to branch_variable() for giveup_points
+    if (branch_variable_mb()) {
         ++m_stats.m_branch_variable;
         TRACEFIN("branch_variable");
+        if (m_params.m_giveup_point == 1) {
+            TRACE("str_fl", tout << "sequence solver got to point 1---giving up!" << std::endl;);
+            return FC_GIVEUP;
+        }
+        return FC_CONTINUE;
+    }
+    if (branch_variable_eq()) {
+        ++m_stats.m_branch_variable;
+        TRACEFIN("branch_variable");
+        if (m_params.m_giveup_point == 2) {
+            TRACE("str_fl", tout << "sequence solver got to point 2---giving up!" << std::endl;);
+            return FC_GIVEUP;
+        }
+        return FC_CONTINUE;
+    }
+    if (branch_ternary_variable1()) {
+        ++m_stats.m_branch_variable;
+        TRACEFIN("branch_variable");
+        if (m_params.m_giveup_point == 3) {
+            TRACE("str_fl", tout << "sequence solver got to point 3---giving up!" << std::endl;);
+            return FC_GIVEUP;
+        }
+        return FC_CONTINUE;
+    }
+    if (branch_ternary_variable2()) {
+        ++m_stats.m_branch_variable;
+        TRACEFIN("branch_variable");
+        if (m_params.m_giveup_point == 4) {
+            TRACE("str_fl", tout << "sequence solver got to point 4---giving up!" << std::endl;);
+            return FC_GIVEUP;
+        }
+        return FC_CONTINUE;
+    }
+    if (branch_quat_variable()) {
+        ++m_stats.m_branch_variable;
+        TRACEFIN("branch_variable");
+        if (m_params.m_giveup_point == 5) {
+            TRACE("str_fl", tout << "sequence solver got to point 5---giving up!" << std::endl;);
+            return FC_GIVEUP;
+        }
         return FC_CONTINUE;
     }
     if (check_length_coherence()) {
@@ -412,12 +453,12 @@ final_check_status theory_seq::final_check_eh() {
         return FC_CONTINUE;
     }
     if (branch_nqs()) {
-        if (m_params.m_quit_early) {
-            TRACE("str_fl", tout << "sequence solver got to branching on nqs -- giving up!" << std::endl;);
-            return FC_GIVEUP;
-        }
         ++m_stats.m_branch_nqs;
         TRACEFIN("branch_ne");
+        if (m_params.m_giveup_point == 6) {
+            TRACE("str_fl", tout << "sequence solver got to point 6---giving up!" << std::endl;);
+            return FC_GIVEUP;
+        }
         return FC_CONTINUE;
     }
     if (is_solved()) {
