@@ -10132,21 +10132,12 @@ namespace smt {
             return 1;
 
         } else if (u.str.is_extract(ex)) {
-            expr* substrBase = nullptr;
-            expr* substrPos = nullptr;
-            expr* substrLen = nullptr;
-            u.str.is_extract(ex, substrBase, substrPos, substrLen);
-            arith_value v(m);
-            v.init(&ctx);
-            rational len, pos;
-            VERIFY(v.get_value(substrLen, len));
-            VERIFY(v.get_value(substrPos, pos));
-            extra_deps.push_back(ctx.mk_eq_atom(substrPos, mk_int(pos)));
-            return len.get_unsigned();
+            // reduction added this term to fixed_length_used_len_terms
+            // so treat it like a variable
 
         } else if (u.str.is_replace(ex)) {
-            TRACE("str_fl", tout << "replace is like contains---not in conjunctive fragment!" << std::endl;);
-            UNREACHABLE();
+            // reduction added this term to fixed_length_used_len_terms 
+            // as an uninterpreted function---treat it like a variable
         }
         //find asserts that it exists
         return fixed_length_used_len_terms.find(ex);
