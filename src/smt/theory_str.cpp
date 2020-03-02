@@ -10110,43 +10110,12 @@ namespace smt {
             return 1;
 
         } else if (u.str.is_extract(ex)) {
-            expr* substrBase = nullptr;
-            expr* substrPos = nullptr;
-            expr* substrLen = nullptr;
-            u.str.is_extract(ex, substrBase, substrPos, substrLen);
-            arith_value v(m);
-            v.init(&ctx);
-            rational len, pos;
-            VERIFY(v.get_value(substrLen, len));
-            VERIFY(v.get_value(substrPos, pos));
-            extra_deps.push_back(ctx.mk_eq_atom(substrPos, mk_int(pos)));
-
-            // To get this length we have to assume that the base string is long enough.
-            // This might be an issue if we don't have an axiom that says something along the lines of
-            // len(extract(base, pos, len)) = min(len, len(base) - pos)
-            rational fulllen = pos + len;
-            extra_deps.push_back(m_autil.mk_ge(u.str.mk_length(substrBase), mk_int(fulllen)));
-            return len.get_unsigned();
+            // reduction added this term to fixed_length_used_len_terms
+            // so treat it like a variable
 
         } else if (u.str.is_replace(ex)) {
-            expr* base = nullptr;
-            expr* target = nullptr;
-            expr* repl = nullptr;
-            u.str.is_replace(ex, base, target, repl);
-            arith_value v(m);
-            v.init(&ctx);
-            unsigned baselen = fixed_length_used_len_terms.find(base);
-            unsigned targetlen = fixed_length_used_len_terms.find(target);
-            unsigned repllen = fixed_length_used_len_terms.find(repl);
-            extra_deps.push_back(ctx.mk_eq_atom(u.str.mk_length(base), mk_int(baselen)));
-            extra_deps.push_back(ctx.mk_eq_atom(u.str.mk_length(target), mk_int(targetlen)));
-            extra_deps.push_back(ctx.mk_eq_atom(u.str.mk_length(repl), mk_int(repllen)));
-
-            // To get this length we have to assume that the base contains the target.
-            // This might be an issue if we don't have an axiom that says something along the lines of
-            // ~contains(base, target) ==> replace(base, target, repl) = repl
-            extra_deps.push_back(u.str.mk_contains(base, target));
-            return baselen+repllen-targetlen;
+            // reduction added this term to fixed_length_used_len_terms 
+            // as an uninterpreted function---treat it like a variable
         }
         //find asserts that it exists
         return fixed_length_used_len_terms.find(ex);

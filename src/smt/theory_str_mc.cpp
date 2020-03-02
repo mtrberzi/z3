@@ -678,17 +678,24 @@ namespace smt {
             // ==> (Substr ...) = ""
             if (pos.is_neg() || pos >= rational(base_chars.size()) || len.is_neg()) {
                 eqc_chars.reset();
+                fixed_length_used_len_terms.insert(term, 0);
                 return true;
             } else {
                 if (pos + len >= rational(base_chars.size())) {
                     // take as many characters as possible up to the end of base_chars
+                    unsigned count = 0;
                     for (unsigned i = pos.get_unsigned(); i < base_chars.size(); ++i) {
                         eqc_chars.push_back(base_chars.get(i));
+                        count++;
                     }
+                    fixed_length_used_len_terms.insert(term, count);
                 } else {
+                    unsigned count = 0;
                     for (unsigned i = pos.get_unsigned(); i < pos.get_unsigned() + len.get_unsigned(); ++i) {
                         eqc_chars.push_back(base_chars.get(i));
+                        count++;
                     }
+                    fixed_length_used_len_terms.insert(term, count);
                 }
             }
         } else if (u.str.is_at(term, arg0, arg1)) {
