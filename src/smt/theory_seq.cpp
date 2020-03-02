@@ -342,11 +342,16 @@ final_check_status theory_seq::final_check_eh() {
     TRACE("seq", display(tout << "level: " << get_context().get_scope_level() << "\n"););
     TRACE("seq_verbose", get_context().display(tout););
 
+    if (m_params.m_giveup_point == 7 && (m_stats.m_num_reductions > 50000 || m_stats.m_propagate_automata > 100)) {
+        TRACE("str_fl", tout << "sequence solver made too many reductions---giving up!" << std::endl;);
+        return FC_GIVEUP;
+    }
+
     if (simplify_and_solve_eqs()) {
         ++m_stats.m_solve_eqs;
         TRACEFIN("solve_eqs");
         return FC_CONTINUE;
-    }    
+    }
     if (check_contains()) {
         ++m_stats.m_propagate_contains;
         TRACEFIN("propagate_contains");
