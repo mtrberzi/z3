@@ -256,15 +256,17 @@ public:
                 return;
             }
             case l_undef:
-                seq_util seq(m);
-                smt::theory * th = m_ctx->get_context().get_theory(seq.get_family_id());
-                smt::theory_str * z3str3 = dynamic_cast<smt::theory_str*>(th);
-                if (z3str3 != NULL) {
-                    expr_ref_vector z3str3_transcendent_axioms = z3str3->get_transcendent_axioms();
-                    TRACE("str", tout << z3str3_transcendent_axioms.size() << " transcendent axioms" << std::endl;);
-                    for (auto ex : z3str3_transcendent_axioms) {
-                        TRACE("str", tout << "transcendent axiom: " << mk_pp(ex, m) << std::endl;);
-                        in->assert_expr(ex);
+                if (m_params.m_ShareConstraints) {
+                    seq_util seq(m);
+                    smt::theory * th = m_ctx->get_context().get_theory(seq.get_family_id());
+                    smt::theory_str * z3str3 = dynamic_cast<smt::theory_str*>(th);
+                    if (z3str3 != NULL) {
+                        expr_ref_vector z3str3_transcendent_axioms = z3str3->get_transcendent_axioms();
+                        TRACE("str", tout << z3str3_transcendent_axioms.size() << " transcendent axioms" << std::endl;);
+                        for (auto ex : z3str3_transcendent_axioms) {
+                            TRACE("str", tout << "transcendent axiom: " << mk_pp(ex, m) << std::endl;);
+                            in->assert_expr(ex);
+                        }
                     }
                 }
                 if (m_ctx->canceled()&& !pr) {
