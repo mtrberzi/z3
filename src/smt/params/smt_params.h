@@ -111,6 +111,7 @@ struct smt_params : public preprocessor_params,
     bool             m_new_core2th_eq;
     bool             m_ematching;
     bool             m_clause_proof;
+    bool             m_tactic_model_validation;
 
     // -----------------------------------
     //
@@ -263,6 +264,7 @@ struct smt_params : public preprocessor_params,
         m_new_core2th_eq(true),
         m_ematching(true),
         m_clause_proof(false),
+        m_tactic_model_validation(false),
         m_case_split_strategy(CS_ACTIVITY_DELAY_NEW),
         m_rel_case_split_order(0),
         m_lookahead_diseq(false),
