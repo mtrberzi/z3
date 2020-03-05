@@ -182,6 +182,13 @@ struct theory_str_params {
      */
     bool m_FixedLengthNaiveCounterexamples;
 
+    /*
+     * If ShareConstraints is true, Z3str3 will mark certain axioms and conflict clauses as "shared" and
+     * will propagate them to other solvers if it fails to find a solution.
+     * This has no effect outside of the portfolio tactic or if no other tactic is called after Z3str3 runs.
+     */
+    bool m_ShareConstraints;
+
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
@@ -211,7 +218,8 @@ struct theory_str_params {
         m_CountAbstraction(false),
 		m_RewriterTactic(false),
 		m_StrTactic(0),
-        m_FixedLengthNaiveCounterexamples(true)
+        m_FixedLengthNaiveCounterexamples(true),
+        m_ShareConstraints(true)
     {
         updt_params(p);
     }

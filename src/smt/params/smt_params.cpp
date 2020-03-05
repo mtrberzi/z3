@@ -27,6 +27,7 @@ void smt_params::updt_local_params(params_ref const & _p) {
     m_relevancy_lvl = p.relevancy();
     m_ematching   = p.ematching();
     m_clause_proof = p.clause_proof();
+    m_tactic_model_validation = p.tactic_model_validation();
     m_phase_selection = static_cast<phase_selection>(p.phase_selection());
     m_restart_strategy = static_cast<restart_strategy>(p.restart_strategy());
     m_restart_factor = p.restart_factor();
@@ -110,6 +111,7 @@ void smt_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_new_core2th_eq);
     DISPLAY_PARAM(m_ematching);
     DISPLAY_PARAM(m_clause_proof);
+    DISPLAY_PARAM(m_tactic_model_validation);
 
     DISPLAY_PARAM(m_case_split_strategy);
     DISPLAY_PARAM(m_rel_case_split_order);

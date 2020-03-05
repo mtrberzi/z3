@@ -51,6 +51,7 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_FixedLengthNaiveCounterexamples = p.str_fixed_length_naive_cex();
     m_SearchOverlaps = p.str_search_overlaps();
     m_SearchOverlapsMilliseconds = p.str_search_overlaps_milliseconds();
+    m_ShareConstraints = p.str_share_constraints();
 }
 
 #define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;
@@ -82,4 +83,5 @@ void theory_str_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_StrTactic);
     DISPLAY_PARAM(m_FixedLengthNaiveCounterexamples);
     DISPLAY_PARAM(m_SearchOverlaps);
+    DISPLAY_PARAM(m_ShareConstraints);
 }

@@ -159,6 +159,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
 
     params_ref seq_p = p;
     seq_p.set_sym("string_solver", symbol("seq"));
+    seq_p.set_bool("tactic_model_validation", true);
 
     params_ref search_overlaps_p = p;
     search_overlaps_p.set_bool("str.fixed_length_preprocessing", false);

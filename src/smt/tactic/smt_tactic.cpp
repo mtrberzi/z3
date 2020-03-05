@@ -184,12 +184,14 @@ public:
                 unsigned sz = in->size();
                 for (unsigned i = 0; i < sz; i++) {
                     m_ctx->assert_expr(in->form(i), in->pr(i));
+                    clauses.push_back(in->form(i));
                 }
             }
             else {
                 unsigned sz = in->size();
                 for (unsigned i = 0; i < sz; i++) {
                     m_ctx->assert_expr(in->form(i));
+                    clauses.push_back(in->form(i));
                 }
             }
             if (m_ctx->canceled()) {                
@@ -223,6 +225,23 @@ public:
                 if (in->models_enabled()) {
                     model_ref md;
                     m_ctx->get_model(md);
+
+                    // model validation
+                    if (m_params.m_tactic_model_validation) {
+                        model_evaluator evaluator(*(md.get()), m_params_ref);
+                        expr_ref result(m);
+                        for (expr * f : clauses) {
+                            result = nullptr;
+                            evaluator(f, result);
+                            TRACE("model_validate", tout << "checking " << mk_ismt2_pp(f, m) << ", result: " << mk_ismt2_pp(result, m) << std::endl;);
+                            if (m.is_true(result)) {
+                                continue;
+                            }
+                            // model is invalid - change to UNKNOWN
+                            throw tactic_exception("smt_tactic produced invalid model");
+                        }
+                    }
+
                     buffer<symbol> r;
                     m_ctx->get_relevant_labels(nullptr, r);
                     labels_vec rv;
@@ -256,15 +275,17 @@ public:
                 return;
             }
             case l_undef:
-                seq_util seq(m);
-                smt::theory * th = m_ctx->get_context().get_theory(seq.get_family_id());
-                smt::theory_str * z3str3 = dynamic_cast<smt::theory_str*>(th);
-                if (z3str3 != NULL) {
-                    expr_ref_vector z3str3_transcendent_axioms = z3str3->get_transcendent_axioms();
-                    TRACE("str", tout << z3str3_transcendent_axioms.size() << " transcendent axioms" << std::endl;);
-                    for (auto ex : z3str3_transcendent_axioms) {
-                        TRACE("str", tout << "transcendent axiom: " << mk_pp(ex, m) << std::endl;);
-                        in->assert_expr(ex);
+                if (m_params.m_ShareConstraints) {
+                    seq_util seq(m);
+                    smt::theory * th = m_ctx->get_context().get_theory(seq.get_family_id());
+                    smt::theory_str * z3str3 = dynamic_cast<smt::theory_str*>(th);
+                    if (z3str3 != NULL) {
+                        expr_ref_vector z3str3_transcendent_axioms = z3str3->get_transcendent_axioms();
+                        TRACE("str", tout << z3str3_transcendent_axioms.size() << " transcendent axioms" << std::endl;);
+                        for (auto ex : z3str3_transcendent_axioms) {
+                            TRACE("str", tout << "transcendent axiom: " << mk_pp(ex, m) << std::endl;);
+                            in->assert_expr(ex);
+                        }
                     }
                 }
                 if (m_ctx->canceled()&& !pr) {
