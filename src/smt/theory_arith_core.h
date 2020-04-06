@@ -258,6 +258,7 @@ namespace smt {
 
         c_entry.m_row_id    = r_id;
         c_entry.m_row_idx   = r_idx;
+        m_stats.m_tableau_max_columns = std::max(m_stats.m_tableau_max_columns, (unsigned)v + 1);
     }
 
     /**
@@ -493,14 +494,13 @@ namespace smt {
         literal l_conseq = ctx.get_literal(s_conseq);
         if (negated) l_conseq.neg();
 
-        TRACE("arith_axiom", tout << mk_pp(ante, m) << "\n" << mk_pp(conseq, m) << "\n";
+        TRACE("arith", tout << mk_pp(ante, m) << "\n" << mk_pp(conseq, m) << "\n";
               tout << s_ante << "\n" << s_conseq << "\n";
               tout << l_ante << "\n" << l_conseq << "\n";);
 
         // literal lits[2] = {l_ante, l_conseq};
         if (m.has_trace_stream()) {
-            app_ref body(m);
-            body = m.mk_or(ante, conseq);
+            app_ref body(m.mk_or(ante, conseq), m);
             log_axiom_instantiation(body);
         }
         mk_clause(l_ante, l_conseq, 0, nullptr);
@@ -581,7 +581,6 @@ namespace smt {
             if (m_params.m_arith_enum_const_mod && m_util.is_numeral(divisor, k) &&
                 k.is_pos() && k < rational(8)) {
                 rational j(0);
-#if 1
                 literal_buffer lits;
                 expr_ref mod_j(m);
                 while(j < k) {
@@ -595,55 +594,7 @@ namespace smt {
                     j += rational(1);
                 }
                 ctx.mk_th_axiom(get_id(), lits.size(), lits.begin());
-
-#else
-                // performs slightly worse.
-                literal_buffer lits;
-                expr_ref mod_j(m), div_j(m), num_j(m), n_mod_j(m), n_div_j(m);
-                context& ctx = get_context();
-                while(j < k) {
-                    num_j = m_util.mk_numeral(j, true);
-                    mod_j = m.mk_eq(mod, num_j);
-                    div_j = m.mk_eq(dividend, m_util.mk_add(m_util.mk_mul(div, divisor), num_j));
-                    n_mod_j = m.mk_not(mod_j);
-                    n_div_j = m.mk_not(div_j);
-                    mk_axiom(n_mod_j, div_j);
-                    mk_axiom(n_div_j, mod_j);
-                    j += rational(1);
-                }
-#endif
             }
-
-#if 0
-            // e-matching is too restrictive for multiplication.
-            // also suffers from use-after free so formulas have to be pinned in solver.
-            // 
-            if (!m_util.is_numeral(divisor)) {
-                //
-                // forall x . (or (= y 0) (= (div (* x y) y) x))
-                // forall x . (=> (= y 0) (= (div (* x y) y) (div 0 0)))
-                // 
-                sort* intS = m_util.mk_int();
-                var_ref v(m.mk_var(0, intS), m);
-                app_ref mul(m_util.mk_mul(divisor, v), m);
-                app_ref div(m_util.mk_idiv(mul, divisor), m);
-                expr_ref divp1(m.mk_pattern(div), m);
-                app_ref mul2(m_util.mk_mul(v, divisor), m);
-                app_ref div2(m_util.mk_idiv(mul2, divisor), m);
-                expr_ref divp2(m.mk_pattern(div2), m);
-                expr_ref fml1(m.mk_or(m.mk_not(eqz), m.mk_eq(div, m_util.mk_idiv(zero, zero))), m);
-                expr_ref fml2(m.mk_or(eqz, m.mk_eq(div, v)), m);
-                symbol name("?x");
-                expr* pats[2] = { divp1, divp2 };
-                expr_ref fml(m);
-                fml = m.mk_forall(1, &intS, &name, fml1, 0, symbol::null, symbol::null, 2, pats, 0, nullptr);
-                proof_ref pr(m.mk_asserted(fml), m);
-                ctx.internalize_assertion(fml, pr, 0);
-                fml = m.mk_forall(1, &intS, &name, fml2, 0, symbol::null, symbol::null, 2, pats, 0, nullptr);
-                pr = m.mk_asserted(fml);
-                ctx.internalize_assertion(fml, pr, 0);
-            }
-#endif
         }
     }
 
@@ -881,6 +832,7 @@ namespace smt {
     */
     template<typename Ext>
     unsigned theory_arith<Ext>::mk_row() {
+        
         unsigned r;
         if (m_dead_rows.empty()) {
             r = m_rows.size();
@@ -893,6 +845,7 @@ namespace smt {
         m_in_to_check.assure_domain(r);
         SASSERT(m_rows[r].size() == 0);
         SASSERT(m_rows[r].num_entries() == 0);
+        m_stats.m_tableau_max_rows = std::max(m_stats.m_tableau_max_rows, m_rows.size());
         return r;
     }
 
@@ -1322,7 +1275,6 @@ namespace smt {
         expr * rhs2;
         if (m_util.is_to_real(rhs, rhs2) && is_app(rhs2)) { rhs = to_app(rhs2); }
         if (!m_util.is_numeral(rhs)) {
-            UNREACHABLE();
             throw default_exception("malformed atomic constraint");
         }
         theory_var v   = internalize_term_core(lhs);

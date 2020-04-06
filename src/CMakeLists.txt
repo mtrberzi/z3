@@ -54,7 +54,6 @@ add_subdirectory(math/grobner)
 add_subdirectory(sat)
 add_subdirectory(nlsat)
 add_subdirectory(math/lp)
-add_subdirectory(math/euclid)
 add_subdirectory(tactic/core)
 add_subdirectory(math/subpaving/tactic)
 add_subdirectory(tactic/aig)
@@ -266,6 +265,18 @@ if (Z3_BUILD_JAVA_BINDINGS)
       "You either need to disable Z3_BUILD_JAVA_BINDINGS or enable Z3_BUILD_LIBZ3_SHARED")
   endif()
   add_subdirectory(api/java)
+endif()
+
+################################################################################
+# Julia bindings
+################################################################################
+option(Z3_BUILD_JULIA_BINDINGS "Build Julia bindings for Z3" OFF)
+if (Z3_BUILD_JULIA_BINDINGS)
+  if (NOT Z3_BUILD_LIBZ3_SHARED)
+    message(FATAL_ERROR "The Julia bindings will not work with a static libz3."
+      "You either need to disable Z3_BUILD_JULIA_BINDINGS or enable Z3_BUILD_LIBZ3_SHARED")
+  endif()
+  add_subdirectory(api/julia)
 endif()
 
 # TODO: Implement support for other bindigns

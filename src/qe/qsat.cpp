@@ -29,6 +29,7 @@ Notes:
 #include "ast/rewriter/expr_replacer.h"
 #include "model/model_v2_pp.h"
 #include "model/model_evaluator.h"
+#include "model/model_evaluator_params.hpp"
 #include "smt/smt_kernel.h"
 #include "smt/params/smt_params.h"
 #include "smt/smt_solver.h"
@@ -160,15 +161,12 @@ namespace qe {
         }
         model_evaluator eval(*mdl);
         eval.set_model_completion(true);
-        TRACE("qe", model_v2_pp(tout, *mdl););
+        TRACE("qe_assumptions", model_v2_pp(tout, *mdl););
 
         expr_ref val(m);
         for (unsigned j = 0; j < m_preds[level - 1].size(); ++j) {
-            app* p = m_preds[level - 1][j].get();
-            TRACE("qe", tout << "process level: " << level - 1 << ": " << mk_pp(p, m) << "\n";);
-            
-            eval(p, val);
-            
+            app* p = m_preds[level - 1][j].get();            
+            eval(p, val);            
             if (m.is_false(val)) {
                 m_asms.push_back(m.mk_not(p));
             }
@@ -197,7 +195,7 @@ namespace qe {
                 }
             }
         }
-        TRACE("qe", tout << "level: " << level << "\n";
+        TRACE("qe_assumptions", tout << "level: " << level << "\n";
               model_v2_pp(tout, *mdl);
               display(tout, asms););
     }
@@ -291,7 +289,7 @@ namespace qe {
     }
 
     app_ref pred_abs::fresh_bool(char const* name) {
-        app_ref r(m.mk_fresh_const(name, m.mk_bool_sort()), m);
+        app_ref r(m.mk_fresh_const(name, m.mk_bool_sort(), true), m);
         m_fmc->hide(r);
         return r;
     }
@@ -548,14 +546,12 @@ namespace qe {
     public:
         kernel(ast_manager& m):
             m(m),
-            m_solver(mk_smt_solver(m, m_params, symbol::null))
+            m_solver(nullptr)
         {
             m_params.set_bool("model", true);
-            m_params.set_uint("relevancy_lvl", 0);
+            m_params.set_uint("relevancy", 0);
             m_params.set_uint("case_split_strategy", CS_ACTIVITY_WITH_CACHE);
-            m_solver->updt_params(m_params);
-        }
-        
+        }        
         
         solver& s() { return *m_solver; }
         solver const& s() const { return *m_solver; }
@@ -563,9 +559,14 @@ namespace qe {
         void init() {
             m_solver = mk_smt_solver(m, m_params, symbol::null);
         }
+        void collect_statistics(statistics & st) const {
+            if (m_solver) 
+                m_solver->collect_statistics(st);
+        }
         void reset_statistics() {
             init();
         }
+        
         void clear() {
             m_solver = nullptr;
         }
@@ -576,7 +577,7 @@ namespace qe {
         void get_core(expr_ref_vector& core) {
             core.reset();
             m_solver->get_unsat_core(core);
-            TRACE("qe", m_solver->display(tout << "core: " << core << "\n") << "\n";);
+            TRACE("qe_core", m_solver->display(tout << "core: " << core << "\n") << "\n";);
         }
     };
 
@@ -659,6 +660,7 @@ namespace qe {
                         if (m_mode == qsat_sat) {
                             return l_true; 
                         }
+
                         if (m_model.get()) {
                             SASSERT(validate_assumptions(*m_model.get(), asms));
                             if (!project_qe(asms)) return l_undef;
@@ -715,8 +717,8 @@ namespace qe {
         
         void clear() {
             m_st.reset();        
-            m_fa.s().collect_statistics(m_st);
-            m_ex.s().collect_statistics(m_st);        
+            m_fa.collect_statistics(m_st);
+            m_ex.collect_statistics(m_st);        
             m_pred_abs.collect_statistics(m_st);
             m_level = 0;
             m_answer.reset();
@@ -855,9 +857,7 @@ namespace qe {
         }
         
         void check_cancel() {
-            if (m.canceled()) {
-                throw tactic_exception(m.limit().get_cancel_msg());
-            }
+            tactic::checkpoint(m);
         }
         
         void display(std::ostream& out) const {
@@ -1065,6 +1065,7 @@ namespace qe {
          */
         expr_ref elim(app_ref_vector& vars, expr* _fml) {
             expr_ref fml(_fml, m);
+            TRACE("qe", tout << vars << ": " << fml << "\n";);
             expr_ref_vector defs(m);
             if (has_quantifiers(fml)) {
                 return expr_ref(m);
@@ -1106,8 +1107,7 @@ namespace qe {
             for (expr* c : core) {
                 if (!mdl.is_true(c)) {
                     TRACE("qe", tout << "component of core is not true: " << mk_pp(c, m) << "\n";
-                          tout << mdl << "\n";
-                          );
+                          tout << mdl << "\n";);
                     if (mdl.is_false(c)) {
                         return false;
                     }
@@ -1124,7 +1124,7 @@ namespace qe {
             expr_ref_vector fmls(m);
             fmls.append(core.size(), core.c_ptr());
             s.get_assertions(fmls);
-            return check_fmls(fmls) || m.canceled();
+            return check_fmls(fmls) || !m.inc();
 #endif
         }
 
@@ -1137,7 +1137,7 @@ namespace qe {
             lbool is_sat = solver.check();
             CTRACE("qe", is_sat != l_false, 
                    tout << fmls << "\nare not unsat\n";);
-            return (is_sat == l_false) || m.canceled();
+            return (is_sat == l_false) || !m.inc();
         }
 
         bool validate_model(expr_ref_vector const& asms) {
@@ -1156,7 +1156,7 @@ namespace qe {
         bool validate_model(model& mdl, unsigned sz, expr* const* fmls) {
             expr_ref val(m);
             for (unsigned i = 0; i < sz; ++i) {
-                if (!m_model->is_true(fmls[i]) && !m.canceled()) {
+                if (!m_model->is_true(fmls[i]) && m.inc()) {
                     TRACE("qe", tout << "Formula does not evaluate to true in model: " << mk_pp(fmls[i], m) << "\n";);
                     return false;
                 } 
@@ -1188,7 +1188,7 @@ namespace qe {
                 TRACE("qe", tout << "Projection is false in model\n";);
                 return false;
             }
-            if (m.canceled()) {
+            if (!m.inc()) {
                 return true;
             }
             for (unsigned i = 0; i < m_avars.size(); ++i) {
@@ -1240,7 +1240,6 @@ namespace qe {
             m_was_sat(false),
             m_gt(m)
         {
-            reset();
         }
         
         ~qsat() override {
@@ -1256,6 +1255,9 @@ namespace qe {
         void operator()(/* in */  goal_ref const & in, 
                         /* out */ goal_ref_buffer & result) override {
             tactic_report report("qsat-tactic", *in);
+            model_evaluator_params mp(m_params);
+            if (!mp.array_equalities())
+                throw tactic_exception("array equalities cannot be disabled for qsat");
             ptr_vector<expr> fmls;
             expr_ref_vector defs(m);
             expr_ref fml(m);
@@ -1266,6 +1268,8 @@ namespace qe {
             // fail if cores.  (TBD)
             // fail if proofs. (TBD)
             
+            TRACE("qe", tout << fml << "\n";);
+
             if (m_mode == qsat_qe_rec) {
                 fml = elim_rec(fml);
                 in->reset();
@@ -1276,7 +1280,6 @@ namespace qe {
             }
                 
             reset();
-            TRACE("qe", tout << fml << "\n";);
             if (m_mode != qsat_sat) {
                 fml = push_not(fml);
             }
@@ -1292,7 +1295,6 @@ namespace qe {
             m_fa.assert_expr(m.mk_not(fml));
             TRACE("qe", tout << "ex: " << fml << "\n";);
             lbool is_sat = check_sat();
-            
             switch (is_sat) {
             case l_false:
                 in->reset();

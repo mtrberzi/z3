@@ -109,34 +109,6 @@ namespace smt {
         m_model_generator->set_context(this);
     }
 
-    literal context::translate_literal(
-        literal lit, context& src_ctx, context& dst_ctx,
-        vector<bool_var> b2v, ast_translation& tr) {
-        ast_manager& dst_m = dst_ctx.get_manager();
-        ast_manager& src_m = src_ctx.get_manager();
-        expr_ref dst_f(dst_m);
-
-        SASSERT(lit != false_literal && lit != true_literal);
-        bool_var v = b2v.get(lit.var(), null_bool_var);
-        if (v == null_bool_var) {
-            expr* e = src_ctx.m_bool_var2expr.get(lit.var(), 0);
-            SASSERT(e);
-            dst_f = tr(e);
-            v = dst_ctx.get_bool_var_of_id_option(dst_f->get_id());
-            if (v != null_bool_var) {
-            }
-            else if (src_m.is_not(e) || src_m.is_and(e) || src_m.is_or(e) ||
-                     src_m.is_iff(e) || src_m.is_ite(e)) {
-                v = dst_ctx.mk_bool_var(dst_f);
-            }
-            else {
-                dst_ctx.internalize_formula(dst_f, true);
-                v = dst_ctx.get_bool_var(dst_f);
-            }
-            b2v.setx(lit.var(), v, null_bool_var);
-        }
-        return literal(v, lit.sign());
-    }
 
     /**
        \brief retrieve flag for when cancelation is possible.
@@ -149,6 +121,9 @@ namespace smt {
     void context::updt_params(params_ref const& p) {
         m_params.append(p);
         m_asserted_formulas.updt_params(p);
+        if (!m_setup.already_configured()) {
+            m_fparams.updt_params(p);
+        }
     }
 
     unsigned context::relevancy_lvl() const {
@@ -188,51 +163,17 @@ namespace smt {
         if (!src_ctx.m_setup.already_configured()) {
             return;
         }
+
+        for (unsigned i = 0; !src_m.proofs_enabled() && i < src_ctx.m_assigned_literals.size(); ++i) {
+            literal lit = src_ctx.m_assigned_literals[i];
+            expr_ref fml0(src_m), fml1(dst_m);
+            src_ctx.literal2expr(lit, fml0);
+            fml1 = tr(fml0.get());
+            dst_ctx.assert_expr(fml1);
+        }
+
         dst_ctx.setup_context(dst_ctx.m_fparams.m_auto_config);
         dst_ctx.internalize_assertions();
-
-        vector<bool_var> b2v;
-
-#define TRANSLATE(_lit) translate_literal(_lit, src_ctx, dst_ctx, b2v, tr)
-
-        for (unsigned i = 0; i < src_ctx.m_assigned_literals.size(); ++i) {
-            literal lit;
-            lit = TRANSLATE(src_ctx.m_assigned_literals[i]);
-            dst_ctx.mk_clause(1, &lit, nullptr, CLS_AUX, nullptr);
-        }
-#if 0
-        literal_vector lits;
-        expr_ref_vector cls(src_m);
-        for (unsigned i = 0; i < src_ctx.m_lemmas.size(); ++i) {
-            lits.reset();
-            cls.reset();
-            clause& src_cls = *src_ctx.m_lemmas[i];
-            unsigned sz = src_cls.get_num_literals();
-            for (unsigned j = 0; j < sz; ++j) {
-                literal lit = TRANSLATE(src_cls.get_literal(j));
-                lits.push_back(lit);
-            }
-            dst_ctx.mk_clause(lits.size(), lits.c_ptr(), 0, src_cls.get_kind(), 0);
-        }
-        vector<watch_list>::const_iterator it  = src_ctx.m_watches.begin();
-        vector<watch_list>::const_iterator end = src_ctx.m_watches.end();
-        literal ls[2];
-        for (unsigned l_idx = 0; it != end; ++it, ++l_idx) {
-            literal l1 = to_literal(l_idx);
-            literal neg_l1 = ~l1;
-            watch_list const & wl = *it;
-            literal const * it2  = wl.begin();
-            literal const * end2 = wl.end();
-            for (; it2 != end2; ++it2) {
-                literal l2 = *it2;
-                if (l1.index() < l2.index()) {
-                    ls[0] = TRANSLATE(neg_l1);
-                    ls[1] = TRANSLATE(l2);
-                    dst_ctx.mk_clause(2, ls, 0, CLS_AUX, 0);
-                }
-            }
-        }
-#endif
 
         TRACE("smt_context",
               src_ctx.display(tout);
@@ -249,6 +190,8 @@ namespace smt {
         // copy theory plugins
         for (theory* old_th : src.m_theory_set) {
             theory * new_th = old_th->mk_fresh(&dst);
+            if (!new_th)
+                throw default_exception("theory cannot be copied");
             dst.register_plugin(new_th);
         }
     }
@@ -308,9 +251,6 @@ namespace smt {
     }
 
     void context::assign_core(literal l, b_justification j, bool decision) {
-        CTRACE("assign_core", l.var() == 1573 || l.var() == 1253, tout << (decision?"decision: ":"propagating: ") << l << " ";
-              display_literal_smt2(tout, l); tout << " level: " << m_scope_lvl << "\n";
-              display(tout, j););
         m_assigned_literals.push_back(l);
         m_assignment[l.index()]    = l_true;
         m_assignment[(~l).index()] = l_false;
@@ -324,25 +264,25 @@ namespace smt {
         }
         d.m_phase_available        = true;
         d.m_phase                  = !l.sign();
+        CTRACE("assign_core", l.var() == 13, tout << (decision?"decision: ":"propagating: ") << l << " ";
+               /*display_literal(tout, l);*/
+               tout << "relevant: " << is_relevant_core(l) << " level: " << m_scope_lvl << " is atom " << d.is_atom() << "\n";
+               /*display(tout, j);*/
+               );
         TRACE("phase_selection", tout << "saving phase, is_pos: " << d.m_phase << " l: " << l << "\n";);
 
-        TRACE("relevancy",
-              tout << "is_atom: " << d.is_atom() << " is relevant: " << is_relevant_core(l) << " relevancy-lvl: " << relevancy_lvl() << "\n";);
-        if (d.is_atom() && (relevancy_lvl() == 0 || (relevancy_lvl() == 1 && !d.is_quantifier()) || is_relevant_core(l)))
+        CTRACE("relevancy", l.var() == 13,
+              tout << "is_atom: " << d.is_atom() << " is relevant: " 
+              << is_relevant_core(l) << " relevancy-lvl: " << relevancy_lvl() << "\n";);
+        if (d.is_atom() && (relevancy_lvl() == 0 || (relevancy_lvl() == 1 && !d.is_quantifier()) || is_relevant_core(l))) {
+            CTRACE("assign_core", l.var() == 13, tout << "propagation queue\n";);
             m_atom_propagation_queue.push_back(l);
+        }
 
         if (m.has_trace_stream())
             trace_assign(l, j, decision);
 
         m_case_split_queue->assign_lit_eh(l);
-
-        // a unit is asserted at search level. Mark it as relevant.
-        // this addresses bug... where a literal becomes fixed to true (false)
-        // as a conflict gets assigned misses relevancy (and quantifier instantiation).
-        //
-        if (false && !decision && relevancy() && at_search_level() && !is_relevant_core(l)) {
-            mark_as_relevant(l);
-        }
     }
 
     bool context::bcp() {
@@ -515,6 +455,7 @@ namespace smt {
             TRACE("add_eq", tout << "assigning: #" << n1->get_owner_id() << " = #" << n2->get_owner_id() << "\n";);
             TRACE("add_eq_detail", tout << "assigning\n" << enode_pp(n1, *this) << "\n" << enode_pp(n2, *this) << "\n";
                   tout << "kind: " << js.get_kind() << "\n";);
+            SASSERT(m.get_sort(n1->get_owner()) == m.get_sort(n2->get_owner()));
 
             m_stats.m_num_add_eq++;
             enode * r1 = n1->get_root();
@@ -1352,13 +1293,14 @@ namespace smt {
     */
     bool context::propagate_atoms() {
         SASSERT(!inconsistent());
+        CTRACE("propagate_atoms", !m_atom_propagation_queue.empty(), tout << m_atom_propagation_queue << "\n";);
         for (unsigned i = 0; i < m_atom_propagation_queue.size() && !get_cancel_flag(); i++) {
             SASSERT(!inconsistent());
             literal  l = m_atom_propagation_queue[i];
             bool_var v = l.var();
             bool_var_data & d = get_bdata(v);
             lbool val  = get_assignment(v);
-            TRACE("propagate_atoms", tout << "propagating atom, #" << bool_var2expr(v)->get_id() << ", is_enode(): " << d.is_enode()
+            CTRACE("propagate_atoms", v == 13, tout << "propagating atom, #" << bool_var2expr(v)->get_id() << ", is_enode(): " << d.is_enode()
                   << " tag: " << (d.is_eq()?"eq":"") << (d.is_theory_atom()?"th":"") << (d.is_quantifier()?"q":"") << " " << l << "\n";);
             SASSERT(val != l_undef);
             if (d.is_enode())
@@ -1946,6 +1888,7 @@ namespace smt {
         m_region.push_scope();
         m_scopes.push_back(scope());
         scope & s = m_scopes.back();
+        TRACE("context", tout << "push " << m_scope_lvl << "\n";);
 
         m_relevancy_propagator->push();
         s.m_assigned_literals_lim    = m_assigned_literals.size();
@@ -2066,7 +2009,7 @@ namespace smt {
         while (i != old_lim) {
             --i;
             literal l                  = m_assigned_literals[i];
-            CTRACE("assign_core", l.var() == 1573 || l.var() == 1253, tout << "unassign " << l << "\n";);
+            CTRACE("assign_core", l.var() == 13, tout << "unassign " << l << "\n";);
             m_assignment[l.index()]    = l_undef;
             m_assignment[(~l).index()] = l_undef;
             bool_var v                 = l.var();
@@ -2383,7 +2326,6 @@ namespace smt {
        \warning This method will not invoke reset_cache_generation.
     */
     unsigned context::pop_scope_core(unsigned num_scopes) {
-
         unsigned units_to_reassert_lim;
 
         try {
@@ -2439,13 +2381,15 @@ namespace smt {
 
             m_asserted_formulas.pop_scope(num_scopes);
 
+            CTRACE("propagate_atoms", !m_atom_propagation_queue.empty(), tout << m_atom_propagation_queue << "\n";);
+
             m_eq_propagation_queue.reset();
             m_th_eq_propagation_queue.reset();
             m_th_diseq_propagation_queue.reset();
             m_atom_propagation_queue.reset();
-
             m_region.pop_scope(num_scopes);
             m_scopes.shrink(new_lvl);
+            m_conflict_resolution->reset();
 
             m_scope_lvl = new_lvl;
             if (new_lvl < m_base_lvl) {
@@ -2886,14 +2830,14 @@ namespace smt {
     }
 
     void context::push() {
-        TRACE("unit_subsumption_bug", display(tout << "context::push()\n"););
-        scoped_suspend_rlimit _suspend_cancel(m.limit());
+        TRACE("unit_subsumption_bug", display(tout << "context::push()\n"););        
         pop_to_base_lvl();
         setup_context(false);
         bool was_consistent = !inconsistent();
         internalize_assertions(); // internalize assertions before invoking m_asserted_formulas.push_scope
+        scoped_suspend_rlimit _suspend_cancel(m.limit());
         propagate();
-        if (was_consistent && inconsistent()) {
+        if (was_consistent && inconsistent() && !m_asserted_formulas.inconsistent()) {
             // logical context became inconsistent during user PUSH
             VERIFY(!resolve_conflict()); // build the proof
         }
@@ -2923,14 +2867,15 @@ namespace smt {
         TRACE("flush", tout << "m_scope_lvl: " << m_scope_lvl << "\n";);
         m_relevancy_propagator = nullptr;
         m_model_generator->reset();
-        for (theory* t : m_theory_set) 
+        for (theory* t : m_theory_set) {
             t->flush_eh();
-        undo_trail_stack(0);
-        m_qmanager = nullptr;
+        }
         del_clauses(m_aux_clauses, 0);
         del_clauses(m_lemmas, 0);
         del_justifications(m_justifications, 0);
         reset_tmp_clauses();
+        undo_trail_stack(0);
+        m_qmanager = nullptr;
         if (m_is_diseq_tmp) {
             m_is_diseq_tmp->del_eh(m, false);
             m.dec_ref(m_is_diseq_tmp->get_owner());
@@ -2943,7 +2888,7 @@ namespace smt {
     void context::assert_expr_core(expr * e, proof * pr) {
         if (get_cancel_flag()) return;
         SASSERT(is_well_sorted(m, e));
-        TRACE("begin_assert_expr", tout << this << " " << mk_pp(e, m) << "\n";);
+        TRACE("begin_assert_expr", tout << mk_pp(e, m) << " " << mk_pp(pr, m) << "\n";);
         TRACE("begin_assert_expr_ll", tout << mk_ll_pp(e, m) << "\n";);
         pop_to_base_lvl();
         if (pr == nullptr)
@@ -2978,7 +2923,7 @@ namespace smt {
         // If we don't use the theory case split heuristic,
         // for each pair of literals (l1, l2) we add the clause (~l1 OR ~l2)
         // to enforce the condition that at most one literal can be assigned 'true'.
-        if (!m_fparams.m_theory_case_split) {
+        if (!m_fparams.m_theory_case_split && !m.proofs_enabled()) {
             for (unsigned i = 0; i < num_lits; ++i) {
                 for (unsigned j = i+1; j < num_lits; ++j) {
                     literal l1 = lits[i];
@@ -3071,12 +3016,11 @@ namespace smt {
         return true;
     }
 
-    bool context::reduce_assertions() {
+    void context::reduce_assertions() {
         if (!m_asserted_formulas.inconsistent()) {
             // SASSERT(at_base_level());
             m_asserted_formulas.reduce();
         }
-        return m_asserted_formulas.inconsistent();
     }
 
     static bool is_valid_assumption(ast_manager & m, expr * assumption) {
@@ -3129,24 +3073,29 @@ namespace smt {
                 }
                 expr * f   = m_asserted_formulas.get_formula(qhead);
                 proof * pr = m_asserted_formulas.get_formula_proof(qhead);
+                SASSERT(!pr || f == m.get_fact(pr));
                 internalize_assertion(f, pr, 0);
                 qhead++;
             }
             m_asserted_formulas.commit();
         }
         if (m_asserted_formulas.inconsistent() && !inconsistent()) {
-            proof * pr = m_asserted_formulas.get_inconsistency_proof();
-            if (pr == nullptr) {
-                set_conflict(b_justification::mk_axiom());
-            }
-            else {
-                set_conflict(mk_justification(justification_proof_wrapper(*this, pr)));
-                m_unsat_proof = pr;
-            }
+            asserted_inconsistent();
         }
         TRACE("internalize_assertions", tout << "after internalize_assertions()...\n";
               tout << "inconsistent: " << inconsistent() << "\n";);
         TRACE("after_internalize_assertions", display(tout););
+    }
+
+    void context::asserted_inconsistent() {
+        proof * pr = m_asserted_formulas.get_inconsistency_proof();
+        m_unsat_proof = pr;
+        if (!pr) {
+            set_conflict(b_justification::mk_axiom());
+        }
+        else {
+            set_conflict(mk_justification(justification_proof_wrapper(*this, pr)));
+        }
     }
 
     /**
@@ -3347,7 +3296,8 @@ namespace smt {
         reset_tmp_clauses();
         m_unsat_core.reset();
         m_stats.m_num_checks++;
-        pop_to_base_lvl();
+        pop_to_base_lvl();      
+        m_conflict_resolution->reset();
         return true;
     }
 
@@ -3355,16 +3305,23 @@ namespace smt {
        \brief Execute some finalization code after performing the search.
     */
     lbool context::check_finalize(lbool r) {
-        TRACE("after_search", display(tout << "result: " << r << "\n"););
+        TRACE("after_search", display(tout << "result: " << r << "\n");
+              m_case_split_queue->display(tout << "case splits\n");
+              );
         display_profile(verbose_stream());
         if (r == l_true && get_cancel_flag()) {
             r = l_undef;
         }
         if (r == l_true && gparams::get_value("model_validate") == "true") {
+            recfun::util u(m);
             model_ref mdl;
-            get_model(mdl);
-            for (theory* t : m_theory_set) {
-                t->validate_model(*mdl);
+            get_model(mdl);            
+            if (u.get_rec_funs().empty()) {
+                if (mdl.get()) {
+                    for (theory* t : m_theory_set) {
+                        t->validate_model(*mdl);
+                    }
+                }
             }
 #if 0
             for (literal lit : m_assigned_literals) {
@@ -3373,11 +3330,12 @@ namespace smt {
                 if (lit.sign() ? m_model->is_true(v) : m_model->is_false(v)) {
                     IF_VERBOSE(10, verbose_stream() 
                                << "invalid assignment " << (lit.sign() ? "true" : "false") 
-                               << " to #" << v->get_id() << " := " << mk_bounded_pp(v, m, 2) << "\n");
+                               << " to #" << v->get_id() << " := " << mk_bounded_pp(v, m, 3) << "\n");
                 }
             }
             for (clause* cls : m_aux_clauses) {
                 bool found = false;
+                IF_VERBOSE(10, display_clause_smt2(verbose_stream() << "check:\n", *cls) << "\n");                    
                 for (literal lit : *cls) {
                     expr* v = m_bool_var2expr[lit.var()];
                     if (lit.sign() ? !m_model->is_true(v) : !m_model->is_false(v)) {
@@ -3387,6 +3345,45 @@ namespace smt {
                 }
                 if (!found) {
                     IF_VERBOSE(10, display_clause_smt2(verbose_stream() << "not satisfied:\n", *cls) << "\n");                    
+                }
+            }
+            for (clause* cls : m_lemmas) {
+                bool found = false;
+                IF_VERBOSE(10, display_clause_smt2(verbose_stream() << "check:\n", *cls) << "\n");                    
+                for (literal lit : *cls) {
+                    expr* v = m_bool_var2expr[lit.var()];
+                    if (lit.sign() ? !m_model->is_true(v) : !m_model->is_false(v)) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    IF_VERBOSE(10, display_clause_smt2(verbose_stream() << "not satisfied:\n", *cls) << "\n");                    
+                }
+            }
+
+            unsigned l_idx = 0;
+            for (watch_list const& wl : m_watches) {
+                literal l1 = to_literal(l_idx++);
+                literal neg_l1 = ~l1;
+                expr* v = m_bool_var2expr[l1.var()];
+                if (neg_l1.sign() ? !m_model->is_true(v) : !m_model->is_false(v)) {
+                    continue;
+                }
+                literal const * it2  = wl.begin_literals();
+                literal const * end2 = wl.end_literals();
+                for (; it2 != end2; ++it2) {
+                    literal l2 = *it2;
+                    if (l1.index() >= l2.index()) {
+                        continue;
+                    }
+                    literal lits[2] = { neg_l1, l2 };
+                    IF_VERBOSE(10, display_literals_smt2(verbose_stream() << "check: ", 2, lits) << "\n";);
+                    v = m_bool_var2expr[l2.var()];
+                    if (l2.sign() ? !m_model->is_true(v) : !m_model->is_false(v)) {
+                        continue;
+                    }
+                    IF_VERBOSE(10, display_literals_smt2(verbose_stream() << "not satisfied: ", 2, lits) << "\n";);
                 }
             }
 #endif
@@ -3407,7 +3404,7 @@ namespace smt {
         SASSERT(!m_setup.already_configured());
         setup_context(m_fparams.m_auto_config);
 
-        if (m_fparams.m_threads > 1) {
+        if (m_fparams.m_threads > 1 && !m.has_trace_stream()) {
             parallel p(*this);
             expr_ref_vector asms(m);
             return p(asms);
@@ -3539,7 +3536,7 @@ namespace smt {
     }
 
     void context::end_search() {
-        m_case_split_queue ->end_search_eh();
+        m_case_split_queue->end_search_eh();
     }
 
     void context::inc_limits() {
@@ -3573,8 +3570,10 @@ namespace smt {
 
 
     lbool context::search() {
-        if (m_asserted_formulas.inconsistent()) 
+        if (m_asserted_formulas.inconsistent()) {
+            asserted_inconsistent();
             return l_false;
+        }
         if (inconsistent()) {
             VERIFY(!resolve_conflict());
             return l_false;
@@ -3825,7 +3824,6 @@ namespace smt {
     final_check_status context::final_check() {
         TRACE("final_check", tout << "final_check inconsistent: " << inconsistent() << "\n"; display(tout); display_normalized_enodes(tout););
         CASSERT("relevancy", check_relevancy());
-
         
         if (m_fparams.m_model_on_final_check) {
             mk_proto_model();
@@ -3991,7 +3989,7 @@ namespace smt {
 
 #ifdef Z3DEBUG
             expr_ref_vector expr_lits(m);
-            svector<bool>   expr_signs;
+            bool_vector   expr_signs;
             for (unsigned i = 0; i < num_lits; i++) {
                 literal l = lits[i];
                 if (get_assignment(l) != l_false) {
@@ -4123,8 +4121,8 @@ namespace smt {
             update_phase_cache_counter();
             return true;
         }
-        else if (m_fparams.m_clause_proof) {
-            m_unsat_proof = m_clause_proof.get_proof();
+        else if (m_fparams.m_clause_proof && !m.proofs_enabled()) {
+            m_unsat_proof = m_clause_proof.get_proof(inconsistent());
         }
         else if (m.proofs_enabled()) {
             m_unsat_proof = m_conflict_resolution->get_lemma_proof();
@@ -4412,18 +4410,19 @@ namespace smt {
     bool context::update_model(bool refinalize) {
         final_check_status fcs = FC_DONE;
         if (refinalize) {
+            if (has_case_splits())
+                return false;
             fcs = final_check();
+            TRACE("opt", tout << (refinalize?"refinalize":"no-op") << " " << fcs << "\n";);
         }
-        TRACE("opt", tout << (refinalize?"refinalize":"no-op") << " " << fcs << "\n";);
         if (fcs == FC_DONE) {
             reset_model();
         }
-
-        return fcs == FC_DONE;
+        return false;
     }
 
     void context::mk_proto_model() {
-        if (m_model || m_proto_model) return;
+        if (m_model || m_proto_model || has_case_splits()) return;
         TRACE("get_model",
               display(tout);
               display_normalized_enodes(tout);
@@ -4450,15 +4449,23 @@ namespace smt {
 
     proof * context::get_proof() {        
         if (!m_unsat_proof) {
-            m_unsat_proof = m_clause_proof.get_proof();
+            m_unsat_proof = m_clause_proof.get_proof(inconsistent());
         }
         TRACE("context", tout << m_unsat_proof << "\n";);
         return m_unsat_proof;
     }
 
+    bool context::has_case_splits() {
+        for (unsigned i = get_num_b_internalized(); i-- > 0; ) {
+            if (get_assignment(i) == l_undef)
+                return true;
+        }
+        return false;
+    }
+
     void context::get_model(model_ref & m) {
         if (inconsistent())
-            m = nullptr;
+            m = nullptr;       
         else {
             mk_proto_model();
             if (!m_model && m_proto_model) {

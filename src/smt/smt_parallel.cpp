@@ -35,7 +35,7 @@ namespace smt {
 
         // try first sequential with a low conflict budget to make super easy problems cheap
         unsigned max_c = std::min(thread_max_conflicts, 40u);
-        ctx.get_fparams().m_max_conflicts = max_c;
+        flet<unsigned> _mc(ctx.get_fparams().m_max_conflicts, max_c);
         result = ctx.check(asms.size(), asms.c_ptr());
         if (result != l_undef || ctx.m_num_conflicts < max_c) {
             return result;
@@ -50,6 +50,7 @@ namespace smt {
         scoped_ptr_vector<context> pctxs;
         vector<expr_ref_vector> pasms;
         ast_manager& m = ctx.m;
+        scoped_limits sl(m.limit());
         unsigned finished_id = UINT_MAX;
         std::string        ex_msg;
         par_exception_kind ex_kind = DEFAULT_EX;
@@ -64,8 +65,9 @@ namespace smt {
             context& new_ctx = *pctxs.back();
             context::copy(ctx, new_ctx, true);
             new_ctx.set_random_seed(i + ctx.get_fparams().m_random_seed);
-            ast_translation tr(*new_m, m);
+            ast_translation tr(m, *new_m);
             pasms.push_back(tr(asms));
+            sl.push_child(&(new_m->limit()));
         }
 
         auto cube = [](context& ctx, expr_ref_vector& lasms, expr_ref& c) {
@@ -149,7 +151,11 @@ namespace smt {
                         result = r;
                         done = true;
                     }
-                    if (!first) return;
+                    if (!first && r != l_undef && result == l_undef) {
+                        finished_id = i;
+                        result = r;                        
+                    }
+                    else if (!first) return;
                 }
 
                 for (ast_manager* m : pms) {
@@ -202,11 +208,11 @@ namespace smt {
         switch (result) {
         case l_true: 
             pctx.get_model(mdl);
-            if (mdl) {
-                ctx.set_model(mdl->translate(tr));
-            }
+            if (mdl) 
+                ctx.set_model(mdl->translate(tr));            
             break;
         case l_false:
+            ctx.m_unsat_core.reset();
             for (expr* e : pctx.unsat_core()) 
                 ctx.m_unsat_core.push_back(tr(e));
             break;

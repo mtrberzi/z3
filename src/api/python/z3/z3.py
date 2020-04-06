@@ -1405,7 +1405,7 @@ class BoolSortRef(SortRef):
             return BoolVal(val, self.ctx)
         if z3_debug():
             if not is_expr(val):
-               _z3_assert(is_expr(val), "True, False or Z3 Boolean expression expected. Received %s" % val)
+               _z3_assert(is_expr(val), "True, False or Z3 Boolean expression expected. Received %s of type %s" % (val, type(val)))
             if not self.eq(val.sort()):
                _z3_assert(self.eq(val.sort()), "Value cannot be converted into a Z3 Boolean value")
         return val
@@ -1716,11 +1716,10 @@ def And(*args):
         ctx = args[0].ctx
         args = [a for a in args[0]]
     else:
-        ctx = main_ctx()
+        ctx = None
     args = _get_args(args)
-    ctx_args  = _ctx_from_ast_arg_list(args, ctx)
+    ctx  = _get_ctx(_ctx_from_ast_arg_list(args, ctx))
     if z3_debug():
-        _z3_assert(ctx_args is None or ctx_args == ctx, "context mismatch")
         _z3_assert(ctx is not None, "At least one of the arguments must be a Z3 expression or probe")
     if _has_probe(args):
         return _probe_and(args, ctx)
@@ -1745,12 +1744,14 @@ def Or(*args):
     if isinstance(last_arg, Context):
         ctx = args[len(args)-1]
         args = args[:len(args)-1]
+    elif len(args) == 1 and isinstance(args[0], AstVector):
+        ctx = args[0].ctx
+        args = [a for a in args[0]]
     else:
-        ctx = main_ctx()
+        ctx = None
     args = _get_args(args)
-    ctx_args  = _ctx_from_ast_arg_list(args, ctx)
+    ctx  = _get_ctx(_ctx_from_ast_arg_list(args, ctx))
     if z3_debug():
-        _z3_assert(ctx_args is None or ctx_args == ctx, "context mismatch")
         _z3_assert(ctx is not None, "At least one of the arguments must be a Z3 expression or probe")
     if _has_probe(args):
         return _probe_or(args, ctx)
@@ -10038,7 +10039,7 @@ class SeqRef(ExprRef):
         if self.is_string_value():
             string_length = ctypes.c_uint()
             chars = Z3_get_lstring(self.ctx_ref(), self.as_ast(), byref(string_length))
-            return string_at(chars, size=string_length.value).decode('ascii')
+            return string_at(chars, size=string_length.value).decode('latin-1')
         return Z3_ast_to_string(self.ctx_ref(), self.as_ast())
 
     def __le__(self, other):

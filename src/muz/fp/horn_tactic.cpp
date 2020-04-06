@@ -178,7 +178,6 @@ class horn_tactic : public tactic {
 
         void operator()(goal_ref const & g,
                         goal_ref_buffer & result) {
-            SASSERT(g->is_well_sorted());
             tactic_report report("horn", *g);
             bool produce_proofs = g->proofs_enabled();
 
@@ -270,7 +269,7 @@ class horn_tactic : public tactic {
                 if (produce_proofs) {
                     proof_ref proof = m_ctx.get_proof();
                     pc = proof2proof_converter(m, proof);
-                    g->assert_expr(m.mk_false(), proof, nullptr);
+                    g->assert_expr(m.get_fact(proof), proof, nullptr);
                 }
                 else {
                     g->assert_expr(m.mk_false());
@@ -296,8 +295,6 @@ class horn_tactic : public tactic {
                 // subgoal is unchanged.
                 break;
             }
-            TRACE("horn", g->display(tout););
-            SASSERT(g->is_well_sorted());
         }
 
         void bind_variables(expr_ref& f) {
@@ -337,19 +334,18 @@ class horn_tactic : public tactic {
 
             expr_substitution sub(m);
             sub.insert(q, m.mk_false());
-            scoped_ptr<expr_replacer> rep = mk_default_expr_replacer(m);
+            scoped_ptr<expr_replacer> rep = mk_default_expr_replacer(m, false);
             rep->set_substitution(&sub);
             g->inc_depth();
             g->reset();
             result.push_back(g.get());
             datalog::rule_set const& rules = m_ctx.get_rules();
-            datalog::rule_set::iterator it = rules.begin(), end = rules.end();
-            for (; it != end; ++it) {
-                datalog::rule* r = *it;
+            for (datalog::rule* r : rules) {
                 m_ctx.get_rule_manager().to_formula(*r, fml);
                 (*rep)(fml);
                 g->assert_expr(fml);
             }
+            g->set_prec(goal::UNDER_OVER);
         }
 
     };

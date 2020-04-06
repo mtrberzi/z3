@@ -83,7 +83,8 @@ protected:
 
 
     void reduce(goal& g) {
-        SASSERT(g.is_well_sorted());
+        if (m.proofs_enabled())
+            return;
         TRACE("ctx_solver_simplify_tactic", g.display(tout););
         expr_ref fml(m);
         tactic_report report("ctx-solver-simplify", g);
@@ -95,15 +96,18 @@ protected:
         m_solver.push();
         reduce(fml);
         m_solver.pop(1);
+        if (!m.inc())
+            return;
         SASSERT(m_solver.get_scope_level() == 0);
         TRACE("ctx_solver_simplify_tactic",
-              for (unsigned i = 0; i < fmls.size(); ++i) {
-                  tout << mk_pp(fmls[i], m) << "\n";
+              for (expr* f : fmls) {
+                  tout << mk_pp(f, m) << "\n";
               }
               tout << "=>\n";
-              tout << mk_pp(fml, m) << "\n";);
+              tout << fml << "\n";);
         DEBUG_CODE(
         {
+            // enable_trace("after_search");
             m_solver.push();
             expr_ref fml1(m);
             fml1 = mk_and(m, fmls.size(), fmls.c_ptr());
@@ -113,9 +117,14 @@ protected:
             lbool is_sat = m_solver.check();
             TRACE("ctx_solver_simplify_tactic", tout << "is non-equivalence sat?: " << is_sat << "\n";);
             if (is_sat == l_true) {
+                model_ref mdl;
+                m_solver.get_model(mdl);
                 TRACE("ctx_solver_simplify_tactic", 
                       tout << "result is not equivalent to input\n";
-                      tout << mk_pp(fml1, m) << "\n";);
+                      tout << mk_pp(fml1, m) << "\n";
+                      tout << "evaluates to: " << (*mdl)(fml1) << "\n";
+                      m_solver.display(tout) << "\n";
+                      );
                 UNREACHABLE();
             }
             m_solver.pop(1);
@@ -123,7 +132,6 @@ protected:
         g.reset();
         g.assert_expr(fml, nullptr, nullptr);
         IF_VERBOSE(TACTIC_VERBOSITY_LVL, verbose_stream() << "(ctx-solver-simplify :num-steps " << m_num_steps << ")\n";);
-        SASSERT(g.is_well_sorted());        
     }
 
     struct expr_pos {
@@ -164,7 +172,7 @@ protected:
         names.push_back(n);
         m_solver.push();
 
-        while (!todo.empty() && !m.canceled()) {            
+        while (!todo.empty() && m.inc()) {            
             expr_ref res(m);
             args.reset();
             expr* e    = todo.back().m_expr;
@@ -236,7 +244,7 @@ protected:
             names.pop_back();
             m_solver.pop(1);
         }
-        if (!m.canceled()) {
+        if (m.inc()) {
             VERIFY(cache.find(fml, path_r));
             result = path_r.m_expr;
         }

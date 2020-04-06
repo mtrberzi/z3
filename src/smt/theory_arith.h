@@ -46,9 +46,11 @@ namespace smt {
         unsigned m_assert_lower, m_assert_upper, m_assert_diseq, m_core2th_eqs, m_core2th_diseqs;
         unsigned m_th2core_eqs, m_th2core_diseqs, m_bound_props, m_offset_eqs, m_fixed_eqs, m_offline_eqs;
         unsigned m_max_min; 
+        unsigned m_assume_eqs;
         unsigned m_gb_simplify, m_gb_superpose, m_gb_compute_basis, m_gb_num_processed;
         unsigned m_nl_branching, m_nl_linear, m_nl_bounds, m_nl_cross_nested;
         unsigned m_branch_infeasible_int, m_branch_infeasible_var;
+        unsigned m_tableau_max_rows, m_tableau_max_columns;
 
         void reset() { memset(this, 0, sizeof(theory_arith_stats)); }
         theory_arith_stats() { reset(); }
@@ -853,9 +855,9 @@ namespace smt {
         bool max_min_infeasible_int_vars();
         void patch_int_infeasible_vars();
         void fix_non_base_vars();
-        unsynch_mpq_manager m_es_num_manager; // manager for euclidean solver.
-        struct euclidean_solver_bridge;
-        bool apply_euclidean_solver();
+//        unsynch_mpq_manager m_es_num_manager; // manager for euclidean solver.
+//        struct euclidean_solver_bridge;
+//        bool apply_euclidean_solver();
         final_check_status check_int_feasibility();
 
         // -----------------------------------
@@ -1000,20 +1002,20 @@ namespace smt {
         bool is_mixed_real_integer(row const & r) const;
         bool is_integer(row const & r) const;
         typedef std::pair<rational, expr *> coeff_expr; 
-        bool get_polynomial_info(sbuffer<coeff_expr> const & p, sbuffer<var_num_occs> & vars);
-        expr * p2expr(sbuffer<coeff_expr> & p);
+        bool get_polynomial_info(buffer<coeff_expr> const & p, sbuffer<var_num_occs> & vars);
+        expr * p2expr(buffer<coeff_expr> & p);
         expr * power(expr * var, unsigned power);
         expr * mk_nary_mul(unsigned sz, expr * const * args, bool is_int);
         expr * mk_nary_add(unsigned sz, expr * const * args, bool is_int);
         expr * mk_nary_add(unsigned sz, expr * const * args);
         void display_nested_form(std::ostream & out, expr * p);
         unsigned get_degree_of(expr * m, expr * var);
-        unsigned get_min_degree(sbuffer<coeff_expr> & p, expr * var);
+        unsigned get_min_degree(buffer<coeff_expr> & p, expr * var);
         expr * factor(expr * m, expr * var, unsigned d);
-        bool in_monovariate_monomials(sbuffer<coeff_expr> & p, expr * var, unsigned & i1, rational & c1, unsigned & n1, unsigned & i2, rational & c2, unsigned & n2);
-        expr * horner(unsigned depth, sbuffer<coeff_expr> & p, expr * var);
-        expr * cross_nested(unsigned depth, sbuffer<coeff_expr> & p, expr * var);
-        bool is_cross_nested_consistent(sbuffer<coeff_expr> & p);
+        bool in_monovariate_monomials(buffer<coeff_expr> & p, expr * var, unsigned & i1, rational & c1, unsigned & n1, unsigned & i2, rational & c2, unsigned & n2);
+        expr * horner(unsigned depth, buffer<coeff_expr> & p, expr * var);
+        expr * cross_nested(unsigned depth, buffer<coeff_expr> & p, expr * var);
+        bool is_cross_nested_consistent(buffer<coeff_expr> & p);
         bool is_cross_nested_consistent(row const & r);
         bool is_cross_nested_consistent(svector<theory_var> const & nl_cluster);
         rational get_value(theory_var v, bool & computed_epsilon);
@@ -1149,7 +1151,7 @@ namespace smt {
         void display_bounds_in_smtlib(std::ostream & out) const;
         void display_bounds_in_smtlib() const;
         void display_nl_monomials(std::ostream & out) const;
-        void display_coeff_exprs(std::ostream & out, sbuffer<coeff_expr> const & p) const;
+        void display_coeff_exprs(std::ostream & out, buffer<coeff_expr> const & p) const;
         void display_interval(std::ostream& out, interval const& i);
         void display_deps(std::ostream& out, v_dependency* dep);
 

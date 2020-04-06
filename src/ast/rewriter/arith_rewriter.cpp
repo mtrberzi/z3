@@ -89,7 +89,7 @@ br_status arith_rewriter::mk_app_core(func_decl * f, unsigned num_args, expr * c
     CTRACE("arith_rewriter", st != BR_FAILED, tout << st << ": " << mk_pp(f, m());
            for (unsigned i = 0; i < num_args; ++i) tout << mk_pp(args[i], m()) << " ";
            tout << "\n==>\n" << mk_pp(result.get(), m()) << "\n";
-           tout << "args: " << to_app(result)->get_num_args() << "\n";
+           if (is_app(result)) tout << "args: " << to_app(result)->get_num_args() << "\n";
            );
     return st;
 }
@@ -190,7 +190,7 @@ bool arith_rewriter::is_bound(expr * arg1, expr * arg2, op_kind kind, expr_ref &
             case EQ: result = m().mk_false(); return true;
             }
         }
-        expr * k = m_util.mk_numeral(c, is_int);
+        expr_ref k(m_util.mk_numeral(c, is_int), m());
         switch (kind) {
         case LE: result = m_util.mk_le(pp, k); return true;
         case GE: result = m_util.mk_ge(pp, k); return true;
@@ -441,6 +441,7 @@ br_status arith_rewriter::mk_le_ge_eq_core(expr * arg1, expr * arg2, op_kind kin
         if ((first || !g.is_one()) && num_consts <= 1)
             get_coeffs_gcd(arg2, g, first, num_consts);
         TRACE("arith_rewriter_gcd", tout << "[step2] g: " << g << ", num_consts: " << num_consts << "\n";);
+        g = abs(g);
         if (!first && !g.is_one() && num_consts <= 1) {
             bool is_sat = div_polynomial(arg1, g, (kind == LE ? CT_CEIL : (kind == GE ? CT_FLOOR : CT_FALSE)), new_arg1);
             if (!is_sat) {
@@ -869,11 +870,14 @@ br_status arith_rewriter::mk_idiv_core(expr * arg1, expr * arg2, expr_ref & resu
         }
     } 
     if (divides(arg1, arg2, result)) { 
+        expr_ref zero(m_util.mk_int(0), m()); 
+        result = m().mk_ite(m().mk_eq(zero, arg2), m_util.mk_idiv(arg1, zero), result);
         return BR_REWRITE_FULL; 
-    }  
+    } 
     return BR_FAILED;
 }
  
+
 //  
 // implement div ab ac = floor( ab / ac) = floor (b / c) = div b c 
 //
@@ -919,6 +923,7 @@ bool arith_rewriter::divides(expr* num, expr* den, expr_ref& result) {
     } 
     return false; 
 } 
+
 
 expr_ref arith_rewriter::remove_divisor(expr* arg, expr* num, expr* den) { 
     ptr_buffer<expr> args1, args2; 
@@ -1160,6 +1165,10 @@ br_status arith_rewriter::mk_power_core(expr * arg1, expr * arg2, expr_ref & res
 
     if (!is_num_x && !is_irrat_x)
         return BR_FAILED;
+
+    if (y.is_zero()) {
+        return BR_FAILED;
+    }
 
     rational num_y = numerator(y);
     rational den_y = denominator(y);

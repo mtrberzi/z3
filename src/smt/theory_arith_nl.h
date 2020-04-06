@@ -71,9 +71,11 @@ void theory_arith<Ext>::mark_dependents(theory_var v, svector<theory_var> & vars
         expr * n     = var2expr(v);
         SASSERT(m_util.is_mul(n));
         for (expr * curr : *to_app(n)) {
-            theory_var v = expr2var(curr);
-            SASSERT(v != null_theory_var);
-            mark_var(v, vars, already_found);
+            if (get_context().e_internalized(curr)) {
+                theory_var v = expr2var(curr);
+                SASSERT(v != null_theory_var);
+                mark_var(v, vars, already_found);
+            }
         }
     }
     if (is_fixed(v))
@@ -794,7 +796,7 @@ bool theory_arith<Ext>::branch_nl_int_var(theory_var v) {
     TRACE("non_linear", tout << "BRANCHING on v" << v << "\n";);
     m_stats.m_nl_branching++;
     SASSERT(is_int(v));
-    expr * bound = nullptr;
+    expr_ref bound(get_manager());
     if (lower(v))
         bound  = m_util.mk_le(var2expr(v), m_util.mk_numeral(lower_bound(v).get_rational().to_rational(), true));
     else if (upper(v))
@@ -804,14 +806,12 @@ bool theory_arith<Ext>::branch_nl_int_var(theory_var v) {
     TRACE("non_linear", tout << "new bound:\n" << mk_pp(bound, get_manager()) << "\n";);
     context & ctx = get_context();
     ast_manager & m = get_manager();
-    if (m.has_trace_stream()) {
-        app_ref body(m);
-        body = m.mk_or(bound, m.mk_not(bound));
-        log_axiom_instantiation(body);
+    {
+        std::function<expr*(void)> fn = [&]() { return m.mk_or(bound, m.mk_not(bound)); };
+        scoped_trace_stream _sts(*this, fn);
+        ctx.internalize(bound, true);
     }
-    ctx.internalize(bound, true);
-    if (m.has_trace_stream()) m.trace_stream() << "[end-of-instance]\n";
-    ctx.mark_as_relevant(bound);
+    ctx.mark_as_relevant(bound.get());
     literal l     = ctx.get_literal(bound);
     SASSERT(!l.sign());
     ctx.set_true_first_flag(l.var()); // force the context to case split to true first, independently of the phase selection strategy.
@@ -823,10 +823,12 @@ bool theory_arith<Ext>::branch_nl_int_var(theory_var v) {
 */
 template<typename Ext>
 bool theory_arith<Ext>::is_monomial_linear(expr * m) const {
+
     SASSERT(is_pure_monomial(m));
     unsigned num_nl_vars = 0;
-    for (unsigned i = 0; i < to_app(m)->get_num_args(); i++) {
-        expr * arg = to_app(m)->get_arg(i);
+    for (expr* arg : *to_app(m)) {
+        if (!get_context().e_internalized(arg))
+            return false;
         theory_var _var = expr2var(arg);
         if (!is_fixed(_var)) {
             num_nl_vars++;
@@ -847,8 +849,7 @@ template<typename Ext>
 typename theory_arith<Ext>::numeral theory_arith<Ext>::get_monomial_fixed_var_product(expr * m) const {
     SASSERT(is_pure_monomial(m));
     numeral r(1);
-    for (unsigned i = 0; i < to_app(m)->get_num_args(); i++) {
-        expr * arg = to_app(m)->get_arg(i);
+    for (expr * arg : *to_app(m)) {
         theory_var _var = expr2var(arg);
         if (is_fixed(_var))
             r *= lower_bound(_var).get_rational();
@@ -934,8 +935,8 @@ bool theory_arith<Ext>::propagate_linear_monomial(theory_var v) {
         new_lower    = alloc(derived_bound, v, inf_numeral(k), B_LOWER);
         new_upper    = alloc(derived_bound, v, inf_numeral(k), B_UPPER);
     }
-    SASSERT(new_lower != 0);
-    SASSERT(new_upper != 0);
+    SASSERT(new_lower);
+    SASSERT(new_upper);
     m_bounds_to_delete.push_back(new_lower);
     m_asserted_bounds.push_back(new_lower);
     m_bounds_to_delete.push_back(new_upper);
@@ -1001,22 +1002,14 @@ bool theory_arith<Ext>::propagate_linear_monomial(theory_var v) {
 */
 template<typename Ext>
 bool theory_arith<Ext>::propagate_linear_monomials() {
+    if (!reflection_enabled())
+        return false;
     TRACE("non_linear", tout << "propagating linear monomials...\n";);
     bool p = false;
-    // CMW: m_nl_monomials is sometimes modified while executing
-    // propagate_linear_monomial(...), invalidating the iterator `it'.
-    // (Via the relevancy propagation that internalizes a new axiom
-    // in mk_div_axiom and possibly others.) I'm replacing the iterator
-    // with an index `i'.
-
-    // Was previously:
-    // svector<theory_var>::const_iterator it  = m_nl_monomials.begin();
-    // svector<theory_var>::const_iterator end = m_nl_monomials.end();
-    // for (; it != end; ++it) {
-    //     theory_var v = *it;
+    // CMW: m_nl_monomials can grow during this loop, so
+    // don't use iterators.
     for (unsigned i = 0; i < m_nl_monomials.size(); i++) {
-        theory_var v = m_nl_monomials[i];
-        if (propagate_linear_monomial(v))
+        if (propagate_linear_monomial(m_nl_monomials[i]))
             p = true;
     }
     CTRACE("non_linear", p, display(tout););
@@ -1202,9 +1195,9 @@ bool theory_arith<Ext>::is_integer(row const & r) const {
 }
 
 template<typename Ext>
-void theory_arith<Ext>::display_coeff_exprs(std::ostream & out, sbuffer<coeff_expr> const & p) const {
-    typename sbuffer<coeff_expr>::const_iterator it  = p.begin();
-    typename sbuffer<coeff_expr>::const_iterator end = p.end();
+void theory_arith<Ext>::display_coeff_exprs(std::ostream & out, buffer<coeff_expr> const & p) const {
+    typename buffer<coeff_expr>::const_iterator it  = p.begin();
+    typename buffer<coeff_expr>::const_iterator end = p.end();
     for (bool first = true; it != end; ++it) {
         if (first)
             first = false;
@@ -1220,7 +1213,7 @@ void theory_arith<Ext>::display_coeff_exprs(std::ostream & out, sbuffer<coeff_ex
    occurrences is also stored.
 */
 template<typename Ext>
-bool theory_arith<Ext>::get_polynomial_info(sbuffer<coeff_expr> const & p, sbuffer<var_num_occs> & varinfo) {
+bool theory_arith<Ext>::get_polynomial_info(buffer<coeff_expr> const & p, sbuffer<var_num_occs> & varinfo) {
     context & ctx = get_context();
     varinfo.reset();
     m_var2num_occs.reset();
@@ -1262,7 +1255,7 @@ bool theory_arith<Ext>::get_polynomial_info(sbuffer<coeff_expr> const & p, sbuff
    \brief Convert p into an expression.
 */
 template<typename Ext>
-expr * theory_arith<Ext>::p2expr(sbuffer<coeff_expr> & p) {
+expr * theory_arith<Ext>::p2expr(buffer<coeff_expr> & p) {
     SASSERT(!p.empty());
     TRACE("p2expr_bug", display_coeff_exprs(tout, p););
     ptr_buffer<expr> args;
@@ -1308,7 +1301,7 @@ expr * theory_arith<Ext>::power(expr * var, unsigned power) {
    The arguments i1 and i2 contain the position in p of the two monomials.
 */
 template<typename Ext>
-bool theory_arith<Ext>::in_monovariate_monomials(sbuffer<coeff_expr> & p, expr * var,
+bool theory_arith<Ext>::in_monovariate_monomials(buffer<coeff_expr> & p, expr * var,
                                                  unsigned & i1, rational & c1, unsigned & n1, unsigned & i2, rational & c2, unsigned & n2) {
     int idx = 0;
 #define SET_RESULT(POWER) {                     \
@@ -1328,8 +1321,8 @@ bool theory_arith<Ext>::in_monovariate_monomials(sbuffer<coeff_expr> & p, expr *
             return false;                       \
     }
 
-    typename sbuffer<coeff_expr>::const_iterator it  = p.begin();
-    typename sbuffer<coeff_expr>::const_iterator end = p.end();
+    typename buffer<coeff_expr>::const_iterator it  = p.begin();
+    typename buffer<coeff_expr>::const_iterator end = p.end();
     for (unsigned i = 0; it != end; ++it, ++i) {
         expr * m = it->second;
         if (is_pure_monomial(m)) {
@@ -1418,13 +1411,13 @@ unsigned theory_arith<Ext>::get_degree_of(expr * m, expr * var) {
    \brief Return the minimal degree of var in the polynomial p.
 */
 template<typename Ext>
-unsigned theory_arith<Ext>::get_min_degree(sbuffer<coeff_expr> & p, expr * var) {
+unsigned theory_arith<Ext>::get_min_degree(buffer<coeff_expr> & p, expr * var) {
     SASSERT(!p.empty());
     SASSERT(var != 0);
     // get monomial where the degree of var is min.
     unsigned d = UINT_MAX; // min. degree of var
-    sbuffer<coeff_expr>::const_iterator it  = p.begin();
-    sbuffer<coeff_expr>::const_iterator end = p.end();
+    buffer<coeff_expr>::const_iterator it  = p.begin();
+    buffer<coeff_expr>::const_iterator end = p.end();
     for (; it != end; ++it) {
         expr * m = it->second;
         d = std::min(d, get_degree_of(m, var));
@@ -1475,7 +1468,7 @@ expr * theory_arith<Ext>::factor(expr * m, expr * var, unsigned d) {
    \brief Return the horner extension of p with respect to var.
 */
 template<typename Ext>
-expr * theory_arith<Ext>::horner(unsigned depth, sbuffer<coeff_expr> & p, expr * var) {
+expr * theory_arith<Ext>::horner(unsigned depth, buffer<coeff_expr> & p, expr * var) {
     SASSERT(!p.empty());
     SASSERT(var != 0);
     unsigned d = get_min_degree(p, var);
@@ -1483,8 +1476,8 @@ expr * theory_arith<Ext>::horner(unsigned depth, sbuffer<coeff_expr> & p, expr *
           for (unsigned i = 0; i < p.size(); i++) { if (i > 0) tout << " + "; tout << p[i].first << "*" << mk_pp(p[i].second, get_manager()); } tout << "\n";
           tout << "var: " << mk_pp(var, get_manager()) << "\n";
           tout << "min_degree: " << d << "\n";);
-    sbuffer<coeff_expr> e; // monomials/x^d where var occurs with degree d
-    sbuffer<coeff_expr> r; // rest
+    buffer<coeff_expr> e; // monomials/x^d where var occurs with degree d
+    buffer<coeff_expr> r; // rest
     for (auto const& kv : p) {
         expr * m = kv.second;
         expr * f = factor(m, var, d);
@@ -1521,7 +1514,7 @@ expr * theory_arith<Ext>::horner(unsigned depth, sbuffer<coeff_expr> & p, expr *
    If var != 0, then it is used for performing the horner extension
 */
 template<typename Ext>
- expr * theory_arith<Ext>::cross_nested(unsigned depth, sbuffer<coeff_expr> & p, expr * var) {
+ expr * theory_arith<Ext>::cross_nested(unsigned depth, buffer<coeff_expr> & p, expr * var) {
     TRACE("non_linear", tout << "p.size: " << p.size() << "\n";);
     if (var == nullptr) {
         sbuffer<var_num_occs> varinfo;
@@ -1588,7 +1581,7 @@ template<typename Ext>
                 new_expr       = b.is_one() ? rhs2 : m_util.mk_mul(m_util.mk_numeral(b, m_util.is_int(var)), rhs2);
                 m_nl_new_exprs.push_back(new_expr);
                 TRACE("non_linear", tout << "new_expr:\n"; display_nested_form(tout, new_expr); tout << "\n";);
-                sbuffer<coeff_expr> rest;
+                buffer<coeff_expr> rest;
                 unsigned sz    = p.size();
                 for (unsigned i = 0; i < sz; i++) {
                     if (i != i1 && i != i2)
@@ -1612,7 +1605,7 @@ template<typename Ext>
    bounds. The polynomial is converted into an equivalent cross nested form.
 */
 template<typename Ext>
-bool theory_arith<Ext>::is_cross_nested_consistent(sbuffer<coeff_expr> & p) {
+bool theory_arith<Ext>::is_cross_nested_consistent(buffer<coeff_expr> & p) {
     sbuffer<var_num_occs> varinfo;
     if (!get_polynomial_info(p, varinfo))
         return true;
@@ -1706,7 +1699,7 @@ bool theory_arith<Ext>::is_cross_nested_consistent(row const & r) {
         c      = r.get_denominators_lcm().to_rational();
 
     TRACE("non_linear", tout << "check problematic row:\n"; display_row(tout, r); display_row(tout, r, false););
-    sbuffer<coeff_expr> p;
+    buffer<coeff_expr> p;
     for (auto & col : r) {
         if (!col.is_dead()) {
             p.push_back(coeff_expr(col.m_coeff.to_rational() * c, var2expr(col.m_var)));
@@ -2381,9 +2374,11 @@ bool theory_arith<Ext>::max_min_nl_vars() {
         expr * n     = var2expr(v);
         SASSERT(is_pure_monomial(n));
         for (expr * curr : *to_app(n)) {
-            theory_var v = expr2var(curr);
-            SASSERT(v != null_theory_var);
-            mark_var(v, vars, already_found);
+            if (get_context().e_internalized(curr)) {
+                theory_var v = expr2var(curr);
+                SASSERT(v != null_theory_var);
+                mark_var(v, vars, already_found);
+            }
         }
     }
     return max_min(vars);
@@ -2397,6 +2392,9 @@ final_check_status theory_arith<Ext>::process_non_linear() {
     m_model_depends_on_computed_epsilon = false;
     if (m_nl_monomials.empty())
         return FC_DONE;
+
+    if (!reflection_enabled())
+        return FC_GIVEUP;
 
     if (check_monomial_assignments()) {
         return FC_DONE;

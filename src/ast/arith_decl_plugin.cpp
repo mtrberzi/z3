@@ -647,6 +647,13 @@ bool arith_decl_plugin::are_distinct(app * a, app * b) const {
     if (is_app_of(a, m_family_id, OP_IRRATIONAL_ALGEBRAIC_NUM) && is_app_of(b, m_family_id, OP_IRRATIONAL_ALGEBRAIC_NUM)) {
         return am().neq(aw().to_anum(a->get_decl()), aw().to_anum(b->get_decl()));
     }
+    if (is_app_of(a, m_family_id, OP_IRRATIONAL_ALGEBRAIC_NUM) && is_app_of(b, m_family_id, OP_NUM)) {
+        std::swap(a, b);
+    }
+    if (is_app_of(a, m_family_id, OP_NUM) && is_app_of(b, m_family_id, OP_IRRATIONAL_ALGEBRAIC_NUM)) {
+        rational val = a->get_decl()->get_parameter(0).get_rational();
+        return am().neq(aw().to_anum(b->get_decl()), val.to_mpq());
+    }
 
 #define is_non_zero(e) is_app_of(e,m_family_id, OP_NUM) && !to_app(e)->get_decl()->get_parameter(0).get_rational().is_zero()
 
@@ -797,18 +804,18 @@ bool arith_util::is_considered_uninterpreted(func_decl* f, unsigned n, expr* con
         return true;
     }
     if (is_decl_of(f, m_afid, OP_IDIV) && is_numeral(args[1], r) && r.is_zero()) {
-        sort* rs[2] = { mk_real(), mk_real() };
-        f_out = m_manager.mk_func_decl(m_afid, OP_IDIV0, 0, nullptr, 2, rs, mk_real());
+        sort* rs[2] = { mk_int(), mk_int() };
+        f_out = m_manager.mk_func_decl(m_afid, OP_IDIV0, 0, nullptr, 2, rs, mk_int());
         return true;
     }
     if (is_decl_of(f, m_afid, OP_MOD) && is_numeral(args[1], r) && r.is_zero()) {
-        sort* rs[2] = { mk_real(), mk_real() };
-        f_out = m_manager.mk_func_decl(m_afid, OP_MOD0, 0, nullptr, 2, rs, mk_real());
+        sort* rs[2] = { mk_int(), mk_int() };
+        f_out = m_manager.mk_func_decl(m_afid, OP_MOD0, 0, nullptr, 2, rs, mk_int());
         return true;
     }
     if (is_decl_of(f, m_afid, OP_REM) && is_numeral(args[1], r) && r.is_zero()) {
-        sort* rs[2] = { mk_real(), mk_real() };
-        f_out = m_manager.mk_func_decl(m_afid, OP_REM0, 0, nullptr, 2, rs, mk_real());
+        sort* rs[2] = { mk_int(), mk_int() };
+        f_out = m_manager.mk_func_decl(m_afid, OP_REM0, 0, nullptr, 2, rs, mk_int());
         return true;
     }
     if (is_decl_of(f, m_afid, OP_POWER) && is_numeral(args[1], r) && r.is_zero() && is_numeral(args[0], r) && r.is_zero()) {

@@ -351,7 +351,7 @@ namespace qe {
         scoped_ptr<expr_replacer> m_replace;
     public:
         lift_ite(ast_manager& m, i_expr_pred& is_relevant) : 
-            m(m), m_is_relevant(is_relevant), m_rewriter(m), m_replace(mk_default_expr_replacer(m)) {}
+            m(m), m_is_relevant(is_relevant), m_rewriter(m), m_replace(mk_default_expr_replacer(m, false)) {}
 
         bool operator()(expr* fml, expr_ref& result) {
             if (m.is_ite(fml)) {
@@ -367,7 +367,7 @@ namespace qe {
                 m_replace->apply_substitution(ite, el, tmp2);
                 result = m.mk_ite(cond, tmp1, tmp2);
                 m_rewriter(result);
-                return true;
+                return result != fml;
             }
             else {
                 return false;
@@ -415,7 +415,7 @@ namespace qe {
         expr_ref_vector  m_trail;          // trail for generated terms
         expr_ref_vector  m_args; 
         ptr_vector<expr> m_todo;           // stack of formulas to visit
-        svector<bool>    m_pols;           // stack of polarities
+        bool_vector    m_pols;           // stack of polarities
         bool_rewriter    m_rewriter;
         
     public:
@@ -1465,7 +1465,7 @@ namespace qe {
             if (!is_sat) {
                 fml = m.mk_false();
                 if (m_fml.get() != m_subfml.get()) {
-                    scoped_ptr<expr_replacer> rp = mk_default_expr_replacer(m);
+                    scoped_ptr<expr_replacer> rp = mk_default_expr_replacer(m, false);
                     rp->apply_substitution(to_app(m_subfml.get()), fml, m_fml);
                     fml = m_fml;
                 }
@@ -1497,7 +1497,7 @@ namespace qe {
             if (!m_free_vars.empty() || m_solver.inconsistent()) {
 
                 if (m_fml.get() != m_subfml.get()) {
-                    scoped_ptr<expr_replacer> rp = mk_default_expr_replacer(m);
+                    scoped_ptr<expr_replacer> rp = mk_default_expr_replacer(m, false);
                     rp->apply_substitution(to_app(m_subfml.get()), fml, m_fml);
                     fml = m_fml;
                 }
@@ -2049,7 +2049,7 @@ namespace qe {
         }
                 
         void checkpoint() {
-            if (m.canceled()) 
+            if (!m.inc()) 
                 throw tactic_exception(m.limit().get_cancel_msg());
         }
 
@@ -2152,12 +2152,12 @@ namespace qe {
             
             expr_ref fml0(fml, m);
             
-            quant_elim_plugin* th;
+            scoped_ptr<quant_elim_plugin> th;
             pop_context(th);                      
             
             th->check(num_vars, vars, m_assumption, fml, get_first, free_vars, defs);
             
-            push_context(th);
+            push_context(th.detach());
             TRACE("qe", 
                   for (unsigned i = 0; i < num_vars; ++i) {
                       tout << mk_ismt2_pp(vars[i], m) << " ";
@@ -2175,7 +2175,7 @@ namespace qe {
             return l_undef;
         }
 
-        void pop_context(quant_elim_plugin*& th) {
+        void pop_context(scoped_ptr<quant_elim_plugin>& th) {
             if (m_plugins.empty()) {
                 th = alloc(quant_elim_plugin, m, *this, m_fparams);
                 th->add_plugin(mk_bool_plugin(*th));

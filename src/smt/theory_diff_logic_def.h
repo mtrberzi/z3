@@ -359,6 +359,8 @@ final_check_status theory_diff_logic<Ext>::final_check_eh() {
     }
 
     TRACE("arith_final", display(tout); );
+    if (!is_consistent())
+        return FC_CONTINUE;
     SASSERT(is_consistent());
     if (m_non_diff_logic_exprs) {
         return FC_GIVEUP; 
@@ -397,7 +399,7 @@ void theory_diff_logic<Ext>::del_atoms(unsigned old_size) {
 
 
 template<typename Ext>
-bool theory_diff_logic<Ext>::decompose_linear(app_ref_vector& terms, svector<bool>& signs) {
+bool theory_diff_logic<Ext>::decompose_linear(app_ref_vector& terms, bool_vector& signs) {
     for (unsigned i = 0; i < terms.size(); ++i) {
         app* n = terms.get(i);
         bool sign;
@@ -841,8 +843,8 @@ void theory_diff_logic<Ext>::reset_eh() {
         dealloc(m_atoms[i]);
     }
     m_graph            .reset();
-    m_izero              = null_theory_var;
-    m_rzero              = null_theory_var;
+    m_izero            = null_theory_var;
+    m_rzero            = null_theory_var;
     m_atoms            .reset();
     m_asserted_atoms   .reset();
     m_stats            .reset();
@@ -921,7 +923,7 @@ template<typename Ext>
 bool theory_diff_logic<Ext>::is_consistent() const {
     DEBUG_CODE(
         context& ctx = get_context();
-        for (unsigned i = 0; i < m_atoms.size(); ++i) {
+        for (unsigned i = 0; m_graph.is_feasible() && i < m_atoms.size(); ++i) {
             atom* a = m_atoms[i];
             bool_var bv = a->get_bool_var();
             lbool asgn = ctx.get_assignment(bv);        
@@ -1109,6 +1111,7 @@ unsigned theory_diff_logic<Ext>::simplex2edge(unsigned e) {
 
 template<typename Ext> 
 void theory_diff_logic<Ext>::update_simplex(Simplex& S) {
+    m_graph.set_to_zero(get_zero(true), get_zero(false));
     unsynch_mpq_inf_manager inf_mgr;
     unsynch_mpq_manager& mgr = inf_mgr.get_mpq_manager();
     unsigned num_nodes = m_graph.get_num_nodes();
@@ -1182,7 +1185,7 @@ typename theory_diff_logic<Ext>::inf_eps theory_diff_logic<Ext>::value(theory_va
      objective_term const& objective = m_objectives[v];   
      inf_eps r = inf_eps(m_objective_consts[v]);
      for (auto const& o : objective) {
-         numeral n = m_graph.get_assignment(v);
+         numeral n = m_graph.get_assignment(o.first);
          rational r1 = n.get_rational().to_rational();
          rational r2 = n.get_infinitesimal().to_rational();
          r += o.second * inf_eps(rational(0), inf_rational(r1, r2));
@@ -1193,7 +1196,8 @@ typename theory_diff_logic<Ext>::inf_eps theory_diff_logic<Ext>::value(theory_va
 template<typename Ext>
 typename theory_diff_logic<Ext>::inf_eps 
 theory_diff_logic<Ext>::maximize(theory_var v, expr_ref& blocker, bool& has_shared) {
-    
+    SASSERT(is_consistent());
+
     has_shared = false;
     Simplex& S = m_S;
     ast_manager& m = get_manager();
@@ -1237,8 +1241,10 @@ theory_diff_logic<Ext>::maximize(theory_var v, expr_ref& blocker, bool& has_shar
             if (is_simplex_edge(v)) {
                 unsigned edge_id = simplex2edge(v);
                 literal lit = m_graph.get_explanation(edge_id);
-                get_context().literal2expr(lit, tmp);
-                core.push_back(tmp);
+                if (lit != null_literal) {
+                    get_context().literal2expr(lit, tmp);
+                    core.push_back(tmp);
+                }
             }
         }
         compute_delta();

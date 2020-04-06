@@ -105,7 +105,7 @@ class asserted_formulas {
     public:
         nnf_cnf_fn(asserted_formulas& af): simplify_fmls(af, "nnf-cnf") {}
         void operator()() override { af.nnf_cnf(); }
-        bool should_apply() const override { return af.m_smt_params.m_nnf_cnf || (af.m_smt_params.m_mbqi && af.has_quantifiers()); }
+        bool should_apply() const override { return af.m_smt_params.m_nnf_cnf || af.has_quantifiers(); }
         void simplify(justified_expr const& j, expr_ref& n, proof_ref& p) override { UNREACHABLE(); }
     };
 
@@ -212,7 +212,7 @@ class asserted_formulas {
     bool invoke(simplify_fmls& s);
     void swap_asserted_formulas(vector<justified_expr>& new_fmls);
     void push_assertion(expr * e, proof * pr, vector<justified_expr>& result);
-    bool canceled() { return m.canceled(); }
+    bool canceled() { return !m.inc(); }
     bool check_well_sorted() const;
     unsigned get_total_size() const;
 

@@ -118,11 +118,11 @@ namespace sat {
         vector<watch_list>      m_watches;
         svector<lbool>          m_assignment;
         svector<justification>  m_justification; 
-        svector<bool>           m_decision;
-        svector<bool>           m_mark;
-        svector<bool>           m_lit_mark;
-        svector<bool>           m_eliminated;
-        svector<bool>           m_external;
+        bool_vector             m_decision;
+        bool_vector             m_mark;
+        bool_vector             m_lit_mark;
+        bool_vector             m_eliminated;
+        bool_vector             m_external;
         unsigned_vector         m_touched;
         unsigned                m_touch_index;
         literal_vector          m_replay_assign;
@@ -137,9 +137,9 @@ namespace sat {
         int                     m_action;
         double                  m_step_size;
         // phase
-        svector<bool>           m_phase; 
-        svector<bool>           m_best_phase;
-        svector<bool>           m_prev_phase;
+        bool_vector             m_phase; 
+        bool_vector             m_best_phase;
+        bool_vector             m_prev_phase;
         svector<char>           m_assigned_since_gc;
         search_state            m_search_state; 
         unsigned                m_search_unsat_conflicts;
@@ -445,7 +445,7 @@ namespace sat {
         literal_vector const& get_core() const override { return m_core; }
         model_converter const & get_model_converter() const { return m_mc; }
         void flush(model_converter& mc) override { mc.flush(m_mc); }
-        void set_model(model const& mdl);
+        void set_model(model const& mdl, bool is_current);
         char const* get_reason_unknown() const override { return m_reason_unknown.c_str(); }
         bool check_clauses(model const& m) const;
         bool is_assumption(bool_var v) const;
