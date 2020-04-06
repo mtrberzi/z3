@@ -47,7 +47,7 @@ class ext_str_tactic : public tactic {
             m_autil(m),
             m_fresh_vars(m),
             m_delayed_assertions(m) {
-            m_replace = mk_default_expr_replacer(m);
+            m_replace = mk_default_expr_replacer(m, false);
             updt_params(p);
         }
 

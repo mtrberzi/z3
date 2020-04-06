@@ -299,7 +299,7 @@ int zstring::indexofu(zstring const& other, unsigned offset) const {
 }
 
 
-int zstring::count(zstring const& other) const {
+unsigned zstring::count(zstring const& other) const {
     SASSERT(other.length() == 1);
     unsigned count = 0;
     unsigned len = length();
