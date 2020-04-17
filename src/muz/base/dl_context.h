@@ -528,6 +528,8 @@ namespace datalog {
          */
         model_ref get_model();
 
+        bool is_monotone();
+
         /**
            \brief retrieve proof from derivation of the query.
 
@@ -605,7 +607,6 @@ namespace datalog {
            Just reset all tables.
         */
         void reset_tables();
-
 
         void flush_add_rules();
 

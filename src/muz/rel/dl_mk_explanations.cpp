@@ -389,7 +389,7 @@ namespace datalog {
             explanation_relation_plugin & plugin = tgt.get_plugin();
 
             if (!src.no_undefined() || !tgt.no_undefined() || (delta && !delta->no_undefined())) {
-                UNREACHABLE();
+                throw default_exception("explanations are not supported with undefined predicates");
             }
             if (src.empty()) {
                 return;
@@ -456,11 +456,15 @@ namespace datalog {
               m_col_idx(col_idx), 
               m_new_rule(std::move(new_rule)) {}
 
+        void not_handled() {
+            throw default_exception("explanations are not supported with undefined predicates");
+        }
+
         void operator()(relation_base & r0) override {
             explanation_relation & r = static_cast<explanation_relation &>(r0);
 
             if (!r.is_undefined(m_col_idx)) {
-                UNREACHABLE();
+                not_handled();
             }
 
             unsigned sz = r.get_signature().size();
@@ -468,7 +472,8 @@ namespace datalog {
             subst_arg.resize(sz);
             unsigned ofs = sz-1;
             for (unsigned i=0; i<sz; i++) {
-                SASSERT(!r.is_undefined(i) || !contains_var(m_new_rule, i));
+                if (r.is_undefined(i) && contains_var(m_new_rule, i))
+                    not_handled();
                 subst_arg[ofs-i] = r.m_data.get(i);
             }
             expr_ref res = m_subst(m_new_rule, subst_arg.size(), subst_arg.c_ptr());
@@ -795,9 +800,9 @@ namespace datalog {
         SASSERT(prod_rel.size()==2);
        
         if (!prod_rel[0].get_plugin().is_sieve_relation())
-            throw default_exception("explanations are not supported for this query");
+            throw default_exception("explanations are not supported with undefined predicates");
         if (!prod_rel[1].get_plugin().is_sieve_relation())
-            throw default_exception("explanations are not supported for this query");
+            throw default_exception("explanations are not supported with undefined predicates");
         sieve_relation * srels[] = { 
             static_cast<sieve_relation *>(&prod_rel[0]),
             static_cast<sieve_relation *>(&prod_rel[1]) };
@@ -838,10 +843,7 @@ namespace datalog {
             m_e_fact_relation = static_cast<explanation_relation *>(expl_singleton);
         }
         func_decl_set predicates(m_context.get_predicates());
-        decl_set::iterator it = predicates.begin();
-        decl_set::iterator end = predicates.end();
-        for (; it!=end; ++it) {
-            func_decl * orig_decl = *it;
+        for (func_decl* orig_decl : predicates) {
             TRACE("dl", tout << mk_pp(orig_decl, m_manager) << "\n";);
             func_decl * e_decl = get_e_decl(orig_decl);
 

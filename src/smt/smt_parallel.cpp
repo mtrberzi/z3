@@ -46,9 +46,11 @@ namespace smt {
             ERROR_EX
         };
 
+        vector<smt_params> smt_params;
         scoped_ptr_vector<ast_manager> pms;
         scoped_ptr_vector<context> pctxs;
         vector<expr_ref_vector> pasms;
+
         ast_manager& m = ctx.m;
         scoped_limits sl(m.limit());
         unsigned finished_id = UINT_MAX;
@@ -57,11 +59,17 @@ namespace smt {
         unsigned error_code = 0;
         bool done = false;
         unsigned num_rounds = 0;
+        if (m.has_trace_stream())
+            throw default_exception("trace streams have to be off in parallel mode");
 
+        
+        for (unsigned i = 0; i < num_threads; ++i) {
+            smt_params.push_back(ctx.get_fparams());
+        }
         for (unsigned i = 0; i < num_threads; ++i) {
             ast_manager* new_m = alloc(ast_manager, m, true);
             pms.push_back(new_m);
-            pctxs.push_back(alloc(context, *new_m, ctx.get_fparams(), ctx.get_params())); 
+            pctxs.push_back(alloc(context, *new_m, smt_params[i], ctx.get_params())); 
             context& new_ctx = *pctxs.back();
             context::copy(ctx, new_ctx, true);
             new_ctx.set_random_seed(i + ctx.get_fparams().m_random_seed);
@@ -174,6 +182,8 @@ namespace smt {
                 done = true;
             }
         };
+
+        // num_threads = 1;
 
         while (true) {
             vector<std::thread> threads(num_threads);

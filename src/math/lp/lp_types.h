@@ -21,11 +21,20 @@ Revision History:
 
 #include <sstream>
 
+
+namespace nla {
+    class core;
+}
+
 namespace lp {
+
 typedef unsigned var_index;
 typedef unsigned constraint_index;
 typedef unsigned row_index;
 enum lconstraint_kind { LE = -2, LT = -1 , GE = 2, GT = 1, EQ = 0, NE = 3 };
+typedef unsigned lpvar;
+const lpvar null_lpvar = UINT_MAX;
+const constraint_index null_ci = UINT_MAX;
 
 
 // index that comes from term or variable.
@@ -61,9 +70,27 @@ public:
         return strm.str();
     }
 
+    bool is_null() const { return m_index == UINT_MAX; }
+
 };
+
+class column_index {
+    unsigned m_index;
+    friend class lar_solver;
+    friend class lar_term;
+    friend nla::core;
+
+    operator unsigned() const { return m_index; }
+    
+public:
+    column_index(unsigned j): m_index(j) {}    
+    unsigned index() const { return m_index; }
+    bool is_null() const { return m_index == null_lpvar; }
+};
+
 }
 
 inline std::ostream& operator<<(std::ostream& out, lp::tv const& t) {
     return out << (t.is_term() ? "t":"j") << t.id() << "\n";
 }
+

@@ -129,6 +129,24 @@ namespace smt {
         return ctx.get_literal(eq);
     }
 
+    literal theory::mk_preferred_eq(expr* a, expr* b) {
+        context& ctx = get_context();
+        ctx.assume_eq(ensure_enode(a), ensure_enode(b));
+        literal lit = mk_eq(a, b, false);
+        ctx.force_phase(lit);
+        return lit;
+    }
+
+    enode* theory::ensure_enode(expr* e) {
+        context& ctx = get_context();
+        if (!ctx.e_internalized(e)) {
+            ctx.internalize(e, false);
+        }
+        enode* n = ctx.get_enode(e);
+        ctx.mark_as_relevant(n);
+        return n;
+    }
+
     theory::theory(family_id fid):
         m_id(fid),
         m_context(nullptr),
@@ -138,6 +156,17 @@ namespace smt {
     theory::~theory() {
     }
 
+
+    void theory::log_axiom_instantiation(literal_vector const& ls) {
+        ast_manager& m = get_manager();
+        expr_ref_vector fmls(m);
+        expr_ref tmp(m);
+        for (literal l : ls) {
+            get_context().literal2expr(l, tmp);
+            fmls.push_back(tmp);
+        }
+        log_axiom_instantiation(mk_or(fmls));
+    }
 
     void theory::log_axiom_instantiation(app * r, unsigned axiom_id, unsigned num_bindings, app * const * bindings, unsigned pattern_id, const vector<std::tuple<enode *, enode *>> & used_enodes) {
         ast_manager & m = get_manager();

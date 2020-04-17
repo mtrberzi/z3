@@ -24,35 +24,32 @@ Notes:
 #include <sstream>
 #include <iomanip>
 
-#include "muz/base/dl_util.h"
+#include "util/util.h"
+#include "util/timeit.h"
+#include "util/luby.h"
 #include "ast/rewriter/rewriter.h"
 #include "ast/rewriter/rewriter_def.h"
 #include "ast/rewriter/var_subst.h"
-#include "util/util.h"
-#include "muz/spacer/spacer_prop_solver.h"
-#include "muz/spacer/spacer_context.h"
-#include "muz/spacer/spacer_generalizers.h"
-#include "ast/for_each_expr.h"
-#include "muz/base/dl_rule_set.h"
-#include "smt/tactic/unit_subsumption_tactic.h"
-#include "model/model_smt2_pp.h"
-#include "muz/transforms/dl_mk_rule_inliner.h"
 #include "ast/ast_smt2_pp.h"
 #include "ast/ast_ll_pp.h"
 #include "ast/ast_util.h"
 #include "ast/proofs/proof_checker.h"
-#include "smt/smt_value_sort.h"
+#include "ast/for_each_expr.h"
 #include "ast/scoped_proof.h"
-#include "muz/spacer/spacer_qe_project.h"
-#include "tactic/core/blast_term_ite_tactic.h"
-
-#include "util/timeit.h"
-#include "util/luby.h"
 #include "ast/rewriter/expr_safe_replace.h"
 #include "ast/expr_abstract.h"
-
+#include "model/model_smt2_pp.h"
+#include "tactic/core/blast_term_ite_tactic.h"
+#include "smt/tactic/unit_subsumption_tactic.h"
+#include "smt/smt_value_sort.h"
 #include "smt/smt_solver.h"
-
+#include "muz/base/dl_util.h"
+#include "muz/spacer/spacer_prop_solver.h"
+#include "muz/spacer/spacer_context.h"
+#include "muz/spacer/spacer_generalizers.h"
+#include "muz/base/dl_rule_set.h"
+#include "muz/transforms/dl_mk_rule_inliner.h"
+#include "muz/spacer/spacer_qe_project.h"
 #include "muz/spacer/spacer_sat_answer.h"
 
 #define WEAKNESS_MAX 65535
@@ -441,8 +438,8 @@ derivation::premise::premise (pred_transformer &pt, unsigned oidx,
     }
 
     if (aux_vars) 
-        for (unsigned i = 0, sz = aux_vars->size (); i < sz; ++i) 
-            m_ovars.push_back(m.mk_const(sm.n2o(aux_vars->get(i)->get_decl(), m_oidx))); 
+        for (app* v : *aux_vars) 
+            m_ovars.push_back(m.mk_const(sm.n2o(v->get_decl(), m_oidx))); 
 }
 
 derivation::premise::premise (const derivation::premise &p) :
@@ -466,9 +463,8 @@ void derivation::premise::set_summary (expr * summary, bool must,
     { m_ovars.push_back(m.mk_const(sm.o2o(m_pt.sig(i), 0, m_oidx))); }
 
     if (aux_vars)
-        for (unsigned i = 0, sz = aux_vars->size (); i < sz; ++i)
-            m_ovars.push_back (m.mk_const (sm.n2o (aux_vars->get (i)->get_decl (),
-                                                   m_oidx)));
+        for (app* v : *aux_vars)
+            m_ovars.push_back (m.mk_const (sm.n2o (v->get_decl (), m_oidx)));
 }
 
 
@@ -541,25 +537,25 @@ void lemma::mk_expr_core() {
     m_body = ::push_not(m_body);
 
     if (!m_zks.empty() && has_zk_const(m_body)) {
-            app_ref_vector zks(m);
-            zks.append(m_zks);
-            zks.reverse();
-            expr_abstract(m, 0,
-                          zks.size(), (expr* const*)zks.c_ptr(), m_body,
-                          m_body);
-            ptr_buffer<sort> sorts;
-            svector<symbol> names;
-            for (unsigned i=0, sz=zks.size(); i < sz; ++i) {
-                sorts.push_back(get_sort(zks.get(i)));
-                names.push_back(zks.get(i)->get_decl()->get_name());
-            }
-            m_body = m.mk_quantifier(forall_k, zks.size(),
-                                     sorts.c_ptr(),
-                                     names.c_ptr(),
-                                     m_body, 15, symbol(m_body->get_id()));
+        app_ref_vector zks(m);
+        zks.append(m_zks);
+        zks.reverse();
+        m_body = expr_abstract(m, 0,
+                               zks.size(), (expr* const*)zks.c_ptr(), m_body);
+        ptr_buffer<sort> sorts;
+        svector<symbol> names;
+        for (app* z : zks) {
+            sorts.push_back(get_sort(z));
+            names.push_back(z->get_decl()->get_name());
+        }
+        m_body = m.mk_quantifier(forall_k, zks.size(),
+                                 sorts.c_ptr(),
+                                 names.c_ptr(),
+                                 m_body, 15, symbol(m_body->get_id()));
     }
     SASSERT(m_body);
 }
+
 void lemma::mk_cube_core() {
     if (!m_cube.empty()) {return;}
     expr_ref cube(m);
@@ -1008,19 +1004,19 @@ app_ref pred_transformer::mk_fresh_rf_tag ()
     return app_ref(m.mk_const (pm.get_n_pred (decl)), m);
 }
 
-void pred_transformer::add_rf (reach_fact *rf)
+void pred_transformer::add_rf (reach_fact *rf, bool force)
 {
     timeit _timer (is_trace_enabled("spacer_timeit"),
                    "spacer::pred_transformer::add_rf",
                    verbose_stream ());
 
-    TRACE ("spacer",
-           tout << "add_rf: " << head()->get_name() << " "
-           << (rf->is_init () ? "INIT " : "")
-           << mk_pp(rf->get (), m) << "\n";);
+    if (!rf) return;
+    TRACE("spacer", tout << "add_rf: " << head()->get_name() << " "
+                         << (rf->is_init() ? "INIT " : "")
+                         << mk_pp(rf->get(), m) << "\n";);
 
-    // -- avoid duplicates
-    if (!rf || get_rf(rf->get())) {return;}
+    // -- avoid duplicates unless forced
+    if (!force && get_rf(rf->get())) {return;}
 
     // all initial facts are grouped together
     SASSERT (!rf->is_init () || m_reach_facts.empty () ||
@@ -1119,15 +1115,8 @@ expr_ref pred_transformer::get_cover_delta(func_decl* p_orig, int level)
     (*rep)(result);
 
     // adjust result according to model converter.
-    unsigned arity = m_head->get_arity();
     model_ref md = alloc(model, m);
-    if (arity == 0) {
-        md->register_decl(m_head, result);
-    } else {
-        func_interp* fi = alloc(func_interp, m, arity);
-        fi->set_else(result);
-        md->register_decl(m_head, fi);
-    }
+    md->register_decl(m_head, result);    
     model_converter_ref mc = ctx.get_model_converter();
     apply(mc, md);
     if (p_orig->get_arity() == 0) {
@@ -1394,7 +1383,11 @@ lbool pred_transformer::is_reachable(pob& n, expr_ref_vector* core,
         if (model && model->get()) {
             r = find_rule(**model, is_concrete, reach_pred_used, num_reuse_reach);
             TRACE("spacer", 
-                tout << "reachable " << r << " is_concrete " << is_concrete << " rused: " << reach_pred_used << "\n";);
+                  tout << "reachable is_sat: " << is_sat << " "
+                  << r << " is_concrete " << is_concrete << " rused: " << reach_pred_used << "\n";
+                  ctx.get_datalog_context().get_rule_manager().display_smt2(*r, tout) << "\n";
+                  );
+            TRACE("spacer_sat", tout << "model is:\n" << **model << "\n";);
         }
 
         return is_sat;
@@ -1402,13 +1395,7 @@ lbool pred_transformer::is_reachable(pob& n, expr_ref_vector* core,
     if (is_sat == l_false) {
         SASSERT (reach_assumps.empty ());
         TRACE ("spacer", tout << "unreachable with lemmas\n";
-               if (core) {
-                   tout << "Core:\n";
-                   for (unsigned i = 0; i < core->size (); i++) {
-                       tout << mk_pp (core->get(i), m) << "\n";
-                   }
-               }
-            );
+               if (core) tout << "Core:\n" << *core << "\n";);
         uses_level = m_solver->uses_level();
         return l_false;
     }
@@ -1635,12 +1622,12 @@ void pred_transformer::init_rules(decl2rel const& pts) {
     if (not_inits.empty ()) {m_all_init = true;}
 }
 
-#ifdef Z3DEBUG
-static bool is_all_non_null(app_ref_vector const& apps) {
-    for (auto *a : apps) if (!a) return false;
-    return true;
-}
-#endif
+// #ifdef Z3DEBUG
+// static bool is_all_non_null(app_ref_vector const& apps) {
+//     for (auto *a : apps) if (!a) return false;
+//     return true;
+// }
+// #endif
 
 void pred_transformer::init_rule(decl2rel const& pts, datalog::rule const& rule) {
     scoped_watch _t_(m_initialize_watch);
@@ -1671,7 +1658,7 @@ void pred_transformer::init_rule(decl2rel const& pts, datalog::rule const& rule)
         trans= mk_and (tail);
 
         ground_free_vars(trans, var_reprs, aux_vars, ut_size == 0);
-        SASSERT(is_all_non_null(var_reprs));
+       // SASSERT(is_all_non_null(var_reprs));
 
         expr_ref tmp = var_subst(m, false)(trans, var_reprs.size (), (expr*const*)var_reprs.c_ptr());
         flatten_and (tmp, side);
@@ -1688,8 +1675,17 @@ void pred_transformer::init_rule(decl2rel const& pts, datalog::rule const& rule)
     }
     TRACE("spacer_init_rule", tout << mk_pp(trans, m) << "\n";);
 
-    // allow quantifiers in init rule
-    SASSERT(ut_size == 0 || is_ground(trans));
+    // no (universal) quantifiers in recursive rules
+    CTRACE("spacer", ut_size > 0 && !is_ground(trans),
+           tout << "Warning: quantifier in recursive rule: " << trans << "\n";);
+
+    if (ut_size > 0 && !is_ground(trans)) {
+        std::stringstream stm;
+        stm << "spacer: quantifier in a recursive rule:\n";
+        rule.display(get_context().get_datalog_context(), stm);
+        throw default_exception(stm.str());
+    }
+
     if (!m.is_false(trans)) {
         pt_rule &ptr = m_pt_rules.mk_rule(m, rule);
         ptr.set_trans(trans);
@@ -2598,6 +2594,7 @@ void context::init_global_smt_params() {
         p.set_bool("arith.eager_eq_axioms", false);
     }
     p.set_uint("random_seed", m_params.spacer_random_seed());
+    p.set_bool("clause_proof", false);
 
     p.set_bool("dump_benchmarks", m_params.spacer_dump_benchmarks());
     p.set_double("dump_threshold", m_params.spacer_dump_threshold());
@@ -2924,12 +2921,12 @@ expr_ref context::get_ground_sat_answer() const {
                    << "Sat answer unavailable when result is false\n";);
         return expr_ref(m);
     }
-
+    
     // convert a ground refutation into a linear counterexample
     // only works for linear CHC systems
     expr_ref_vector cex(m);
     proof_ref pf = get_ground_refutation();
-
+    
     proof_ref_vector premises(m);
     expr_ref conclusion(m);
     svector<std::pair<unsigned, unsigned>> positions;
@@ -2946,18 +2943,18 @@ expr_ref context::get_ground_sat_answer() const {
         } else {
             pf.reset();
             break;
-    }
-
+        }
+        
         premises.reset();
         conclusion.reset();
         positions.reset();
         substs.reset();
-        }
+    }
     SASSERT(!pf || !m.is_hyper_resolve(pf));
     if (pf) {
         cex.push_back(m.get_fact(pf));
     }
-
+    
     TRACE ("spacer", tout << "ground cex\n" << cex << "\n";);
 
     return mk_and(cex);
@@ -3388,10 +3385,15 @@ lbool context::expand_pob(pob& n, pob_ref_buffer &out)
         // must-reachable
         if (is_concrete) {
             // -- update must summary
-            if (r && r->get_uninterpreted_tail_size() > 0) {
-                reach_fact_ref rf = n.pt().mk_rf (n, *model, *r);
+            CTRACE("spacer_sat", r,
+                   tout << "Concrete reachable with a rule:\n";
+                   get_datalog_context().get_rule_manager().display_smt2(*r, tout) << "\n";
+                   );
+            bool is_root = m_pob_queue.is_root(n);
+            if (r && (r->get_uninterpreted_tail_size() > 0 || is_root )) {
+                reach_fact_ref rf = n.pt().mk_rf(n, *model, *r);
                 checkpoint ();
-                n.pt ().add_rf (rf.get ());
+                n.pt ().add_rf(rf.get (), is_root);
                 checkpoint ();
             }
 

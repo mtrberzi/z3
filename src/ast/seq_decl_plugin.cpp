@@ -899,8 +899,8 @@ func_decl * seq_decl_plugin::mk_func_decl(decl_kind k, unsigned num_parameters, 
         return mk_str_fun(k, arity, domain, range, OP_SEQ_EXTRACT);
 
     case _OP_SEQ_SKOLEM: {
-        if (num_parameters != 1 || !parameters[0].is_symbol()) {
-            m.raise_exception("one symbol parameter expected to skolem symbol");
+        if (num_parameters == 0 || !parameters[0].is_symbol()) {
+            m.raise_exception("first parameter to skolem symbol should be a parameter");
         }
         symbol s = parameters[0].get_symbol();
         return m.mk_func_decl(s, arity, domain, range, func_decl_info(m_family_id, k, num_parameters, parameters));
@@ -1068,14 +1068,18 @@ app* seq_util::mk_lt(expr* ch1, expr* ch2) const {
     return m.mk_not(bv().mk_ule(ch2, ch1));
 }
 
-bool seq_util::str::is_string(expr const* n, zstring& s) const {
-    if (is_string(n)) {
-        s = zstring(to_app(n)->get_decl()->get_parameter(0).get_symbol().bare_str());
+bool seq_util::str::is_string(func_decl const* f, zstring& s) const {
+    if (is_string(f)) {
+        s = zstring(f->get_parameter(0).get_symbol().bare_str());
         return true;
     }
     else {
         return false;
     }
+}
+
+bool seq_util::str::is_string(expr const* n, zstring& s) const {
+    return is_app(n) && is_string(to_app(n)->get_decl(), s);
 }
 
 bool seq_util::str::is_nth_i(expr const* n, expr*& s, unsigned& idx) const {

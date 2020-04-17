@@ -160,6 +160,8 @@ namespace smt {
             dst_af.assert_expr(fml, pr);
         }
 
+        src_af.get_macro_manager().copy_to(dst_af.get_macro_manager());
+
         if (!src_ctx.m_setup.already_configured()) {
             return;
         }
@@ -911,12 +913,12 @@ namespace smt {
             enode * parent = *it;
             if (parent->is_cgc_enabled()) {
                 CTRACE("add_eq", !parent->is_cgr() || !m_cg_table.contains_ptr(parent),
-                       tout << "old num_parents: " << r2_num_parents << ", num_parents: " << r2->m_parents.size() << ", parent: #" <<
-                       parent->get_owner_id() << ", parents: \n";
-                       for (unsigned i = 0; i < r2->m_parents.size(); i++) {
-                           tout << "#" << r2->m_parents[i]->get_owner_id() << " ";
-                       }
-                       display(tout););
+                       tout << "old num_parents: " << r2_num_parents 
+                            << "\nnum_parents: " << r2->m_parents.size() 
+                            << "\nparent: #" << parent->get_owner_id() 
+                            << "\nparents: ";
+                       for (enode* p : r2->m_parents) tout << "#" << p->get_owner_id() << " ";
+                       display(tout << "\n"););
                 SASSERT(parent->is_cgr());
                 SASSERT(m_cg_table.contains_ptr(parent));
                 m_cg_table.erase(parent);
@@ -928,7 +930,7 @@ namespace smt {
             curr->m_root = r1;
             curr = curr->m_next;
         }
-        while(curr != r1);
+        while (curr != r1);
 
         // restore parents of r2
         r2->m_parents.shrink(r2_num_parents);
@@ -937,6 +939,7 @@ namespace smt {
         for (enode * parent : enode::parents(r1)) {
             TRACE("add_eq_parents", tout << "visiting: #" << parent->get_owner_id() << "\n";);
             if (parent->is_cgc_enabled()) {
+                
                 enode * cg = parent->m_cg;
                 if (!parent->is_true_eq() &&
                     (parent == cg ||           // parent was root of the congruence class before and after the merge
@@ -3023,19 +3026,21 @@ namespace smt {
         }
     }
 
-    static bool is_valid_assumption(ast_manager & m, expr * assumption) {
+    static bool is_valid_assumption(ast_manager & m, expr * a) {
         expr* arg;
-        if (!m.is_bool(assumption))
+        if (!m.is_bool(a))
             return false;
-        if (is_uninterp_const(assumption))
+        if (is_uninterp_const(a))
             return true;
-        if (m.is_not(assumption, arg) && is_uninterp_const(arg))
+        if (m.is_not(a, arg) && is_uninterp_const(arg))
             return true;
-        if (!is_app(assumption))
+        if (!is_app(a))
             return false;
-        if (to_app(assumption)->get_num_args() == 0)
+        if (m.is_true(a) || m.is_false(a))
             return true;
-        if (m.is_not(assumption, arg) && is_app(arg) && to_app(arg)->get_num_args() == 0)
+        if (is_app(a) && to_app(a)->get_family_id() == m.get_basic_family_id())
+            return false;
+        if (is_app(a) && to_app(a)->get_num_args() == 0)
             return true;
         return false;
     }
@@ -3192,6 +3197,8 @@ namespace smt {
             vector<std::pair<expr*,expr_ref>> asm2proxy;
             internalize_proxies(asms, asm2proxy);
             for (auto const& p: asm2proxy) {
+                if (inconsistent())
+                    break;
                 expr_ref curr_assumption = p.second;
                 expr* orig_assumption = p.first;
                 if (m.is_true(curr_assumption)) continue;
@@ -3199,22 +3206,16 @@ namespace smt {
                 proof * pr = m.mk_asserted(curr_assumption);
                 internalize_assertion(curr_assumption, pr, 0);
                 literal l = get_literal(curr_assumption);
-                if (l == true_literal)
+                SASSERT(get_assignment(l) != l_undef);
+                SASSERT(l != false_literal || inconsistent());
+                if (l == true_literal || l == false_literal) {
                     continue;
-                if (l == false_literal) {
-                    set_conflict(b_justification::mk_axiom());
-                    break;
                 }
                 m_literal2assumption.insert(l.index(), orig_assumption);
-                // internalize_assertion marked l as relevant.
-                SASSERT(is_relevant(l));
-                TRACE("assumptions", tout << l << ":" << curr_assumption << " " << mk_pp(orig_assumption, m) << "\n";);
-                if (m.proofs_enabled())
-                    assign(l, mk_justification(justification_proof_wrapper(*this, pr)));
-                else
-                    assign(l, b_justification::mk_axiom());
                 m_assumptions.push_back(l);
                 get_bdata(l.var()).m_assumption = true;                
+                SASSERT(is_relevant(l));
+                TRACE("assumptions", tout << l << ":" << curr_assumption << " " << mk_pp(orig_assumption, m) << "\n";);
             }
         }
         m_search_lvl = m_scope_lvl;
@@ -3465,7 +3466,7 @@ namespace smt {
         if (!check_preamble(reset_cancel)) return l_undef;
         SASSERT(at_base_level());
         setup_context(false);
-        if (m_fparams.m_threads > 1) {            
+        if (m_fparams.m_threads > 1 && !m.has_trace_stream()) {            
             expr_ref_vector asms(m, num_assumptions, assumptions);
             parallel p(*this);
             return p(asms);

@@ -97,6 +97,8 @@ private:
 public:
     reslimit                 m_reslim;
 
+    void insert_to_refine(lpvar j);
+    void erase_from_to_refine(lpvar j);
     
     const lp::u_set&  active_var_set () const { return m_active_var_set;}
     bool active_var_set_contains(unsigned j) const { return m_active_var_set.contains(j); }
@@ -126,13 +128,13 @@ public:
     bool ineq_holds(const ineq& n) const;
     bool lemma_holds(const lemma& l) const;
     bool is_monic_var(lpvar j) const { return m_emons.is_monic_var(j); }
-    rational val(lpvar j) const { return m_lar_solver.get_column_value_rational(j); }
+    const rational& val(lpvar j) const { return m_lar_solver.get_column_value(j).x; }
 
-    rational var_val(const monic& m) const { return m_lar_solver.get_column_value_rational(m.var()); }
+    const rational& var_val(const monic& m) const { return m_lar_solver.get_column_value(m.var()).x; }
 
     rational mul_val(const monic& m) const { 
         rational r(1);
-        for (lpvar v : m.vars()) r *= m_lar_solver.get_column_value_rational(v);
+        for (lpvar v : m.vars()) r *= m_lar_solver.get_column_value(v).x;
         return r;
     }
 
@@ -421,6 +423,7 @@ public:
     void update_to_refine_of_var(lpvar j);
     bool try_to_patch(lpvar, const rational&, const monic&);
     bool to_refine_is_correct() const;
+    bool patch_blocker(lpvar u, const monic& m) const;
 };  // end of core
 
 struct pp_mon {

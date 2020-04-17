@@ -502,17 +502,26 @@ namespace datalog {
             rule* r = nullptr;
             for (unsigned i = 0; i < rls.size(); ++i) {
                 func_decl_ref rule_i = mk_level_rule(pred, i, level);
-                TRACE("bmc", rls[i]->display(b.m_ctx, tout << "Checking rule " << mk_pp(rule_i, m) << " "););
                 prop_r = m.mk_app(rule_i, prop->get_num_args(), prop->get_args());
+                TRACE("bmc", rls[i]->display(b.m_ctx, tout << "Checking rule " << mk_pp(rule_i, m) << " ");
+                      tout << (*md)(prop_r) << "\n";
+                      tout << *md << "\n";
+                      );
                 if (md->is_true(prop_r)) {
                     r = rls[i];
                     break;
                 }
             }
+            if (!r) 
+                throw default_exception("could not expand BMC rule");
             SASSERT(r);
             b.m_rule_trace.push_back(r);
             rm.to_formula(*r, fml);
             IF_VERBOSE(1, verbose_stream() << mk_pp(fml, m) << "\n";);
+            if (!r->get_proof()) {
+                IF_VERBOSE(0, r->display(b.m_ctx, verbose_stream() << "no proof associated with rule"));
+                throw default_exception("no proof associated with rule");
+            }
             prs.push_back(r->get_proof());
             unsigned sz = r->get_uninterpreted_tail_size();
 
@@ -1530,7 +1539,7 @@ namespace datalog {
     }
 
     void bmc::collect_statistics(statistics& st) const {
-        m_solver->collect_statistics(st);
+        if (m_solver) m_solver->collect_statistics(st);
     }
 
     void bmc::reset_statistics() {

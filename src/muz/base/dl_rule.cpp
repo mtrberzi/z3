@@ -491,12 +491,12 @@ namespace datalog {
             }
             app * tail_entry = TAG(app *, curr, is_neg);
             if (m_ctx.is_predicate(curr)) {
-                *uninterp_tail=tail_entry;
+                *uninterp_tail = tail_entry;
                 uninterp_tail++;
             }
             else {
                 interp_tail--;
-                *interp_tail=tail_entry;
+                *interp_tail = tail_entry;
             }
             m.inc_ref(curr);
         }
@@ -570,6 +570,7 @@ namespace datalog {
         default: fml = m.mk_implies(m.mk_and(body.size(), body.c_ptr()), fml); break;
         }
 
+        m_free_vars.reset();        
         m_free_vars(fml);
         if (m_free_vars.empty()) {
             return;
@@ -999,26 +1000,24 @@ namespace datalog {
 
         var_subst vs(m, false);
 
-        expr_ref new_head_e = vs(m_head, subst_vals.size(), subst_vals.c_ptr());
-
-        m.inc_ref(new_head_e);
+        app_ref new_head_a = rm.ensure_app(vs(m_head, subst_vals.size(), subst_vals.c_ptr()));
+        m.inc_ref(new_head_a);
         m.dec_ref(m_head);
-        m_head = to_app(new_head_e);
+        m_head = new_head_a;
 
         for (unsigned i = 0; i < m_tail_size; i++) {
             app * old_tail = get_tail(i);
-            expr_ref new_tail_e = vs(old_tail, subst_vals.size(), subst_vals.c_ptr());
+            app_ref new_tail_a = rm.ensure_app(vs(old_tail, subst_vals.size(), subst_vals.c_ptr()));
             bool  sign     = is_neg_tail(i);
-            m.inc_ref(new_tail_e);
+            m.inc_ref(new_tail_a);
             m.dec_ref(old_tail);
-            m_tail[i] = TAG(app *, to_app(new_tail_e), sign);
+            m_tail[i] = TAG(app *, new_tail_a.get(), sign);
         }
     }
 
     void rule::display(context & ctx, std::ostream & out) const {
         ast_manager & m = ctx.get_manager();
         out << m_name.str () << ":\n";
-        //out << mk_pp(m_head, m);
         output_predicate(ctx, m_head, out);
         if (m_tail_size == 0) {
             out << ".\n";

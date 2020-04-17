@@ -335,7 +335,8 @@ namespace smt {
         mk_coeffs(m_test.get_linearization(), coeffs, w);
 
         if (coeffs.empty()) {
-            throw default_exception("utvi formulas require pre-processing and dont work with quantifiers");
+            found_non_utvpi_expr(n);
+            return false;
         }
 
         bool_var bv = ctx.mk_bool_var(n);
@@ -655,7 +656,9 @@ namespace smt {
             SASSERT(v2 != null_theory_var);
             SASSERT(pos2 || terms[1].second.is_minus_one());
         }            
-        TRACE("utvpi", tout << (pos1?"$":"-$") << v1 << (pos2?" + $":" - $") << v2 << " + " << weight << " <= 0\n";);
+        TRACE("utvpi", tout << (pos1?"$":"-$") << v1;
+              if (terms.size() == 2) tout << (pos2?" + $":" - $") << v2;
+              tout << " + " << weight << " <= 0\n";);
         edge_id id = m_graph.get_num_edges();
         th_var w1 = to_var(v1), w2 = to_var(v2);
 
