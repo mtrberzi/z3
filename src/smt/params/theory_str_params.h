@@ -68,14 +68,7 @@ struct theory_str_params {
      */
     bool m_StringConstantCache;
 
-    /*
-     * If FiniteOverlapModels is set to true,
-     * arrangements that result in overlapping variables will generate a small number of models
-     * to test instead of completely giving up on the case.
-     */
-    bool m_FiniteOverlapModels;
-
-    bool m_UseBinarySearch;
+    bool m_UseBinarySearch; // TODO NOCOMMIT REMOVE THIS
     unsigned m_BinarySearchInitialUpperBound;
 
     double m_OverlapTheoryAwarePriority;
@@ -121,7 +114,7 @@ struct theory_str_params {
      * If FixedLengthModels is true, Z3str3 will use a fixed-length equation solver to construct models in final_check.
      * If false, Z3str3 will use the legacy length tester and value tester procedure.
      */
-    bool m_FixedLengthModels;
+    bool m_FixedLengthModels; // TODO NOCOMMIT REMOVE THIS
 
     /*
      * If FixedLengthRefinement is true and the fixed-length equation solver is enabled,
@@ -145,7 +138,6 @@ struct theory_str_params {
         m_UseFastLengthTesterCache(false),
         m_UseFastValueTesterCache(true),
         m_StringConstantCache(true),
-        m_FiniteOverlapModels(false),
         m_UseBinarySearch(false),
         m_BinarySearchInitialUpperBound(64),
         m_OverlapTheoryAwarePriority(-0.1),

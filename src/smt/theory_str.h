@@ -603,10 +603,6 @@ protected:
     // maps a length tester to the next length tester to be (re)used if the split is "high"
     obj_map<expr, expr*> binary_search_next_var_high;
 
-    // finite model finding data
-    // maps a finite model tester var to a list of variables that will be tested
-    obj_map<expr, ptr_vector<expr> > finite_model_test_varlists;
-
     // fixed length model construction
     expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
@@ -750,16 +746,8 @@ protected:
     void compute_contains(std::map<expr*, expr*> & varAliasMap,
             std::map<expr*, expr*> & concatAliasMap, std::map<expr*, expr *> & varConstMap,
             std::map<expr*, expr*> & concatConstMap, std::map<expr*, std::map<expr*, int> > & varEqConcatMap);
-    expr * dealias_node(expr * node, std::map<expr*, expr*> & varAliasMap, std::map<expr*, expr*> & concatAliasMap);
-    void get_grounded_concats(unsigned depth,
-                              expr* node, std::map<expr*, expr*> & varAliasMap,
-                              std::map<expr*, expr*> & concatAliasMap, std::map<expr*, expr*> & varConstMap,
-                              std::map<expr*, expr*> & concatConstMap, std::map<expr*, std::map<expr*, int> > & varEqConcatMap,
-                              std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > & groundedMap);
-    void print_grounded_concat(expr * node, std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > & groundedMap);
     void check_subsequence(expr* str, expr* strDeAlias, expr* subStr, expr* subStrDeAlias, expr* boolVar,
             std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > & groundedMap);
-    bool is_partial_in_grounded_concat(const std::vector<expr*> & strVec, const std::vector<expr*> & subStrVec);
 
     void get_nodes_in_concat(expr * node, ptr_vector<expr> & nodeList);
     expr * simplify_concat(expr * node);
@@ -807,10 +795,6 @@ protected:
             std::map<expr*, std::set<expr*> > & unrollGroupMap);
 
     bool term_appears_as_subterm(expr * needle, expr * haystack);
-    void classify_ast_by_type(expr * node, std::map<expr*, int> & varMap,
-            std::map<expr*, int> & concatMap, std::map<expr*, int> & unrollMap);
-    void classify_ast_by_type_in_positive_context(std::map<expr*, int> & varMap,
-            std::map<expr*, int> & concatMap, std::map<expr*, int> & unrollMap);
 
     expr * mk_internal_lenTest_var(expr * node, int lTries);
     expr * gen_len_val_options_for_free_var(expr * freeVar, expr * lenTesterInCbEq, zstring lenTesterValue);
@@ -883,9 +867,6 @@ protected:
 
     // TESTING
     void refresh_theory_var(expr * e);
-
-    expr_ref set_up_finite_model_test(expr * lhs, expr * rhs);
-    void finite_model_test(expr * v, expr * c);
 
 public:
     theory_str(ast_manager & m, theory_str_params const & params);

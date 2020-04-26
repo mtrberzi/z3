@@ -168,8 +168,6 @@ namespace smt {
         binary_search_next_var_low.reset();
         binary_search_next_var_high.reset();
 
-        finite_model_test_varlists.reset();
-
         fixed_length_subterm_trail.reset();
         fixed_length_assumptions.reset();
         fixed_length_used_len_terms.reset();
@@ -3535,18 +3533,12 @@ namespace smt {
                 }
             } else {
                 loopDetected = true;
-                if (m_params.m_FiniteOverlapModels) {
-                    expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                    assert_implication(ax_l, tester);
-                    add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                } else {
-                    TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
-                    TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
+                TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
+                TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
 
-                    if (!overlapAssumptionUsed) {
-                        overlapAssumptionUsed = true;
-                        assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
-                    }
+                if (!overlapAssumptionUsed) {
+                    overlapAssumptionUsed = true;
+                    assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
                 }
             }
         } else if (splitType == 1) {
@@ -3598,18 +3590,12 @@ namespace smt {
                 }
             } else {
                 loopDetected = true;
-                if (m_params.m_FiniteOverlapModels) {
-                    expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                    assert_implication(ax_l, tester);
-                    add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                } else {
-                    TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
-                    TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
+                TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
+                TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
 
-                    if (!overlapAssumptionUsed) {
-                        overlapAssumptionUsed = true;
-                        assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
-                    }
+                if (!overlapAssumptionUsed) {
+                    overlapAssumptionUsed = true;
+                    assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
                 }
             }
         } else if (splitType == -1) {
@@ -3654,18 +3640,12 @@ namespace smt {
                 add_cut_info_merge(t1, ctx.get_scope_level(), y);
             } else {
                 loopDetected = true;
-                if (m_params.m_FiniteOverlapModels) {
-                    expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                    arrangement_disjunction.push_back(tester);
-                    add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                } else {
-                    TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
-                    TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
+                TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
+                TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
 
-                    if (!overlapAssumptionUsed) {
-                        overlapAssumptionUsed = true;
-                        arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
-                    }
+                if (!overlapAssumptionUsed) {
+                    overlapAssumptionUsed = true;
+                    arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
                 }
             }
 
@@ -3703,18 +3683,11 @@ namespace smt {
                 add_cut_info_merge(t2, ctx.get_scope_level(), n);
             } else {
                 loopDetected = true;
-                if (m_params.m_FiniteOverlapModels) {
-                    expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                    arrangement_disjunction.push_back(tester);
-                    add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                } else {
-                    TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
-                    TRACE("str", {print_cut_var(x, tout); print_cut_var(n, tout);});
-
-                    if (!overlapAssumptionUsed) {
-                        overlapAssumptionUsed = true;
-                        arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
-                    }
+                TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
+                TRACE("str", {print_cut_var(x, tout); print_cut_var(n, tout);});
+                if (!overlapAssumptionUsed) {
+                    overlapAssumptionUsed = true;
+                    arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
                 }
             }
 
@@ -3949,19 +3922,12 @@ namespace smt {
                     }
                 } else {
                     loopDetected = true;
+                    TRACE("str", tout << "AVOID LOOP: SKIP" << std::endl;);
+                    TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
 
-                    if (m_params.m_FiniteOverlapModels) {
-                        expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                        assert_implication(ax_l, tester);
-                        add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                    } else {
-                        TRACE("str", tout << "AVOID LOOP: SKIP" << std::endl;);
-                        TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
-
-                        if (!overlapAssumptionUsed) {
-                            overlapAssumptionUsed = true;
-                            assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
-                        }
+                    if (!overlapAssumptionUsed) {
+                        overlapAssumptionUsed = true;
+                        assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
                     }
                 }
             }
@@ -4056,18 +4022,12 @@ namespace smt {
                     add_cut_info_merge(temp1, ctx.get_scope_level(), m);
                 } else {
                     loopDetected = true;
-                    if (m_params.m_FiniteOverlapModels) {
-                        expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                        arrangement_disjunction.push_back(tester);
-                        add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                    } else {
-                        TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
-                        TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
+                    TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
+                    TRACE("str", {print_cut_var(m, tout); print_cut_var(y, tout);});
 
-                        if (!overlapAssumptionUsed) {
-                            overlapAssumptionUsed = true;
-                            arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
-                        }
+                    if (!overlapAssumptionUsed) {
+                        overlapAssumptionUsed = true;
+                        arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
                     }
                 }
             }
@@ -4358,26 +4318,15 @@ namespace smt {
                     }
                 } else {
                     loopDetected = true;
-                    if (m_params.m_FiniteOverlapModels) {
-                        expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                        assert_implication(ax_l, tester);
-                        add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                    } else {
-                        TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
-                        TRACE("str", {print_cut_var(x, tout); print_cut_var(n, tout);});
+                    TRACE("str", tout << "AVOID LOOP: SKIPPED" << std::endl;);
+                    TRACE("str", {print_cut_var(x, tout); print_cut_var(n, tout);});
 
-                        if (!overlapAssumptionUsed) {
-                            overlapAssumptionUsed = true;
-                            assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
-                        }
+                    if (!overlapAssumptionUsed) {
+                        overlapAssumptionUsed = true;
+                        assert_implication(ax_l, m_theoryStrOverlapAssumption_term);
                     }
                 }
             }
-            //    else {
-            //      // negate! It's impossible to split str with these lengths
-            //      __debugPrint(logFile, "[Conflict] Negate! It's impossible to split str with these lengths @ %d.\n", __LINE__);
-            //      addAxiom(t, Z3_mk_not(ctx, ax_l), __LINE__);
-            //    }
         }
         else {
             // Split type -1. We know nothing about the length...
@@ -4443,18 +4392,12 @@ namespace smt {
                     add_cut_info_merge(temp1, sLevel, n);
                 } else {
                     loopDetected = true;
-                    if (m_params.m_FiniteOverlapModels) {
-                        expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                        arrangement_disjunction.push_back(tester);
-                        add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-                    } else {
-                        TRACE("str", tout << "AVOID LOOP: SKIPPED." << std::endl;);
-                        TRACE("str", {print_cut_var(x, tout); print_cut_var(n, tout);});
+                    TRACE("str", tout << "AVOID LOOP: SKIPPED." << std::endl;);
+                    TRACE("str", {print_cut_var(x, tout); print_cut_var(n, tout);});
 
-                        if (!overlapAssumptionUsed) {
-                            overlapAssumptionUsed = true;
-                            arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
-                        }
+                    if (!overlapAssumptionUsed) {
+                        overlapAssumptionUsed = true;
+                        arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
                     }
                 }
             }
@@ -4849,19 +4792,13 @@ namespace smt {
         } else {
             loopDetected = true;
 
-            if (m_params.m_FiniteOverlapModels) {
-                expr_ref tester = set_up_finite_model_test(concatAst1, concatAst2);
-                arrangement_disjunction.push_back(tester);
-                add_theory_aware_branching_info(tester, m_params.m_OverlapTheoryAwarePriority, l_true);
-            } else {
-                TRACE("str", tout << "AVOID LOOP: SKIPPED." << std::endl;);
-                TRACE("str", print_cut_var(m, tout); print_cut_var(y, tout););
+            TRACE("str", tout << "AVOID LOOP: SKIPPED." << std::endl;);
+            TRACE("str", print_cut_var(m, tout); print_cut_var(y, tout););
 
-                // only add the overlap assumption one time
-                if (!overlapAssumptionUsed) {
-                    arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
-                    overlapAssumptionUsed = true;
-                }
+            // only add the overlap assumption one time
+            if (!overlapAssumptionUsed) {
+                arrangement_disjunction.push_back(m_theoryStrOverlapAssumption_term);
+                overlapAssumptionUsed = true;
             }
         }
 
@@ -5860,333 +5797,6 @@ namespace smt {
         }
     }
 
-    expr * theory_str::dealias_node(expr * node, std::map<expr*, expr*> & varAliasMap, std::map<expr*, expr*> & concatAliasMap) {
-        if (variable_set.find(node) != variable_set.end()) {
-            return get_alias_index_ast(varAliasMap, node);
-        } else if (u.str.is_concat(to_app(node))) {
-            return get_alias_index_ast(concatAliasMap, node);
-        }
-        return node;
-    }
-
-    void theory_str::get_grounded_concats(unsigned depth,
-                                          expr* node, std::map<expr*, expr*> & varAliasMap,
-                                          std::map<expr*, expr*> & concatAliasMap, std::map<expr*, expr*> & varConstMap,
-                                          std::map<expr*, expr*> & concatConstMap, std::map<expr*, std::map<expr*, int> > & varEqConcatMap,
-                                          std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > & groundedMap) {
-        if (u.re.is_unroll(to_app(node))) {
-            return;
-        }
-        // **************************************************
-        // first deAlias the node if it is a var or concat
-        // **************************************************
-        node = dealias_node(node, varAliasMap, concatAliasMap);
-
-        if (groundedMap.find(node) != groundedMap.end()) {
-            return;
-        }
-        IF_VERBOSE(100, verbose_stream() << "concats " << depth << "\n";
-                   if (depth > 100) verbose_stream() << mk_pp(node, get_manager()) << "\n";
-                   );
-
-        // haven't computed grounded concats for "node" (de-aliased)
-        // ---------------------------------------------------------
-
-        context & ctx = get_context();
-
-        // const strings: node is de-aliased
-        if (u.str.is_string(node)) {
-            std::vector<expr*> concatNodes;
-            concatNodes.push_back(node);
-            groundedMap[node][concatNodes].clear();   // no condition
-        }
-        // Concat functions
-        else if (u.str.is_concat(to_app(node))) {
-            // if "node" equals to a constant string, thenjust push the constant into the concat vector
-            // Again "node" has been de-aliased at the very beginning
-            if (concatConstMap.find(node) != concatConstMap.end()) {
-                std::vector<expr*> concatNodes;
-                concatNodes.push_back(concatConstMap[node]);
-                groundedMap[node][concatNodes].clear();
-                groundedMap[node][concatNodes].insert(ctx.mk_eq_atom(node, concatConstMap[node]));
-            }
-            // node doesn't have eq constant value. Process its children.
-            else {
-                // merge arg0 and arg1
-                expr * arg0 = to_app(node)->get_arg(0);
-                expr * arg1 = to_app(node)->get_arg(1);
-                expr * arg0DeAlias = dealias_node(arg0, varAliasMap, concatAliasMap);
-                expr * arg1DeAlias = dealias_node(arg1, varAliasMap, concatAliasMap);
-                get_grounded_concats(depth + 1, arg0DeAlias, varAliasMap, concatAliasMap, varConstMap, concatConstMap, varEqConcatMap, groundedMap);
-                get_grounded_concats(depth + 1, arg1DeAlias, varAliasMap, concatAliasMap, varConstMap, concatConstMap, varEqConcatMap, groundedMap);
-
-                std::map<std::vector<expr*>, std::set<expr*> >::iterator arg0_grdItor = groundedMap[arg0DeAlias].begin();
-                std::map<std::vector<expr*>, std::set<expr*> >::iterator arg1_grdItor;
-                for (; arg0_grdItor != groundedMap[arg0DeAlias].end(); arg0_grdItor++) {
-                    arg1_grdItor = groundedMap[arg1DeAlias].begin();
-                    for (; arg1_grdItor != groundedMap[arg1DeAlias].end(); arg1_grdItor++) {
-                        std::vector<expr*> ndVec;
-                        ndVec.insert(ndVec.end(), arg0_grdItor->first.begin(), arg0_grdItor->first.end());
-                        size_t arg0VecSize = arg0_grdItor->first.size();
-                        size_t arg1VecSize = arg1_grdItor->first.size();
-                        if (arg0VecSize > 0 && arg1VecSize > 0 && u.str.is_string(arg0_grdItor->first[arg0VecSize - 1]) && u.str.is_string(arg1_grdItor->first[0])) {
-                            ndVec.pop_back();
-                            ndVec.push_back(mk_concat(arg0_grdItor->first[arg0VecSize - 1], arg1_grdItor->first[0]));
-                            for (size_t i = 1; i < arg1VecSize; i++) {
-                                ndVec.push_back(arg1_grdItor->first[i]);
-                            }
-                        } else {
-                            ndVec.insert(ndVec.end(), arg1_grdItor->first.begin(), arg1_grdItor->first.end());
-                        }
-                        // only insert if we don't know "node = concat(ndVec)" since one set of condition leads to this is enough
-                        if (groundedMap[node].find(ndVec) == groundedMap[node].end()) {
-                            groundedMap[node][ndVec];
-                            if (arg0 != arg0DeAlias) {
-                                groundedMap[node][ndVec].insert(ctx.mk_eq_atom(arg0, arg0DeAlias));
-                            }
-                            groundedMap[node][ndVec].insert(arg0_grdItor->second.begin(), arg0_grdItor->second.end());
-
-                            if (arg1 != arg1DeAlias) {
-                                groundedMap[node][ndVec].insert(ctx.mk_eq_atom(arg1, arg1DeAlias));
-                            }
-                            groundedMap[node][ndVec].insert(arg1_grdItor->second.begin(), arg1_grdItor->second.end());
-                        }
-                    }
-                }
-            }
-        }
-        // string variables
-        else if (variable_set.find(node) != variable_set.end()) {
-            // deAliasedVar = Constant
-            if (varConstMap.find(node) != varConstMap.end()) {
-                std::vector<expr*> concatNodes;
-                concatNodes.push_back(varConstMap[node]);
-                groundedMap[node][concatNodes].clear();
-                groundedMap[node][concatNodes].insert(ctx.mk_eq_atom(node, varConstMap[node]));
-            }
-            // deAliasedVar = someConcat
-            else if (varEqConcatMap.find(node) != varEqConcatMap.end()) {
-                expr * eqConcat = varEqConcatMap[node].begin()->first;
-                expr * deAliasedEqConcat = dealias_node(eqConcat, varAliasMap, concatAliasMap);
-                get_grounded_concats(depth + 1, deAliasedEqConcat, varAliasMap, concatAliasMap, varConstMap, concatConstMap, varEqConcatMap, groundedMap);
-
-                std::map<std::vector<expr*>, std::set<expr*> >::iterator grdItor = groundedMap[deAliasedEqConcat].begin();
-                for (; grdItor != groundedMap[deAliasedEqConcat].end(); grdItor++) {
-                    std::vector<expr*> ndVec;
-                    ndVec.insert(ndVec.end(), grdItor->first.begin(), grdItor->first.end());
-                    // only insert if we don't know "node = concat(ndVec)" since one set of condition leads to this is enough
-                    if (groundedMap[node].find(ndVec) == groundedMap[node].end()) {
-                        // condition: node = deAliasedEqConcat
-                        groundedMap[node][ndVec].insert(ctx.mk_eq_atom(node, deAliasedEqConcat));
-                        // appending conditions for "deAliasedEqConcat = CONCAT(ndVec)"
-                        groundedMap[node][ndVec].insert(grdItor->second.begin(), grdItor->second.end());
-                    }
-                }
-            }
-            // node (has been de-aliased) != constant && node (has been de-aliased) != any concat
-            // just push in the deAliasedVar
-            else {
-                std::vector<expr*> concatNodes;
-                concatNodes.push_back(node);
-                groundedMap[node][concatNodes];
-            }
-        }
-    }
-
-    void theory_str::print_grounded_concat(expr * node, std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > & groundedMap) {
-        TRACE("str", tout << mk_pp(node, get_manager()) << std::endl;);
-        if (groundedMap.find(node) != groundedMap.end()) {
-            std::map<std::vector<expr*>, std::set<expr*> >::iterator itor = groundedMap[node].begin();
-            for (; itor != groundedMap[node].end(); ++itor) {
-                TRACE("str",
-                      tout << "\t[grounded] ";
-                      std::vector<expr*>::const_iterator vIt = itor->first.begin();
-                      for (; vIt != itor->first.end(); ++vIt) {
-                          tout << mk_pp(*vIt, get_manager()) << ", ";
-                      }
-                      tout << std::endl;
-                      tout << "\t[condition] ";
-                      std::set<expr*>::iterator sIt = itor->second.begin();
-                      for (; sIt != itor->second.end(); sIt++) {
-                          tout << mk_pp(*sIt, get_manager()) << ", ";
-                      }
-                      tout << std::endl;
-                      );
-            }
-        } else {
-            TRACE("str", tout << "not found" << std::endl;);
-        }
-    }
-
-    bool theory_str::is_partial_in_grounded_concat(const std::vector<expr*> & strVec, const std::vector<expr*> & subStrVec) {
-        size_t strCnt = strVec.size();
-        size_t subStrCnt = subStrVec.size();
-
-        if (strCnt == 0 || subStrCnt == 0) {
-            return false;
-        }
-
-        // The assumption is that all consecutive constant strings are merged into one node
-        if (strCnt < subStrCnt) {
-            return false;
-        }
-
-        if (subStrCnt == 1) {
-            zstring subStrVal;
-            if (u.str.is_string(subStrVec[0], subStrVal)) {
-                for (size_t i = 0; i < strCnt; i++) {
-                    zstring strVal;
-                    if (u.str.is_string(strVec[i], strVal)) {
-                        if (strVal.contains(subStrVal)) {
-                            return true;
-                        }
-                    }
-                }
-            } else {
-                for (size_t i = 0; i < strCnt; i++) {
-                    if (strVec[i] == subStrVec[0]) {
-                        return true;
-                    }
-                }
-            }
-            return false;
-        } else {
-            for (size_t i = 0; i <= (strCnt - subStrCnt); i++) {
-                // The first node in subStrVect should be
-                //   * constant: a suffix of a note in strVec[i]
-                //   * variable:
-                bool firstNodesOK = true;
-                zstring subStrHeadVal;
-                if (u.str.is_string(subStrVec[0], subStrHeadVal)) {
-                    zstring strHeadVal;
-                    if (u.str.is_string(strVec[i], strHeadVal)) {
-                        if (strHeadVal.length() >= subStrHeadVal.length()) {
-                            zstring suffix = strHeadVal.extract(strHeadVal.length() - subStrHeadVal.length(), subStrHeadVal.length());
-                            if (suffix != subStrHeadVal) {
-                                firstNodesOK = false;
-                            }
-                        } else {
-                            firstNodesOK = false;
-                        }
-                    } else {
-                        if (subStrVec[0] != strVec[i]) {
-                            firstNodesOK = false;
-                        }
-                    }
-                }
-                if (!firstNodesOK) {
-                    continue;
-                }
-
-                // middle nodes
-                bool midNodesOK = true;
-                for (size_t j = 1; j < subStrCnt - 1; j++) {
-                    if (subStrVec[j] != strVec[i + j]) {
-                        midNodesOK = false;
-                        break;
-                    }
-                }
-                if (!midNodesOK) {
-                    continue;
-                }
-
-                // tail nodes
-                size_t tailIdx = i + subStrCnt - 1;
-                zstring subStrTailVal;
-                if (u.str.is_string(subStrVec[subStrCnt - 1], subStrTailVal)) {
-                    zstring strTailVal;
-                    if (u.str.is_string(strVec[tailIdx], strTailVal)) {
-                        if (strTailVal.length() >= subStrTailVal.length()) {
-                            zstring prefix = strTailVal.extract(0, subStrTailVal.length());
-                            if (prefix == subStrTailVal) {
-                                return true;
-                            } else {
-                                continue;
-                            }
-                        } else {
-                            continue;
-                        }
-                    }
-                } else {
-                    if (subStrVec[subStrCnt - 1] == strVec[tailIdx]) {
-                        return true;
-                    } else {
-                        continue;
-                    }
-                }
-            }
-            return false;
-        }
-    }
-
-    void theory_str::check_subsequence(expr* str, expr* strDeAlias, expr* subStr, expr* subStrDeAlias, expr* boolVar,
-                                       std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > & groundedMap) {
-
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-        std::map<std::vector<expr*>, std::set<expr*> >::iterator itorStr = groundedMap[strDeAlias].begin();
-        std::map<std::vector<expr*>, std::set<expr*> >::iterator itorSubStr;
-        for (; itorStr != groundedMap[strDeAlias].end(); itorStr++) {
-            itorSubStr = groundedMap[subStrDeAlias].begin();
-            for (; itorSubStr != groundedMap[subStrDeAlias].end(); itorSubStr++) {
-                bool contain = is_partial_in_grounded_concat(itorStr->first, itorSubStr->first);
-                if (contain) {
-                    expr_ref_vector litems(m);
-                    if (str != strDeAlias) {
-                        litems.push_back(ctx.mk_eq_atom(str, strDeAlias));
-                    }
-                    if (subStr != subStrDeAlias) {
-                        litems.push_back(ctx.mk_eq_atom(subStr, subStrDeAlias));
-                    }
-
-                    //litems.insert(itorStr->second.begin(), itorStr->second.end());
-                    //litems.insert(itorSubStr->second.begin(), itorSubStr->second.end());
-                    for (std::set<expr*>::const_iterator i1 = itorStr->second.begin();
-                         i1 != itorStr->second.end(); ++i1) {
-                        litems.push_back(*i1);
-                    }
-                    for (std::set<expr*>::const_iterator i1 = itorSubStr->second.begin();
-                         i1 != itorSubStr->second.end(); ++i1) {
-                        litems.push_back(*i1);
-                    }
-
-                    expr_ref implyR(boolVar, m);
-
-                    if (litems.empty()) {
-                        assert_axiom(implyR);
-                    } else {
-                        expr_ref implyL(mk_and(litems), m);
-                        assert_implication(implyL, implyR);
-                    }
-
-                }
-            }
-        }
-    }
-
-    void theory_str::compute_contains(std::map<expr*, expr*> & varAliasMap,
-                                      std::map<expr*, expr*> & concatAliasMap, std::map<expr*, expr*> & varConstMap,
-                                      std::map<expr*, expr*> & concatConstMap, std::map<expr*, std::map<expr*, int> > & varEqConcatMap) {
-        std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > groundedMap;
-        for (auto const& kv : contain_pair_bool_map) {
-            expr* containBoolVar = kv.get_value();
-            expr* str = kv.get_key1();
-            expr* subStr = kv.get_key2();
-
-            expr* strDeAlias = dealias_node(str, varAliasMap, concatAliasMap);
-            expr* subStrDeAlias = dealias_node(subStr, varAliasMap, concatAliasMap);
-
-            get_grounded_concats(0, strDeAlias, varAliasMap, concatAliasMap, varConstMap, concatConstMap, varEqConcatMap, groundedMap);
-            get_grounded_concats(0, subStrDeAlias, varAliasMap, concatAliasMap, varConstMap, concatConstMap, varEqConcatMap, groundedMap);
-
-            // debugging
-            print_grounded_concat(strDeAlias, groundedMap);
-            print_grounded_concat(subStrDeAlias, groundedMap);
-
-            check_subsequence(str, strDeAlias, subStr, subStrDeAlias, containBoolVar, groundedMap);
-        }
-    }
-
     bool theory_str::can_concat_eq_str(expr * concat, zstring& str) {
         unsigned int strLen = str.length();
         if (u.str.is_concat(to_app(concat))) {
@@ -7155,168 +6765,6 @@ namespace smt {
         }
     }
 
-    expr_ref theory_str::set_up_finite_model_test(expr * lhs, expr * rhs) {
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-
-        TRACE("str", tout << "activating finite model testing for overlapping concats "
-              << mk_pp(lhs, m) << " and " << mk_pp(rhs, m) << std::endl;);
-        std::map<expr*, int> concatMap;
-        std::map<expr*, int> unrollMap;
-        std::map<expr*, int> varMap;
-        classify_ast_by_type(lhs, varMap, concatMap, unrollMap);
-        classify_ast_by_type(rhs, varMap, concatMap, unrollMap);
-        TRACE("str", tout << "found vars:";
-              for (std::map<expr*,int>::iterator it = varMap.begin(); it != varMap.end(); ++it) {
-                  tout << " " << mk_pp(it->first, m);
-              }
-              tout << std::endl;
-              );
-
-        expr_ref testvar(mk_str_var("finiteModelTest"), m);
-        m_trail.push_back(testvar);
-        ptr_vector<expr> varlist;
-
-        for (std::map<expr*, int>::iterator it = varMap.begin(); it != varMap.end(); ++it) {
-            expr * v = it->first;
-            varlist.push_back(v);
-        }
-
-        // make things easy for the core wrt. testvar
-        expr_ref t1(ctx.mk_eq_atom(testvar, mk_string("")), m);
-        expr_ref t_yes(ctx.mk_eq_atom(testvar, mk_string("yes")), m);
-        expr_ref testvaraxiom(m.mk_or(t1, t_yes), m);
-        assert_axiom(testvaraxiom);
-
-        finite_model_test_varlists.insert(testvar, varlist);
-        m_trail_stack.push(insert_obj_map<theory_str, expr, ptr_vector<expr> >(finite_model_test_varlists, testvar) );
-        return t_yes;
-    }
-
-    void theory_str::finite_model_test(expr * testvar, expr * str) {
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-
-        zstring s;
-        if (!u.str.is_string(str, s)) return;
-        if (s == "yes") {
-            TRACE("str", tout << "start finite model test for " << mk_pp(testvar, m) << std::endl;);
-            ptr_vector<expr> & vars = finite_model_test_varlists[testvar];
-            for (ptr_vector<expr>::iterator it = vars.begin(); it != vars.end(); ++it) {
-                expr * v = *it;
-                bool v_has_eqc = false;
-                get_eqc_value(v, v_has_eqc);
-                if (v_has_eqc) {
-                    TRACE("str", tout << "variable " << mk_pp(v,m) << " already equivalent to a string constant" << std::endl;);
-                    continue;
-                }
-                // check for any sort of existing length tester we might interfere with
-                if (m_params.m_UseBinarySearch) {
-                    if (binary_search_len_tester_stack.contains(v) && !binary_search_len_tester_stack[v].empty()) {
-                        TRACE("str", tout << "already found existing length testers for " << mk_pp(v, m) << std::endl;);
-                        continue;
-                    } else {
-                        // start binary search as normal
-                        expr_ref implLhs(ctx.mk_eq_atom(testvar, str), m);
-                        expr_ref implRhs(binary_search_length_test(v, nullptr, ""), m);
-                        assert_implication(implLhs, implRhs);
-                    }
-                } else {
-                    bool map_effectively_empty = false;
-                    if (!fvar_len_count_map.contains(v)) {
-                        map_effectively_empty = true;
-                    }
-
-                    if (!map_effectively_empty) {
-                        map_effectively_empty = true;
-                        if (fvar_lenTester_map.contains(v)) {
-                            for (expr * indicator : fvar_lenTester_map[v]) {
-                                if (internal_variable_set.contains(indicator)) {
-                                    map_effectively_empty = false;
-                                    break;
-                                }
-                            }
-                        }
-                    }
-
-                    if (map_effectively_empty) {
-                        TRACE("str", tout << "no existing length testers for " << mk_pp(v, m) << std::endl;);
-                        rational v_len;
-                        rational v_lower_bound;
-                        rational v_upper_bound;
-                        expr_ref vLengthExpr(mk_strlen(v), m);
-                        if (get_len_value(v, v_len)) {
-                            TRACE("str", tout << "length = " << v_len.to_string() << std::endl;);
-                            v_lower_bound = v_len;
-                            v_upper_bound = v_len;
-                        } else {
-                            bool lower_bound_exists = lower_bound(vLengthExpr, v_lower_bound);
-                            bool upper_bound_exists = upper_bound(vLengthExpr, v_upper_bound);
-                            TRACE("str", tout << "bounds = [" << (lower_bound_exists?v_lower_bound.to_string():"?")
-                                  << ".." << (upper_bound_exists?v_upper_bound.to_string():"?") << "]" << std::endl;);
-
-                            // make sure the bounds are non-negative
-                            if (lower_bound_exists && v_lower_bound.is_neg()) {
-                                v_lower_bound = rational::zero();
-                            }
-                            if (upper_bound_exists && v_upper_bound.is_neg()) {
-                                v_upper_bound = rational::zero();
-                            }
-
-                            if (lower_bound_exists && upper_bound_exists) {
-                                // easiest case. we will search within these bounds
-                            } else if (upper_bound_exists && !lower_bound_exists) {
-                                // search between 0 and the upper bound
-                                v_lower_bound = rational::zero();
-                            } else if (lower_bound_exists && !upper_bound_exists) {
-                                // check some finite portion of the search space
-                                v_upper_bound = v_lower_bound + rational(10);
-                            } else {
-                                // no bounds information
-                                v_lower_bound = rational::zero();
-                                v_upper_bound = v_lower_bound + rational(10);
-                            }
-                        }
-                        // now create a fake length tester over this finite disjunction of lengths
-
-                        fvar_len_count_map.insert(v, 1);
-                        unsigned int testNum = fvar_len_count_map[v];
-
-                        expr_ref indicator(mk_internal_lenTest_var(v, testNum), m);
-                        SASSERT(indicator);
-                        m_trail.push_back(indicator);
-
-                        if (!fvar_lenTester_map.contains(v)) {
-                            fvar_lenTester_map.insert(v, ptr_vector<expr>());
-                        }
-                        fvar_lenTester_map[v].shrink(0);
-                        fvar_lenTester_map[v].push_back(indicator);
-                        lenTester_fvar_map.insert(indicator, v);
-
-                        expr_ref_vector orList(m);
-                        expr_ref_vector andList(m);
-
-                        for (rational l = v_lower_bound; l <= v_upper_bound; l += rational::one()) {
-                            zstring lStr = zstring(l.to_string().c_str());
-                            expr_ref str_indicator(mk_string(lStr), m);
-                            expr_ref or_expr(ctx.mk_eq_atom(indicator, str_indicator), m);
-                            orList.push_back(or_expr);
-                            expr_ref and_expr(ctx.mk_eq_atom(or_expr, ctx.mk_eq_atom(vLengthExpr, m_autil.mk_numeral(l, true))), m);
-                            andList.push_back(and_expr);
-                        }
-                        andList.push_back(mk_or(orList));
-                        expr_ref implLhs(ctx.mk_eq_atom(testvar, str), m);
-                        expr_ref implRhs(mk_and(andList), m);
-                        assert_implication(implLhs, implRhs);
-                    } else {
-                        TRACE("str", tout << "already found existing length testers for " << mk_pp(v, m) << std::endl;);
-                        continue;
-                    }
-                }
-            } // foreach (v in vars)
-        } // (s == "yes")
-    }
-
     void theory_str::handle_equality(expr * lhs, expr * rhs) {
         ast_manager & m = get_manager();
         context & ctx = get_context();
@@ -7341,16 +6789,6 @@ namespace smt {
             TRACE("str", tout << "skip equality: not String sort" << std::endl;);
             return;
         }
-
-        /* // temporarily disabled, we are borrowing these testers for something else
-           if (m_params.m_FiniteOverlapModels && !finite_model_test_varlists.empty()) {
-           if (finite_model_test_varlists.contains(lhs)) {
-           finite_model_test(lhs, rhs); return;
-           } else if (finite_model_test_varlists.contains(rhs)) {
-           finite_model_test(rhs, lhs); return;
-           }
-           }
-        */
 
         if (free_var_attempt(lhs, rhs) || free_var_attempt(rhs, lhs)) {
             return;
@@ -7982,96 +7420,6 @@ namespace smt {
         return false;
     }
 
-    void theory_str::classify_ast_by_type(expr * node, std::map<expr*, int> & varMap,
-                                          std::map<expr*, int> & concatMap, std::map<expr*, int> & unrollMap) {
-
-        // check whether the node is a string variable;
-        // testing set membership here bypasses several expensive checks.
-        // note that internal variables don't count if they're only length tester / value tester vars.
-        if (variable_set.find(node) != variable_set.end()
-            && internal_lenTest_vars.find(node) == internal_lenTest_vars.end()
-            && internal_valTest_vars.find(node) == internal_valTest_vars.end()
-            && internal_unrollTest_vars.find(node) == internal_unrollTest_vars.end()) {
-            if (varMap[node] != 1) {
-                TRACE("str", tout << "new variable: " << mk_pp(node, get_manager()) << std::endl;);
-            }
-            varMap[node] = 1;
-        }
-        // check whether the node is a function that we want to inspect
-        else if (is_app(node)) {
-            app * aNode = to_app(node);
-            if (u.str.is_length(aNode)) {
-                // Length
-                return;
-            } else if (u.str.is_concat(aNode)) {
-                expr * arg0 = aNode->get_arg(0);
-                expr * arg1 = aNode->get_arg(1);
-                bool arg0HasEq = false;
-                bool arg1HasEq = false;
-                expr * arg0Val = get_eqc_value(arg0, arg0HasEq);
-                expr * arg1Val = get_eqc_value(arg1, arg1HasEq);
-
-                int canskip = 0;
-                zstring tmp;
-                u.str.is_string(arg0Val, tmp);
-                if (arg0HasEq && tmp.empty()) {
-                    canskip = 1;
-                }
-                u.str.is_string(arg1Val, tmp);
-                if (canskip == 0 && arg1HasEq && tmp.empty()) {
-                    canskip = 1;
-                }
-                if (canskip == 0 && concatMap.find(node) == concatMap.end()) {
-                    concatMap[node] = 1;
-                }
-            } else if (u.re.is_unroll(aNode)) {
-                // Unroll
-                if (unrollMap.find(node) == unrollMap.end()) {
-                    unrollMap[node] = 1;
-                }
-            }
-            // recursively visit all arguments
-            for (unsigned i = 0; i < aNode->get_num_args(); ++i) {
-                expr * arg = aNode->get_arg(i);
-                classify_ast_by_type(arg, varMap, concatMap, unrollMap);
-            }
-        }
-    }
-
-    // NOTE: this function used to take an argument `Z3_ast node`;
-    // it was not used and so was removed from the signature
-    void theory_str::classify_ast_by_type_in_positive_context(std::map<expr*, int> & varMap,
-                                                              std::map<expr*, int> & concatMap, std::map<expr*, int> & unrollMap) {
-
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-        expr_ref_vector assignments(m);
-        ctx.get_assignments(assignments);
-
-        for (expr_ref_vector::iterator it = assignments.begin(); it != assignments.end(); ++it) {
-            expr * argAst = *it;
-            // the original code jumped through some hoops to check whether the AST node
-            // is a function, then checked whether that function is "interesting".
-            // however, the only thing that's considered "interesting" is an equality predicate.
-            // so we bypass a huge amount of work by doing the following...
-
-            if (m.is_eq(argAst)) {
-                TRACE("str", tout
-                      << "eq ast " << mk_pp(argAst, m) << " is between args of sort "
-                      << m.get_sort(to_app(argAst)->get_arg(0))->get_name()
-                      << std::endl;);
-                classify_ast_by_type(argAst, varMap, concatMap, unrollMap);
-            }
-        }
-    }
-
-    inline expr * theory_str::get_alias_index_ast(std::map<expr*, expr*> & aliasIndexMap, expr * node) {
-        if (aliasIndexMap.find(node) != aliasIndexMap.end())
-            return aliasIndexMap[node];
-        else
-            return node;
-    }
-
     inline expr * theory_str::getMostLeftNodeInConcat(expr * node) {
         app * aNode = to_app(node);
         if (!u.str.is_concat(aNode)) {
@@ -8240,608 +7588,6 @@ namespace smt {
 #else
         return;
 #endif // _TRACE
-    }
-
-
-    /*
-     * Dependence analysis from current context assignment
-     * - "freeVarMap" contains a set of variables that doesn't constrained by Concats.
-     *    But it's possible that it's bounded by unrolls
-     *    For the case of
-     *    (1) var1 = unroll(r1, t1)
-     *        var1 is in the freeVarMap
-     *        > should unroll r1 for var1
-     *    (2) var1 = unroll(r1, t1) /\ var1 = Concat(var2, var3)
-     *        var2, var3 are all in freeVar
-     *        > should split the unroll function so that var2 and var3 are bounded by new unrolls
-     */
-    int theory_str::ctx_dep_analysis(std::map<expr*, int> & strVarMap, std::map<expr*, int> & freeVarMap,
-                                     std::map<expr*, std::set<expr*> > & unrollGroupMap, std::map<expr*, std::map<expr*, int> > & var_eq_concat_map) {
-        std::map<expr*, int> concatMap;
-        std::map<expr*, int> unrollMap;
-        std::map<expr*, expr*> aliasIndexMap;
-        std::map<expr*, expr*> var_eq_constStr_map;
-        std::map<expr*, expr*> concat_eq_constStr_map;
-        std::map<expr*, std::map<expr*, int> > var_eq_unroll_map;
-        std::map<expr*, std::map<expr*, int> > concat_eq_concat_map;
-        std::map<expr*, std::map<expr*, int> > depMap;
-
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-
-        // note that the old API concatenated these assignments into
-        // a massive conjunction; we may have the opportunity to avoid that here
-        expr_ref_vector assignments(m);
-        ctx.get_assignments(assignments);
-
-        // Step 1: get variables / concat AST appearing in the context
-        // the thing we iterate over should just be variable_set - internal_variable_set
-        // so we avoid computing the set difference (but this might be slower)
-        for (expr* var : variable_set) {
-        //for(obj_hashtable<expr>::iterator it = variable_set.begin(); it != variable_set.end(); ++it) {
-            //expr* var = *it;
-            if (internal_variable_set.find(var) == internal_variable_set.end()) {
-                TRACE("str", tout << "new variable: " << mk_pp(var, m) << std::endl;);
-                strVarMap[var] = 1;
-            }
-        }
-        classify_ast_by_type_in_positive_context(strVarMap, concatMap, unrollMap);
-
-        std::map<expr*, expr*> aliasUnrollSet;
-        std::map<expr*, int>::iterator unrollItor = unrollMap.begin();
-        for (; unrollItor != unrollMap.end(); ++unrollItor) {
-            if (aliasUnrollSet.find(unrollItor->first) != aliasUnrollSet.end()) {
-                continue;
-            }
-            expr * aRoot = nullptr;
-            enode * e_currEqc = ctx.get_enode(unrollItor->first);
-            enode * e_curr = e_currEqc;
-            do {
-                app * curr = e_currEqc->get_owner();
-                if (u.re.is_unroll(curr)) {
-                    if (aRoot == nullptr) {
-                        aRoot = curr;
-                    }
-                    aliasUnrollSet[curr] = aRoot;
-                }
-                e_currEqc = e_currEqc->get_next();
-            } while (e_currEqc != e_curr);
-        }
-
-        for (unrollItor = unrollMap.begin(); unrollItor != unrollMap.end(); unrollItor++) {
-            expr * unrFunc = unrollItor->first;
-            expr * urKey = aliasUnrollSet[unrFunc];
-            unrollGroupMap[urKey].insert(unrFunc);
-        }
-
-        // Step 2: collect alias relation
-        // e.g. suppose we have the equivalence class {x, y, z};
-        // then we set aliasIndexMap[y] = x
-        // and aliasIndexMap[z] = x
-
-        std::map<expr*, int>::iterator varItor = strVarMap.begin();
-        for (; varItor != strVarMap.end(); ++varItor) {
-            if (aliasIndexMap.find(varItor->first) != aliasIndexMap.end()) {
-                continue;
-            }
-            expr * aRoot = nullptr;
-            expr * curr = varItor->first;
-            do {
-                if (variable_set.find(curr) != variable_set.end()) {
-                    if (aRoot == nullptr) {
-                        aRoot = curr;
-                    } else {
-                        aliasIndexMap[curr] = aRoot;
-                    }
-                }
-                curr = get_eqc_next(curr);
-            } while (curr != varItor->first);
-        }
-
-        // Step 3: Collect interested cases
-
-        varItor = strVarMap.begin();
-        for (; varItor != strVarMap.end(); ++varItor) {
-            expr * deAliasNode = get_alias_index_ast(aliasIndexMap, varItor->first);
-            // Case 1: variable = string constant
-            // e.g. z = "str1" ::= var_eq_constStr_map[z] = "str1"
-
-            if (var_eq_constStr_map.find(deAliasNode) == var_eq_constStr_map.end()) {
-                bool nodeHasEqcValue = false;
-                expr * nodeValue = get_eqc_value(deAliasNode, nodeHasEqcValue);
-                if (nodeHasEqcValue) {
-                    var_eq_constStr_map[deAliasNode] = nodeValue;
-                }
-            }
-
-            // Case 2: var_eq_concat
-            // e.g. z = concat("str1", b) ::= var_eq_concat[z][concat(c, "str2")] = 1
-            // var_eq_unroll
-            // e.g. z = unroll(...) ::= var_eq_unroll[z][unroll(...)] = 1
-
-            if (var_eq_concat_map.find(deAliasNode) == var_eq_concat_map.end()) {
-                expr * curr = get_eqc_next(deAliasNode);
-                while (curr != deAliasNode) {
-                    app * aCurr = to_app(curr);
-                    // collect concat
-                    if (u.str.is_concat(aCurr)) {
-                        expr * arg0 = aCurr->get_arg(0);
-                        expr * arg1 = aCurr->get_arg(1);
-                        bool arg0HasEqcValue = false;
-                        bool arg1HasEqcValue = false;
-                        expr * arg0_value = get_eqc_value(arg0, arg0HasEqcValue);
-                        expr * arg1_value = get_eqc_value(arg1, arg1HasEqcValue);
-
-                        bool is_arg0_emptyStr = false;
-                        if (arg0HasEqcValue) {
-                            zstring strval;
-                            u.str.is_string(arg0_value, strval);
-                            if (strval.empty()) {
-                                is_arg0_emptyStr = true;
-                            }
-                        }
-
-                        bool is_arg1_emptyStr = false;
-                        if (arg1HasEqcValue) {
-                            zstring strval;
-                            u.str.is_string(arg1_value, strval);
-                            if (strval.empty()) {
-                                is_arg1_emptyStr = true;
-                            }
-                        }
-
-                        if (!is_arg0_emptyStr && !is_arg1_emptyStr) {
-                            var_eq_concat_map[deAliasNode][curr] = 1;
-                        }
-                    } else if (u.re.is_unroll(to_app(curr))) {
-                        var_eq_unroll_map[deAliasNode][curr] = 1;
-                    }
-
-                    curr = get_eqc_next(curr);
-                }
-            }
-
-        } // for(varItor in strVarMap)
-
-        // --------------------------------------------------
-        // * collect aliasing relation among eq concats
-        //   e.g EQC={concat1, concat2, concat3}
-        //       concats_eq_Index_map[concat2] = concat1
-        //       concats_eq_Index_map[concat3] = concat1
-        // --------------------------------------------------
-
-        std::map<expr*, expr*> concats_eq_index_map;
-        std::map<expr*, int>::iterator concatItor = concatMap.begin();
-        for(; concatItor != concatMap.end(); ++concatItor) {
-            if (concats_eq_index_map.find(concatItor->first) != concats_eq_index_map.end()) {
-                continue;
-            }
-            expr * aRoot = nullptr;
-            expr * curr = concatItor->first;
-            do {
-                if (u.str.is_concat(to_app(curr))) {
-                    if (aRoot == nullptr) {
-                        aRoot = curr;
-                    } else {
-                        concats_eq_index_map[curr] = aRoot;
-                    }
-                }
-                curr = get_eqc_next(curr);
-            } while (curr != concatItor->first);
-        }
-
-        concatItor = concatMap.begin();
-        for(; concatItor != concatMap.end(); ++concatItor) {
-            expr * deAliasConcat = nullptr;
-            if (concats_eq_index_map.find(concatItor->first) != concats_eq_index_map.end()) {
-                deAliasConcat = concats_eq_index_map[concatItor->first];
-            } else {
-                deAliasConcat = concatItor->first;
-            }
-
-            // (3) concat_eq_conststr, e.g. concat(a,b) = "str1"
-            if (concat_eq_constStr_map.find(deAliasConcat) == concat_eq_constStr_map.end()) {
-                bool nodeHasEqcValue = false;
-                expr * nodeValue = get_eqc_value(deAliasConcat, nodeHasEqcValue);
-                if (nodeHasEqcValue) {
-                    concat_eq_constStr_map[deAliasConcat] = nodeValue;
-                }
-            }
-
-            // (4) concat_eq_concat, e.g.
-            // concat(a,b) = concat("str1", c) AND z = concat(a,b) AND z = concat(e,f)
-            if (concat_eq_concat_map.find(deAliasConcat) == concat_eq_concat_map.end()) {
-                expr * curr = deAliasConcat;
-                do {
-                    if (u.str.is_concat(to_app(curr))) {
-                        // curr cannot be reduced
-                        if (concatMap.find(curr) != concatMap.end()) {
-                            concat_eq_concat_map[deAliasConcat][curr] = 1;
-                        }
-                    }
-                    curr = get_eqc_next(curr);
-                } while (curr != deAliasConcat);
-            }
-        }
-
-        // print some debugging info
-        TRACE("str", trace_ctx_dep(tout, aliasIndexMap, var_eq_constStr_map,
-                                   var_eq_concat_map, var_eq_unroll_map,
-                                   concat_eq_constStr_map, concat_eq_concat_map, unrollGroupMap););
-
-        if (!contain_pair_bool_map.empty()) {
-            compute_contains(aliasIndexMap, concats_eq_index_map, var_eq_constStr_map, concat_eq_constStr_map, var_eq_concat_map);
-        }
-
-        // step 4: dependence analysis
-
-        // (1) var = string constant
-        for (std::map<expr*, expr*>::iterator itor = var_eq_constStr_map.begin();
-             itor != var_eq_constStr_map.end(); ++itor) {
-            expr * var = get_alias_index_ast(aliasIndexMap, itor->first);
-            expr * strAst = itor->second;
-            depMap[var][strAst] = 1;
-        }
-
-        // (2) var = concat
-        for (std::map<expr*, std::map<expr*, int> >::iterator itor = var_eq_concat_map.begin();
-             itor != var_eq_concat_map.end(); ++itor) {
-            expr * var = get_alias_index_ast(aliasIndexMap, itor->first);
-            for (std::map<expr*, int>::iterator itor1 = itor->second.begin(); itor1 != itor->second.end(); ++itor1) {
-                expr * concat = itor1->first;
-                std::map<expr*, int> inVarMap;
-                std::map<expr*, int> inConcatMap;
-                std::map<expr*, int> inUnrollMap;
-                classify_ast_by_type(concat, inVarMap, inConcatMap, inUnrollMap);
-                for (std::map<expr*, int>::iterator itor2 = inVarMap.begin(); itor2 != inVarMap.end(); ++itor2) {
-                    expr * varInConcat = get_alias_index_ast(aliasIndexMap, itor2->first);
-                    if (!(depMap[var].find(varInConcat) != depMap[var].end() && depMap[var][varInConcat] == 1)) {
-                        depMap[var][varInConcat] = 2;
-                    }
-                }
-            }
-        }
-
-        for (std::map<expr*, std::map<expr*, int> >::iterator itor = var_eq_unroll_map.begin();
-             itor != var_eq_unroll_map.end(); itor++) {
-            expr * var = get_alias_index_ast(aliasIndexMap, itor->first);
-            for (std::map<expr*, int>::iterator itor1 = itor->second.begin(); itor1 != itor->second.end(); itor1++) {
-                expr * unrollFunc = itor1->first;
-                std::map<expr*, int> inVarMap;
-                std::map<expr*, int> inConcatMap;
-                std::map<expr*, int> inUnrollMap;
-                classify_ast_by_type(unrollFunc, inVarMap, inConcatMap, inUnrollMap);
-                for (std::map<expr*, int>::iterator itor2 = inVarMap.begin(); itor2 != inVarMap.end(); itor2++) {
-                    expr * varInFunc = get_alias_index_ast(aliasIndexMap, itor2->first);
-
-                    TRACE("str", tout << "var in unroll = " <<
-                          mk_ismt2_pp(itor2->first, m) << std::endl
-                          << "dealiased var = " << mk_ismt2_pp(varInFunc, m) << std::endl;);
-
-                    // it's possible that we have both (Unroll $$_regVar_0 $$_unr_0) /\ (Unroll abcd $$_unr_0),
-                    // while $$_regVar_0 = "abcd"
-                    // have to exclude such cases
-                    bool varHasValue = false;
-                    get_eqc_value(varInFunc, varHasValue);
-                    if (varHasValue)
-                        continue;
-
-                    if (depMap[var].find(varInFunc) == depMap[var].end()) {
-                        depMap[var][varInFunc] = 6;
-                    }
-                }
-            }
-        }
-
-        // (3) concat = string constant
-        for (std::map<expr*, expr*>::iterator itor = concat_eq_constStr_map.begin();
-             itor != concat_eq_constStr_map.end(); itor++) {
-            expr * concatAst = itor->first;
-            expr * constStr = itor->second;
-            std::map<expr*, int> inVarMap;
-            std::map<expr*, int> inConcatMap;
-            std::map<expr*, int> inUnrollMap;
-            classify_ast_by_type(concatAst, inVarMap, inConcatMap, inUnrollMap);
-            for (std::map<expr*, int>::iterator itor2 = inVarMap.begin(); itor2 != inVarMap.end(); itor2++) {
-                expr * varInConcat = get_alias_index_ast(aliasIndexMap, itor2->first);
-                if (!(depMap[varInConcat].find(constStr) != depMap[varInConcat].end() && depMap[varInConcat][constStr] == 1))
-                    depMap[varInConcat][constStr] = 3;
-            }
-        }
-
-        // (4) equivalent concats
-        //     - possibility 1 : concat("str", v1) = concat(concat(v2, v3), v4) = concat(v5, v6)
-        //         ==> v2, v5 are constrained by "str"
-        //     - possibility 2 : concat(v1, "str") = concat(v2, v3) = concat(v4, v5)
-        //         ==> v2, v4 are constrained by "str"
-        //--------------------------------------------------------------
-
-        std::map<expr*, expr*> mostLeftNodes;
-        std::map<expr*, expr*> mostRightNodes;
-
-        std::map<expr*, int> mLIdxMap;
-        std::map<int, std::set<expr*> > mLMap;
-        std::map<expr*, int> mRIdxMap;
-        std::map<int, std::set<expr*> > mRMap;
-        std::set<expr*> nSet;
-
-        for (std::map<expr*, std::map<expr*, int> >::iterator itor = concat_eq_concat_map.begin();
-             itor != concat_eq_concat_map.end(); itor++) {
-            mostLeftNodes.clear();
-            mostRightNodes.clear();
-
-            expr * mLConst = nullptr;
-            expr * mRConst = nullptr;
-
-            for (std::map<expr*, int>::iterator itor1 = itor->second.begin(); itor1 != itor->second.end(); itor1++) {
-                expr * concatNode = itor1->first;
-                expr * mLNode = getMostLeftNodeInConcat(concatNode);
-                zstring strval;
-                if (u.str.is_string(to_app(mLNode), strval)) {
-                    if (mLConst == nullptr && strval.empty()) {
-                        mLConst = mLNode;
-                    }
-                } else {
-                    mostLeftNodes[mLNode] = concatNode;
-                }
-
-                expr * mRNode = getMostRightNodeInConcat(concatNode);
-                if (u.str.is_string(to_app(mRNode), strval)) {
-                    if (mRConst == nullptr && strval.empty()) {
-                        mRConst = mRNode;
-                    }
-                } else {
-                    mostRightNodes[mRNode] = concatNode;
-                }
-            }
-
-            if (mLConst != nullptr) {
-                // -------------------------------------------------------------------------------------
-                // The left most variable in a concat is constrained by a constant string in eqc concat
-                // -------------------------------------------------------------------------------------
-                // e.g. Concat(x, ...) = Concat("abc", ...)
-                // -------------------------------------------------------------------------------------
-                for (std::map<expr*, expr*>::iterator itor1 = mostLeftNodes.begin();
-                     itor1 != mostLeftNodes.end(); itor1++) {
-                    expr * deVar = get_alias_index_ast(aliasIndexMap, itor1->first);
-                    if (depMap[deVar].find(mLConst) == depMap[deVar].end() || depMap[deVar][mLConst] != 1) {
-                        depMap[deVar][mLConst] = 4;
-                    }
-                }
-            }
-
-            {
-                // -------------------------------------------------------------------------------------
-                // The left most variables in eqc concats are constrained by each other
-                // -------------------------------------------------------------------------------------
-                // e.g. concat(x, ...) = concat(u, ...) = ...
-                //      x and u are constrained by each other
-                // -------------------------------------------------------------------------------------
-                nSet.clear();
-                std::map<expr*, expr*>::iterator itl = mostLeftNodes.begin();
-                for (; itl != mostLeftNodes.end(); itl++) {
-                    bool lfHasEqcValue = false;
-                    get_eqc_value(itl->first, lfHasEqcValue);
-                    if (lfHasEqcValue)
-                        continue;
-                    expr * deVar = get_alias_index_ast(aliasIndexMap, itl->first);
-                    nSet.insert(deVar);
-                }
-
-                if (nSet.size() > 1) {
-                    int lId = -1;
-                    for (std::set<expr*>::iterator itor2 = nSet.begin(); itor2 != nSet.end(); itor2++) {
-                        if (mLIdxMap.find(*itor2) != mLIdxMap.end()) {
-                            lId = mLIdxMap[*itor2];
-                            break;
-                        }
-                    }
-                    if (lId == -1)
-                        lId = static_cast<int>(mLMap.size());
-                    for (std::set<expr*>::iterator itor2 = nSet.begin(); itor2 != nSet.end(); itor2++) {
-                        bool itorHasEqcValue = false;
-                        get_eqc_value(*itor2, itorHasEqcValue);
-                        if (itorHasEqcValue)
-                            continue;
-                        mLIdxMap[*itor2] = lId;
-                        mLMap[lId].insert(*itor2);
-                    }
-                }
-            }
-
-            if (mRConst != nullptr) {
-                for (std::map<expr*, expr*>::iterator itor1 = mostRightNodes.begin();
-                     itor1 != mostRightNodes.end(); itor1++) {
-                    expr * deVar = get_alias_index_ast(aliasIndexMap, itor1->first);
-                    if (depMap[deVar].find(mRConst) == depMap[deVar].end() || depMap[deVar][mRConst] != 1) {
-                        depMap[deVar][mRConst] = 5;
-                    }
-                }
-            }
-
-            {
-                nSet.clear();
-                std::map<expr*, expr*>::iterator itr = mostRightNodes.begin();
-                for (; itr != mostRightNodes.end(); itr++) {
-                    expr * deVar = get_alias_index_ast(aliasIndexMap, itr->first);
-                    nSet.insert(deVar);
-                }
-                if (nSet.size() > 1) {
-                    int rId = -1;
-                    std::set<expr*>::iterator itor2 = nSet.begin();
-                    for (; itor2 != nSet.end(); itor2++) {
-                        if (mRIdxMap.find(*itor2) != mRIdxMap.end()) {
-                            rId = mRIdxMap[*itor2];
-                            break;
-                        }
-                    }
-                    if (rId == -1)
-                        rId = static_cast<int>(mRMap.size());
-                    for (itor2 = nSet.begin(); itor2 != nSet.end(); itor2++) {
-                        bool rHasEqcValue = false;
-                        get_eqc_value(*itor2, rHasEqcValue);
-                        if (rHasEqcValue)
-                            continue;
-                        mRIdxMap[*itor2] = rId;
-                        mRMap[rId].insert(*itor2);
-                    }
-                }
-            }
-        }
-
-        // print the dependence map
-        TRACE("str",
-              tout << "Dependence Map" << std::endl;
-              for(std::map<expr*, std::map<expr*, int> >::iterator itor = depMap.begin(); itor != depMap.end(); itor++) {
-                  tout << mk_pp(itor->first, m);
-                  rational nnLen;
-                  bool nnLen_exists = get_len_value(itor->first, nnLen);
-                  tout << "  [len = " << (nnLen_exists ? nnLen.to_string() : "?") << "] \t-->\t";
-                  for (std::map<expr*, int>::iterator itor1 = itor->second.begin(); itor1 != itor->second.end(); itor1++) {
-                      tout << mk_pp(itor1->first, m) << "(" << itor1->second << "), ";
-                  }
-                  tout << std::endl;
-              }
-              );
-
-        // step, errr, 5: compute free variables based on the dependence map
-
-        // the case dependence map is empty, every var in VarMap is free
-        //---------------------------------------------------------------
-        // remove L/R most var in eq concat since they are constrained with each other
-        std::map<expr*, std::map<expr*, int> > lrConstrainedMap;
-        for (std::map<int, std::set<expr*> >::iterator itor = mLMap.begin(); itor != mLMap.end(); itor++) {
-            for (std::set<expr*>::iterator it1 = itor->second.begin(); it1 != itor->second.end(); it1++) {
-                std::set<expr*>::iterator it2 = it1;
-                it2++;
-                for (; it2 != itor->second.end(); it2++) {
-                    expr * n1 = *it1;
-                    expr * n2 = *it2;
-                    lrConstrainedMap[n1][n2] = 1;
-                    lrConstrainedMap[n2][n1] = 1;
-                }
-            }
-        }
-        for (std::map<int, std::set<expr*> >::iterator itor = mRMap.begin(); itor != mRMap.end(); itor++) {
-            for (std::set<expr*>::iterator it1 = itor->second.begin(); it1 != itor->second.end(); it1++) {
-                std::set<expr*>::iterator it2 = it1;
-                it2++;
-                for (; it2 != itor->second.end(); it2++) {
-                    expr * n1 = *it1;
-                    expr * n2 = *it2;
-                    lrConstrainedMap[n1][n2] = 1;
-                    lrConstrainedMap[n2][n1] = 1;
-                }
-            }
-        }
-
-        if (depMap.empty()) {
-            std::map<expr*, int>::iterator itor = strVarMap.begin();
-            for (; itor != strVarMap.end(); itor++) {
-                expr * var = get_alias_index_ast(aliasIndexMap, itor->first);
-                if (lrConstrainedMap.find(var) == lrConstrainedMap.end()) {
-                    freeVarMap[var] = 1;
-                } else {
-                    int lrConstrained = 0;
-                    std::map<expr*, int>::iterator lrit = freeVarMap.begin();
-                    for (; lrit != freeVarMap.end(); lrit++) {
-                        if (lrConstrainedMap[var].find(lrit->first) != lrConstrainedMap[var].end()) {
-                            lrConstrained = 1;
-                            break;
-                        }
-                    }
-                    if (lrConstrained == 0) {
-                        freeVarMap[var] = 1;
-                    }
-                }
-            }
-        } else {
-            // if the keys in aliasIndexMap are not contained in keys in depMap, they are free
-            // e.g.,  x= y /\ x = z /\ t = "abc"
-            //        aliasIndexMap[y]= x, aliasIndexMap[z] = x
-            //        depMap        t ~ "abc"(1)
-            //        x should be free
-            std::map<expr*, int>::iterator itor2 = strVarMap.begin();
-            for (; itor2 != strVarMap.end(); itor2++) {
-                if (aliasIndexMap.find(itor2->first) != aliasIndexMap.end()) {
-                    expr * var = aliasIndexMap[itor2->first];
-                    if (depMap.find(var) == depMap.end()) {
-                        if (lrConstrainedMap.find(var) == lrConstrainedMap.end()) {
-                            freeVarMap[var] = 1;
-                        } else {
-                            int lrConstrained = 0;
-                            std::map<expr*, int>::iterator lrit = freeVarMap.begin();
-                            for (; lrit != freeVarMap.end(); lrit++) {
-                                if (lrConstrainedMap[var].find(lrit->first) != lrConstrainedMap[var].end()) {
-                                    lrConstrained = 1;
-                                    break;
-                                }
-                            }
-                            if (lrConstrained == 0) {
-                                freeVarMap[var] = 1;
-                            }
-                        }
-                    }
-                } else if (aliasIndexMap.find(itor2->first) == aliasIndexMap.end()) {
-                    // if a variable is not in aliasIndexMap and not in depMap, it's free
-                    if (depMap.find(itor2->first) == depMap.end()) {
-                        expr * var = itor2->first;
-                        if (lrConstrainedMap.find(var) == lrConstrainedMap.end()) {
-                            freeVarMap[var] = 1;
-                        } else {
-                            int lrConstrained = 0;
-                            std::map<expr*, int>::iterator lrit = freeVarMap.begin();
-                            for (; lrit != freeVarMap.end(); lrit++) {
-                                if (lrConstrainedMap[var].find(lrit->first) != lrConstrainedMap[var].end()) {
-                                    lrConstrained = 1;
-                                    break;
-                                }
-                            }
-                            if (lrConstrained == 0) {
-                                freeVarMap[var] = 1;
-                            }
-                        }
-                    }
-                }
-            }
-
-            std::map<expr*, std::map<expr*, int> >::iterator itor = depMap.begin();
-            for (; itor != depMap.end(); itor++) {
-                for (std::map<expr*, int>::iterator itor1 = itor->second.begin(); itor1 != itor->second.end(); itor1++) {
-                    if (variable_set.find(itor1->first) != variable_set.end()) { // expr type = var
-                        expr * var = get_alias_index_ast(aliasIndexMap, itor1->first);
-                        // if a var is dep on itself and all dependence are type 2, it's a free variable
-                        // e.g {y --> x(2), y(2), m --> m(2), n(2)} y,m are free
-                        {
-                            if (depMap.find(var) == depMap.end()) {
-                                if (freeVarMap.find(var) == freeVarMap.end()) {
-                                    if (lrConstrainedMap.find(var) == lrConstrainedMap.end()) {
-                                        freeVarMap[var] = 1;
-                                    } else {
-                                        int lrConstrained = 0;
-                                        std::map<expr*, int>::iterator lrit = freeVarMap.begin();
-                                        for (; lrit != freeVarMap.end(); lrit++) {
-                                            if (lrConstrainedMap[var].find(lrit->first) != lrConstrainedMap[var].end()) {
-                                                lrConstrained = 1;
-                                                break;
-                                            }
-                                        }
-                                        if (lrConstrained == 0) {
-                                            freeVarMap[var] = 1;
-                                        }
-                                    }
-
-                                } else {
-                                    freeVarMap[var] = freeVarMap[var] + 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        return 0;
     }
 
     // Check agreement between integer and string theories for the term a = (str.to-int S).
