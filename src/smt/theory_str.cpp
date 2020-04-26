@@ -9216,73 +9216,6 @@ namespace smt {
             }
         }
 
-        // run dependence analysis to find free string variables
-        std::map<expr*, int> varAppearInAssign;
-        std::map<expr*, int> freeVar_map;
-        std::map<expr*, std::set<expr*> > unrollGroup_map;
-        std::map<expr*, std::map<expr*, int> > var_eq_concat_map;
-        int conflictInDep = ctx_dep_analysis(varAppearInAssign, freeVar_map, unrollGroup_map, var_eq_concat_map);
-        if (conflictInDep == -1) {
-            m_stats.m_solved_by = 2;
-            return FC_DONE;
-        }
-
-        // enhancement: improved backpropagation of string constants into var=concat terms
-        bool backpropagation_occurred = false;
-        for (std::map<expr*, std::map<expr*, int> >::iterator veqc_map_it = var_eq_concat_map.begin();
-             veqc_map_it != var_eq_concat_map.end(); ++veqc_map_it) {
-            expr * var = veqc_map_it->first;
-            for (std::map<expr*, int>::iterator concat_map_it = veqc_map_it->second.begin();
-                 concat_map_it != veqc_map_it->second.end(); ++concat_map_it) {
-                app * concat = to_app(concat_map_it->first);
-                expr * concat_lhs = concat->get_arg(0);
-                expr * concat_rhs = concat->get_arg(1);
-                // If the concat LHS and RHS both have a string constant in their EQC,
-                // but the var does not, then we assert an axiom of the form
-                // (lhs = "lhs" AND rhs = "rhs") --> (Concat lhs rhs) = "lhsrhs"
-                bool concat_lhs_haseqc, concat_rhs_haseqc, var_haseqc;
-                expr * concat_lhs_str = get_eqc_value(concat_lhs, concat_lhs_haseqc);
-                expr * concat_rhs_str = get_eqc_value(concat_rhs, concat_rhs_haseqc);
-                get_eqc_value(var, var_haseqc);
-                if (concat_lhs_haseqc && concat_rhs_haseqc && !var_haseqc) {
-                    TRACE("str", tout << "backpropagate into " << mk_pp(var, m) << " = " << mk_pp(concat, m) << std::endl
-                          << "LHS ~= " << mk_pp(concat_lhs_str, m) << " RHS ~= " << mk_pp(concat_rhs_str, m) << std::endl;);
-
-                    zstring lhsString, rhsString;
-                    u.str.is_string(concat_lhs_str, lhsString);
-                    u.str.is_string(concat_rhs_str, rhsString);
-                    zstring concatString = lhsString + rhsString;
-
-                    // special handling: don't assert that string constants are equal to themselves
-                    expr_ref_vector lhs_terms(m);
-                    if (!u.str.is_string(concat_lhs)) {
-                        lhs_terms.push_back(ctx.mk_eq_atom(concat_lhs, concat_lhs_str));
-                    }
-
-                    if (!u.str.is_string(concat_rhs)) {
-                        lhs_terms.push_back(ctx.mk_eq_atom(concat_rhs, concat_rhs_str));
-
-                    }
-
-                    if (lhs_terms.empty()) {
-                        // no assumptions on LHS
-                        expr_ref rhs(ctx.mk_eq_atom(concat, mk_string(concatString)), m);
-                        assert_axiom(rhs);
-                    } else {
-                        expr_ref lhs(mk_and(lhs_terms), m);
-                        expr_ref rhs(ctx.mk_eq_atom(concat, mk_string(concatString)), m);
-                        assert_implication(lhs, rhs);
-                    }
-                    backpropagation_occurred = true;
-                }
-            }
-        }
-
-        if (backpropagation_occurred) {
-            TRACE("str", tout << "Resuming search due to axioms added by backpropagation." << std::endl;);
-            return FC_CONTINUE;
-        }
-
         // enhancement: improved backpropagation of length information
         {
             std::set<expr*> varSet;
@@ -9301,38 +9234,7 @@ namespace smt {
             solve_regex_automata();
         } // RegexAutomata
 
-        bool needToAssignFreeVars = false;
-        expr_ref_vector free_variables(m);
-        std::set<expr*> unused_internal_variables;
-        { // Z3str2 free variables check
-            std::map<expr*, int>::iterator itor = varAppearInAssign.begin();
-            for (; itor != varAppearInAssign.end(); ++itor) {
-                /*
-                  std::string vName = std::string(Z3_ast_to_string(ctx, itor->first));
-                  if (vName.length() >= 3 && vName.substr(0, 3) == "$$_")
-                  continue;
-                */
-                if (internal_variable_set.find(itor->first) != internal_variable_set.end()
-                    || regex_variable_set.find(itor->first) != regex_variable_set.end()) {
-                    // this can be ignored, I think
-                    TRACE("str", tout << "free internal variable " << mk_pp(itor->first, m) << " ignored" << std::endl;);
-                    continue;
-                }
-                bool hasEqcValue = false;
-                get_eqc_value(itor->first, hasEqcValue);
-                if (!hasEqcValue) {
-                    TRACE("str", tout << "found free variable " << mk_pp(itor->first, m) << std::endl;);
-                    needToAssignFreeVars = true;
-                    free_variables.push_back(itor->first);
-                    // break;
-                } else {
-                    // debug
-                    // TRACE("str", tout << "variable " << mk_pp(itor->first, m) << " = " << mk_pp(eqcString, m) << std::endl;);
-                }
-            }
-        }
-
-        if (!needToAssignFreeVars) {
+        { // TODO after model construction?
 
             // check string-int terms
             bool addedStrIntAxioms = false;
@@ -9361,7 +9263,7 @@ namespace smt {
             // the string assignment for each variable is consistent with the automaton.
             // The (probably) easiest way to do this is to ensure
             // that we have path constraints set up for every assigned regex term.
-            if (m_params.m_RegexAutomata && !regex_terms.empty()) {
+            if (m_params.m_RegexAutomata && !regex_terms.empty() && false) { // TODO CHEATING
                 for (obj_hashtable<expr>::iterator it = regex_terms.begin(); it != regex_terms.end(); ++it) {
                     expr * str_in_re = *it;
                     expr * str;
@@ -9377,228 +9279,40 @@ namespace smt {
                     }
                 } // foreach (str.in.re in regex_terms)
             }
-
-            if (unused_internal_variables.empty()) {
-                TRACE("str", tout << "All variables are assigned. Done!" << std::endl;);
-                m_stats.m_solved_by = 2;
-                return FC_DONE;
-            } else {
-                TRACE("str", tout << "Assigning decoy values to free internal variables." << std::endl;);
-                for (std::set<expr*>::iterator it = unused_internal_variables.begin(); it != unused_internal_variables.end(); ++it) {
-                    expr * var = *it;
-                    expr_ref assignment(m.mk_eq(var, mk_string("**unused**")), m);
-                    assert_axiom(assignment);
-                }
-                return FC_CONTINUE;
-            }
         }
 
-        CTRACE("str", needToAssignFreeVars,
-               tout << "Need to assign values to the following free variables:" << std::endl;
-               for (expr* v : free_variables) {
-                   tout << mk_ismt2_pp(v, m) << std::endl;
-               }
-               tout << "freeVar_map has the following entries:" << std::endl;
-               for (auto const& kv : freeVar_map) {
-                   expr * var = kv.first;
-                   tout << mk_ismt2_pp(var, m) << std::endl;
-               }
-               );
+        TRACE("str", tout << "using fixed-length model construction" << std::endl;);
 
-        // -----------------------------------------------------------
-        // variables in freeVar are those not bounded by Concats
-        // classify variables in freeVarMap:
-        // (1) freeVar = unroll(r1, t1)
-        // (2) vars are not bounded by either concat or unroll
-        // -----------------------------------------------------------
-        std::map<expr*, std::set<expr*> > fv_unrolls_map;
-        std::set<expr*> tmpSet;
-        expr * constValue = nullptr;
-        for (std::map<expr*, int>::iterator fvIt2 = freeVar_map.begin(); fvIt2 != freeVar_map.end(); fvIt2++) {
-            expr * var = fvIt2->first;
-            tmpSet.clear();
-            get_eqc_allUnroll(var, constValue, tmpSet);
-            if (!tmpSet.empty()) {
-                fv_unrolls_map[var] = tmpSet;
-            }
+        arith_value v(get_manager());
+        v.init(&get_context());
+        final_check_status arith_fc_status = v.final_check();
+        if (arith_fc_status != FC_DONE) {
+            TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
+            return FC_CONTINUE;
         }
-        // erase var bounded by an unroll function from freeVar_map
-        for (std::map<expr*, std::set<expr*> >::iterator fvIt3 = fv_unrolls_map.begin();
-             fvIt3 != fv_unrolls_map.end(); fvIt3++) {
-            expr * var = fvIt3->first;
-            TRACE("str", tout << "erase free variable " << mk_pp(var, m) << " from freeVar_map, it is bounded by an Unroll" << std::endl;);
-            freeVar_map.erase(var);
-        }
+        TRACE("str", tout << "arithmetic solver done in final check" << std::endl;);
 
-        // collect the case:
-        //   * Concat(X, Y) = unroll(r1, t1) /\ Concat(X, Y) = unroll(r2, t2)
-        //     concatEqUnrollsMap[Concat(X, Y)] = {unroll(r1, t1), unroll(r2, t2)}
+        expr_ref_vector assignments(m);
+        ctx.get_assignments(assignments);
 
-        std::map<expr*, std::set<expr*> > concatEqUnrollsMap;
-        for (std::map<expr*, std::set<expr*> >::iterator urItor = unrollGroup_map.begin();
-             urItor != unrollGroup_map.end(); urItor++) {
-            expr * unroll = urItor->first;
-            expr * curr = unroll;
-            do {
-                if (u.str.is_concat(to_app(curr))) {
-                    concatEqUnrollsMap[curr].insert(unroll);
-                    concatEqUnrollsMap[curr].insert(unrollGroup_map[unroll].begin(), unrollGroup_map[unroll].end());
-                }
-                enode * e_curr = ctx.get_enode(curr);
-                curr = e_curr->get_next()->get_owner();
-                // curr = get_eqc_next(curr);
-            } while (curr != unroll);
-        }
+        expr_ref_vector precondition(m);
+        expr_ref_vector cex(m);
+        expr_ref_vector free_variables(m); // TODO CHEATING
+        lbool model_status = fixed_length_model_construction(assignments, precondition, free_variables, candidate_model, cex);
 
-        std::map<expr*, std::set<expr*> > concatFreeArgsEqUnrollsMap;
-        std::set<expr*> fvUnrollSet;
-        for (std::map<expr*, std::set<expr*> >::iterator concatItor = concatEqUnrollsMap.begin();
-             concatItor != concatEqUnrollsMap.end(); concatItor++) {
-            expr * concat = concatItor->first;
-            expr * concatArg1 = to_app(concat)->get_arg(0);
-            expr * concatArg2 = to_app(concat)->get_arg(1);
-            bool arg1Bounded = false;
-            bool arg2Bounded = false;
-            // arg1
-            if (variable_set.find(concatArg1) != variable_set.end()) {
-                if (freeVar_map.find(concatArg1) == freeVar_map.end()) {
-                    arg1Bounded = true;
-                } else {
-                    fvUnrollSet.insert(concatArg1);
-                }
-            } else if (u.str.is_concat(to_app(concatArg1))) {
-                if (concatEqUnrollsMap.find(concatArg1) == concatEqUnrollsMap.end()) {
-                    arg1Bounded = true;
-                }
-            }
-            // arg2
-            if (variable_set.find(concatArg2) != variable_set.end()) {
-                if (freeVar_map.find(concatArg2) == freeVar_map.end()) {
-                    arg2Bounded = true;
-                } else {
-                    fvUnrollSet.insert(concatArg2);
-                }
-            } else if (u.str.is_concat(to_app(concatArg2))) {
-                if (concatEqUnrollsMap.find(concatArg2) == concatEqUnrollsMap.end()) {
-                    arg2Bounded = true;
-                }
-            }
-            if (!arg1Bounded && !arg2Bounded) {
-                concatFreeArgsEqUnrollsMap[concat].insert(
-                    concatEqUnrollsMap[concat].begin(),
-                    concatEqUnrollsMap[concat].end());
-            }
-        }
-        for (std::set<expr*>::iterator vItor = fvUnrollSet.begin(); vItor != fvUnrollSet.end(); vItor++) {
-            TRACE("str", tout << "remove " << mk_pp(*vItor, m) << " from freeVar_map" << std::endl;);
-            freeVar_map.erase(*vItor);
-        }
-
-        // Assign free variables
-        std::set<expr*> fSimpUnroll;
-
-        constValue = nullptr;
-
-        {
-            TRACE("str", tout << "free var map (#" << freeVar_map.size() << "):" << std::endl;
-                  for (std::map<expr*, int>::iterator freeVarItor1 = freeVar_map.begin(); freeVarItor1 != freeVar_map.end(); freeVarItor1++) {
-                      expr * freeVar = freeVarItor1->first;
-                      rational lenValue;
-                      bool lenValue_exists = get_len_value(freeVar, lenValue);
-                      tout << mk_pp(freeVar, m) << " [depCnt = " << freeVarItor1->second << ", length = "
-                           << (lenValue_exists ? lenValue.to_string() : "?")
-                           << "]" << std::endl;
-                  }
-                  );
-        }
-
-        for (std::map<expr*, std::set<expr*> >::iterator fvIt2 = concatFreeArgsEqUnrollsMap.begin();
-             fvIt2 != concatFreeArgsEqUnrollsMap.end(); fvIt2++) {
-            expr * concat = fvIt2->first;
-            for (std::set<expr*>::iterator urItor = fvIt2->second.begin(); urItor != fvIt2->second.end(); urItor++) {
-                expr * unroll = *urItor;
-                process_concat_eq_unroll(concat, unroll);
-            }
-        }
-
-        if (m_params.m_FixedLengthModels) {
-            // TODO if we're using fixed-length testing, do we care about finding free variables any more?
-            // that work might be useless
-            TRACE("str", tout << "using fixed-length model construction" << std::endl;);
-
-            arith_value v(get_manager());
-            v.init(&get_context());
-            final_check_status arith_fc_status = v.final_check();
-            if (arith_fc_status != FC_DONE) {
-                TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
-                return FC_CONTINUE;
-            }
-            TRACE("str", tout << "arithmetic solver done in final check" << std::endl;);
-
-            expr_ref_vector assignments(m);
-            ctx.get_assignments(assignments);
-
-            expr_ref_vector precondition(m);
-            expr_ref_vector cex(m);
-            lbool model_status = fixed_length_model_construction(assignments, precondition, free_variables, candidate_model, cex);
-
-            if (model_status == l_true) {
-                m_stats.m_solved_by = 2;
-                return FC_DONE;
-            } else if (model_status == l_false) {
-                // whatever came back in CEX is the conflict clause.
-                // negate its conjunction and assert that
-                expr_ref conflict(m.mk_not(mk_and(cex)), m);
-                assert_axiom(conflict);
-                add_persisted_axiom(conflict);
-                return FC_CONTINUE;
-            } else { // model_status == l_undef
-                TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
-                return FC_CONTINUE;
-            }
-        } else {
-            // Legacy (Z3str2) length+value testing
-
-            // --------
-            // experimental free variable assignment - begin
-            //   * special handling for variables that are not used in concat
-            // --------
-            bool testAssign = true;
-            if (!testAssign) {
-                for (std::map<expr*, int>::iterator fvIt = freeVar_map.begin(); fvIt != freeVar_map.end(); fvIt++) {
-                    expr * freeVar = fvIt->first;
-                    /*
-                  std::string vName = std::string(Z3_ast_to_string(ctx, freeVar));
-                  if (vName.length() >= 9 && vName.substr(0, 9) == "$$_regVar") {
-                  continue;
-                  }
-                     */
-                    expr * toAssert = gen_len_val_options_for_free_var(freeVar, nullptr, "");
-                    if (toAssert != nullptr) {
-                        assert_axiom(toAssert);
-                    }
-                }
-            } else {
-                process_free_var(freeVar_map);
-            }
-            // experimental free variable assignment - end
-
-            // now deal with removed free variables that are bounded by an unroll
-            TRACE("str", tout << "fv_unrolls_map (#" << fv_unrolls_map.size() << "):" << std::endl;);
-            for (std::map<expr*, std::set<expr*> >::iterator fvIt1 = fv_unrolls_map.begin();
-                    fvIt1 != fv_unrolls_map.end(); fvIt1++) {
-                expr * var = fvIt1->first;
-                fSimpUnroll.clear();
-                get_eqc_simpleUnroll(var, constValue, fSimpUnroll);
-                if (fSimpUnroll.size() == 0) {
-                    gen_assign_unroll_reg(fv_unrolls_map[var]);
-                } else {
-                    expr * toAssert = gen_assign_unroll_Str2Reg(var, fSimpUnroll);
-                    if (toAssert != nullptr) {
-                        assert_axiom(toAssert);
-                    }
-                }
-            }
+        if (model_status == l_true) {
+            m_stats.m_solved_by = 2;
+            return FC_DONE;
+        } else if (model_status == l_false) {
+            // whatever came back in CEX is the conflict clause.
+            // negate its conjunction and assert that
+            expr_ref conflict(m.mk_not(mk_and(cex)), m);
+            assert_axiom(conflict);
+            add_persisted_axiom(conflict);
+            return FC_CONTINUE;
+        } else { // model_status == l_undef
+            TRACE("str", tout << "fixed-length model construction found missing side conditions; continuing search" << std::endl;);
+            return FC_CONTINUE;
         }
 
         if (opt_VerifyFinalCheckProgress && !finalCheckProgressIndicator) {
