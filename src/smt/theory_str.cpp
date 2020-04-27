@@ -7214,8 +7214,7 @@ namespace smt {
 
         solve_regex_automata();
 
-        { // TODO after model construction?
-
+        {
             // check string-int terms
             bool addedStrIntAxioms = false;
             for (unsigned i = 0; i < string_int_conversion_terms.size(); ++i) {
@@ -7238,27 +7237,6 @@ namespace smt {
                 TRACE("str", tout << "Resuming search due to addition of string-integer conversion axioms." << std::endl;);
                 return FC_CONTINUE;
             }
-
-            // We must be be 100% certain that if there are any regex constraints,
-            // the string assignment for each variable is consistent with the automaton.
-            // The (probably) easiest way to do this is to ensure
-            // that we have path constraints set up for every assigned regex term.
-            if (!regex_terms.empty() && false) { // TODO CHEATING
-                for (obj_hashtable<expr>::iterator it = regex_terms.begin(); it != regex_terms.end(); ++it) {
-                    expr * str_in_re = *it;
-                    expr * str;
-                    expr * re;
-                    u.str.is_in_re(str_in_re, str, re);
-                    lbool current_assignment = ctx.get_assignment(str_in_re);
-                    if (current_assignment == l_undef) {
-                        continue;
-                    }
-                    if (!regex_terms_with_path_constraints.contains(str_in_re)) {
-                        TRACE("str", tout << "assigned regex term " << mk_pp(str_in_re, m) << " has no path constraints -- continuing search" << std::endl;);
-                        return FC_CONTINUE;
-                    }
-                } // foreach (str.in.re in regex_terms)
-            }
         }
 
         TRACE("str", tout << "using fixed-length model construction" << std::endl;);
@@ -7277,8 +7255,7 @@ namespace smt {
 
         expr_ref_vector precondition(m);
         expr_ref_vector cex(m);
-        expr_ref_vector free_variables(m); // TODO CHEATING
-        lbool model_status = fixed_length_model_construction(assignments, precondition, free_variables, candidate_model, cex);
+        lbool model_status = fixed_length_model_construction(assignments, precondition, candidate_model, cex);
 
         if (model_status == l_true) {
             m_stats.m_solved_by = 2;
