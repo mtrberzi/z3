@@ -21,11 +21,6 @@ Revision History:
 void theory_str_params::updt_params(params_ref const & _p) {
     smt_params_helper p(_p);
     m_StrongArrangements = p.str_strong_arrangements();
-    m_AggressiveLengthTesting = p.str_aggressive_length_testing();
-    m_AggressiveValueTesting = p.str_aggressive_value_testing();
-    m_AggressiveUnrollTesting = p.str_aggressive_unroll_testing();
-    m_UseFastLengthTesterCache = p.str_fast_length_tester_cache();
-    m_UseFastValueTesterCache = p.str_fast_value_tester_cache();
     m_StringConstantCache = p.str_string_constant_cache();
     m_OverlapTheoryAwarePriority = p.str_overlap_priority();
     m_RegexAutomata_DifficultyThreshold = p.str_regex_automata_difficulty_threshold();
@@ -41,11 +36,6 @@ void theory_str_params::updt_params(params_ref const & _p) {
 
 void theory_str_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_StrongArrangements);
-    DISPLAY_PARAM(m_AggressiveLengthTesting);
-    DISPLAY_PARAM(m_AggressiveValueTesting);
-    DISPLAY_PARAM(m_AggressiveUnrollTesting);
-    DISPLAY_PARAM(m_UseFastLengthTesterCache);
-    DISPLAY_PARAM(m_UseFastValueTesterCache);
     DISPLAY_PARAM(m_StringConstantCache);
     DISPLAY_PARAM(m_OverlapTheoryAwarePriority);
     DISPLAY_PARAM(m_RegexAutomata_DifficultyThreshold);

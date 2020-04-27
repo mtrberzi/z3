@@ -31,38 +31,6 @@ struct theory_str_params {
     bool m_StrongArrangements;
 
     /*
-     * If AggressiveLengthTesting is true, we manipulate the phase of length tester equalities
-     * to prioritize trying concrete length options over choosing the "more" option.
-     */
-    bool m_AggressiveLengthTesting;
-
-    /*
-     * Similarly, if AggressiveValueTesting is true, we manipulate the phase of value tester equalities
-     * to prioritize trying concrete value options over choosing the "more" option.
-     */
-    bool m_AggressiveValueTesting;
-
-    /*
-     * If AggressiveUnrollTesting is true, we manipulate the phase of regex unroll tester equalities
-     * to prioritize trying concrete unroll counts over choosing the "more" option.
-     */
-    bool m_AggressiveUnrollTesting;
-
-    /*
-     * If UseFastLengthTesterCache is set to true,
-     * length tester terms will not be generated from scratch each time they are needed,
-     * but will be saved in a map and looked up.
-     */
-    bool m_UseFastLengthTesterCache;
-
-    /*
-     * If UseFastValueTesterCache is set to true,
-     * value tester terms will not be generated from scratch each time they are needed,
-     * but will be saved in a map and looked up.
-     */
-    bool m_UseFastValueTesterCache;
-
-    /*
      * If StringConstantCache is set to true,
      * all string constants in theory_str generated from anywhere will be cached and saved.
      */
@@ -116,11 +84,6 @@ struct theory_str_params {
 
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
-        m_AggressiveLengthTesting(false),
-        m_AggressiveValueTesting(false),
-        m_AggressiveUnrollTesting(true),
-        m_UseFastLengthTesterCache(false),
-        m_UseFastValueTesterCache(true),
         m_StringConstantCache(true),
         m_OverlapTheoryAwarePriority(-0.1),
         m_RegexAutomata_DifficultyThreshold(1000),

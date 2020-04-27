@@ -515,10 +515,6 @@ protected:
     theory_str_contain_pair_bool_map_t contain_pair_bool_map;
     obj_map<expr, std::set<std::pair<expr*, expr*> > > contain_pair_idx_map;
 
-    // TBD: do a curried map for determinism.
-    std::map<std::pair<expr*, zstring>, expr*> regex_in_bool_map;
-    obj_map<expr, std::set<zstring> > regex_in_var_reg_str_map;
-
     // regex automata
     scoped_ptr_vector<eautomaton> m_automata;
     ptr_vector<eautomaton> regex_automata;
@@ -553,11 +549,6 @@ protected:
     // all (str.to-int) and (int.to-str) terms
     expr_ref_vector string_int_conversion_terms;
     obj_hashtable<expr> string_int_axioms;
-
-    // used when opt_FastLengthTesterCache is true
-    rational_map lengthTesterCache;
-    // used when opt_FastValueTesterCache is true
-    string_map valueTesterCache;
 
     string_map stringConstantCache;
     unsigned long totalCacheAccessCount;
@@ -789,10 +780,6 @@ protected:
     bool fixed_length_reduce_suffix(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
     bool fixed_length_reduce_negative_suffix(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
     bool fixed_length_reduce_regex_membership(smt::kernel & subsolver, expr_ref f, expr_ref & cex, bool polarity);
-
-    // strRegex
-
-    zstring get_std_regex_str(expr * r);
 
     void dump_assignments();
     void initialize_charset();

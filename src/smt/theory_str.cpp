@@ -131,8 +131,6 @@ namespace smt {
         contains_map.reset();
         contain_pair_bool_map.reset();
         contain_pair_idx_map.reset();
-        regex_in_bool_map.clear();
-        regex_in_var_reg_str_map.reset();
 
         m_automata.reset();
         regex_automata.reset();
@@ -155,8 +153,6 @@ namespace smt {
         concat_astNode_map.reset();
         string_int_conversion_terms.reset();
         string_int_axioms.reset();
-        lengthTesterCache.reset();
-        valueTesterCache.reset();
         stringConstantCache.reset();
 
         length_ast_map.reset();
@@ -1949,94 +1945,6 @@ namespace smt {
         return regexIn;
     }
 
-    static zstring str2RegexStr(zstring str) {
-        zstring res("");
-        int len = str.length();
-        for (int i = 0; i < len; i++) {
-            char nc = str[i];
-            // 12 special chars
-            if (nc == '\\' || nc == '^' || nc == '$' || nc == '.' || nc == '|' || nc == '?'
-                || nc == '*' || nc == '+' || nc == '(' || nc == ')' || nc == '[' || nc == '{') {
-                res = res + zstring("\\");
-            }
-            char tmp[2] = {(char)str[i], '\0'};
-            res = res + zstring(tmp);
-        }
-        return res;
-    }
-
-    zstring theory_str::get_std_regex_str(expr * regex) {
-        app * a_regex = to_app(regex);
-        if (u.re.is_to_re(a_regex)) {
-            expr * regAst = a_regex->get_arg(0);
-            zstring regAstVal;
-            u.str.is_string(regAst, regAstVal);
-            zstring regStr = str2RegexStr(regAstVal);
-            return regStr;
-        } else if (u.re.is_concat(a_regex)) {
-            expr * reg1Ast = a_regex->get_arg(0);
-            expr * reg2Ast = a_regex->get_arg(1);
-            zstring reg1Str = get_std_regex_str(reg1Ast);
-            zstring reg2Str = get_std_regex_str(reg2Ast);
-            return zstring("(") + reg1Str + zstring(")(") + reg2Str + zstring(")");
-        } else if (u.re.is_union(a_regex)) {
-            expr * reg1Ast = a_regex->get_arg(0);
-            expr * reg2Ast = a_regex->get_arg(1);
-            zstring reg1Str = get_std_regex_str(reg1Ast);
-            zstring reg2Str = get_std_regex_str(reg2Ast);
-            return  zstring("(") + reg1Str + zstring(")|(") + reg2Str + zstring(")");
-        } else if (u.re.is_star(a_regex)) {
-            expr * reg1Ast = a_regex->get_arg(0);
-            zstring reg1Str = get_std_regex_str(reg1Ast);
-            return  zstring("(") + reg1Str + zstring(")*");
-        } else if (u.re.is_range(a_regex)) {
-            expr * range1 = a_regex->get_arg(0);
-            expr * range2 = a_regex->get_arg(1);
-            zstring range1val, range2val;
-            u.str.is_string(range1, range1val);
-            u.str.is_string(range2, range2val);
-            return zstring("[") + range1val + zstring("-") + range2val + zstring("]");
-        } else if (u.re.is_loop(a_regex)) {
-            expr * body;
-            unsigned lo, hi;
-            // There are two variants of loop: a 2-argument version and a 3-argument version.
-            if (u.re.is_loop(a_regex, body, lo, hi)) {
-                rational rLo(lo);
-                rational rHi(hi);
-                zstring bodyStr = get_std_regex_str(body);
-                return zstring("(") + bodyStr + zstring("{") + zstring(rLo.to_string().c_str()) + zstring(",") + zstring(rHi.to_string().c_str()) + zstring("})");
-            } else if (u.re.is_loop(a_regex, body, lo)) {
-                rational rLo(lo);
-                zstring bodyStr = get_std_regex_str(body);
-                return zstring("(") + bodyStr + zstring("{") + zstring(rLo.to_string().c_str()) + zstring("+") + zstring("})");
-            }
-            else {
-                TRACE("str", tout << "BUG: unrecognized regex term " << mk_pp(regex, get_manager()) << std::endl;);
-                UNREACHABLE(); return zstring("");
-            }
-        } else if (u.re.is_full_seq(a_regex)) {
-            return zstring("(.*)");
-        } else if (u.re.is_full_char(a_regex)) {
-            return zstring("str.allchar");
-        } else if (u.re.is_intersection(a_regex)) {
-            expr * a0;
-            expr * a1;
-            u.re.is_intersection(a_regex, a0, a1);
-            zstring a0str = get_std_regex_str(a0);
-            zstring a1str = get_std_regex_str(a1);
-            return zstring("(") + a0str + zstring("&&") + a1str + zstring(")");
-        } else if (u.re.is_complement(a_regex)) {
-            expr * body;
-            u.re.is_complement(a_regex, body);
-            zstring bodyStr = get_std_regex_str(body);
-            return zstring("(^") + bodyStr + zstring(")");
-        } else {
-            TRACE("str", tout << "BUG: unrecognized regex term " << mk_pp(regex, get_manager()) << std::endl;);
-            UNREACHABLE(); return zstring("");
-        }
-        
-    }
-
     void theory_str::instantiate_axiom_RegexIn(enode * e) {
         ast_manager & m = get_manager();
 
@@ -2048,18 +1956,6 @@ namespace smt {
         axiomatized_terms.insert(ex);
 
         TRACE("str", tout << "instantiate RegexIn axiom for " << mk_pp(ex, m) << std::endl;);
-
-        // TODO do we still need this?
-        {
-            zstring regexStr = get_std_regex_str(ex->get_arg(1));
-            std::pair<expr*, zstring> key1(ex->get_arg(0), regexStr);
-            // skip Z3str's map check, because we already check if we set up axioms on this term
-            regex_in_bool_map[key1] = ex;
-            if (!regex_in_var_reg_str_map.contains(ex->get_arg(0))) {
-                regex_in_var_reg_str_map.insert(ex->get_arg(0), std::set<zstring>());
-            }
-            regex_in_var_reg_str_map[ex->get_arg(0)].insert(regexStr);
-        }
 
         expr_ref str(ex->get_arg(0), m);
 
