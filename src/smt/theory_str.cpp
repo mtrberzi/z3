@@ -6809,27 +6809,6 @@ namespace smt {
                    );
     }
 
-    // returns true if needle appears as a subterm anywhere under haystack,
-    // or if needle appears in the same EQC as a subterm anywhere under haystack
-    bool theory_str::term_appears_as_subterm(expr * needle, expr * haystack) {
-        if (in_same_eqc(needle, haystack)) {
-            return true;
-        }
-
-        if (is_app(haystack)) {
-            app * a_haystack = to_app(haystack);
-            for (unsigned i = 0; i < a_haystack->get_num_args(); ++i) {
-                expr * subterm = a_haystack->get_arg(i);
-                if (term_appears_as_subterm(needle, subterm)) {
-                    return true;
-                }
-            }
-        }
-
-        // not found
-        return false;
-    }
-
     inline expr * theory_str::getMostLeftNodeInConcat(expr * node) {
         app * aNode = to_app(node);
         if (!u.str.is_concat(aNode)) {
@@ -6848,156 +6827,6 @@ namespace smt {
             expr * concatArgR = aNode->get_arg(1);
             return getMostRightNodeInConcat(concatArgR);
         }
-    }
-
-    void theory_str::trace_ctx_dep(std::ofstream & tout,
-                                   std::map<expr*, expr*> & aliasIndexMap,
-                                   std::map<expr*, expr*> & var_eq_constStr_map,
-                                   std::map<expr*, std::map<expr*, int> > & var_eq_concat_map,
-                                   std::map<expr*, std::map<expr*, int> > & var_eq_unroll_map,
-                                   std::map<expr*, expr*> & concat_eq_constStr_map,
-                                   std::map<expr*, std::map<expr*, int> > & concat_eq_concat_map,
-                                   std::map<expr*, std::set<expr*> > & unrollGroupMap) {
-#ifdef _TRACE
-        context & ctx = get_context();
-        ast_manager & mgr = get_manager();
-        {
-            tout << "(0) alias: variables" << std::endl;
-            std::map<expr*, std::map<expr*, int> > aliasSumMap;
-            std::map<expr*, expr*>::iterator itor0 = aliasIndexMap.begin();
-            for (; itor0 != aliasIndexMap.end(); itor0++) {
-                aliasSumMap[itor0->second][itor0->first] = 1;
-            }
-            std::map<expr*, std::map<expr*, int> >::iterator keyItor = aliasSumMap.begin();
-            for (; keyItor != aliasSumMap.end(); keyItor++) {
-                tout << "    * ";
-                tout << mk_pp(keyItor->first, mgr);
-                tout << " : ";
-                std::map<expr*, int>::iterator innerItor = keyItor->second.begin();
-                for (; innerItor != keyItor->second.end(); innerItor++) {
-                    tout << mk_pp(innerItor->first, mgr);
-                    tout << ", ";
-                }
-                tout << std::endl;
-            }
-            tout << std::endl;
-        }
-
-        {
-            tout << "(1) var = constStr:" << std::endl;
-            std::map<expr*, expr*>::iterator itor1 = var_eq_constStr_map.begin();
-            for (; itor1 != var_eq_constStr_map.end(); itor1++) {
-                tout << "    * ";
-                tout << mk_pp(itor1->first, mgr);
-                tout << " = ";
-                tout << mk_pp(itor1->second, mgr);
-                if (!in_same_eqc(itor1->first, itor1->second)) {
-                    tout << "   (not true in ctx)";
-                }
-                tout << std::endl;
-            }
-            tout << std::endl;
-        }
-
-        {
-            tout << "(2) var = concat:" << std::endl;
-            std::map<expr*, std::map<expr*, int> >::iterator itor2 = var_eq_concat_map.begin();
-            for (; itor2 != var_eq_concat_map.end(); itor2++) {
-                tout << "    * ";
-                tout << mk_pp(itor2->first, mgr);
-                tout << " = { ";
-                std::map<expr*, int>::iterator i_itor = itor2->second.begin();
-                for (; i_itor != itor2->second.end(); i_itor++) {
-                    tout << mk_pp(i_itor->first, mgr);
-                    tout << ", ";
-                }
-                tout << std::endl;
-            }
-            tout << std::endl;
-        }
-
-        {
-            tout << "(3) var = unrollFunc:" << std::endl;
-            std::map<expr*, std::map<expr*, int> >::iterator itor2 = var_eq_unroll_map.begin();
-            for (; itor2 != var_eq_unroll_map.end(); itor2++) {
-                tout << "    * " << mk_pp(itor2->first, mgr) << " = { ";
-                std::map<expr*, int>::iterator i_itor = itor2->second.begin();
-                for (; i_itor != itor2->second.end(); i_itor++) {
-                    tout << mk_pp(i_itor->first, mgr) << ", ";
-                }
-                tout << " }" << std::endl;
-            }
-            tout << std::endl;
-        }
-
-        {
-            tout << "(4) concat = constStr:" << std::endl;
-            std::map<expr*, expr*>::iterator itor3 = concat_eq_constStr_map.begin();
-            for (; itor3 != concat_eq_constStr_map.end(); itor3++) {
-                tout << "    * ";
-                tout << mk_pp(itor3->first, mgr);
-                tout << " = ";
-                tout << mk_pp(itor3->second, mgr);
-                tout << std::endl;
-
-            }
-            tout << std::endl;
-        }
-
-        {
-            tout << "(5) eq concats:" << std::endl;
-            std::map<expr*, std::map<expr*, int> >::iterator itor4 = concat_eq_concat_map.begin();
-            for (; itor4 != concat_eq_concat_map.end(); itor4++) {
-                if (itor4->second.size() > 1) {
-                    std::map<expr*, int>::iterator i_itor = itor4->second.begin();
-                    tout << "    * ";
-                    for (; i_itor != itor4->second.end(); i_itor++) {
-                        tout << mk_pp(i_itor->first, mgr);
-                        tout << " , ";
-                    }
-                    tout << std::endl;
-                }
-            }
-            tout << std::endl;
-        }
-
-        {
-            tout << "(6) eq unrolls:" << std::endl;
-            std::map<expr*, std::set<expr*> >::iterator itor5 = unrollGroupMap.begin();
-            for (; itor5 != unrollGroupMap.end(); itor5++) {
-                tout << "    * ";
-                std::set<expr*>::iterator i_itor = itor5->second.begin();
-                for (; i_itor != itor5->second.end(); i_itor++) {
-                    tout << mk_pp(*i_itor, mgr) << ",  ";
-                }
-                tout << std::endl;
-            }
-            tout << std::endl;
-        }
-
-        {
-            tout << "(7) unroll = concats:" << std::endl;
-            std::map<expr*, std::set<expr*> >::iterator itor5 = unrollGroupMap.begin();
-            for (; itor5 != unrollGroupMap.end(); itor5++) {
-                tout << "    * ";
-                expr * unroll = itor5->first;
-                tout << mk_pp(unroll, mgr) << std::endl;
-                enode * e_curr = ctx.get_enode(unroll);
-                enode * e_curr_end = e_curr;
-                do {
-                    app * curr = e_curr->get_owner();
-                    if (u.str.is_concat(curr)) {
-                        tout << "      >>> " << mk_pp(curr, mgr) << std::endl;
-                    }
-                    e_curr = e_curr->get_next();
-                } while (e_curr != e_curr_end);
-                tout << std::endl;
-            }
-            tout << std::endl;
-        }
-#else
-        return;
-#endif // _TRACE
     }
 
     // Check agreement between integer and string theories for the term a = (str.to-int S).
@@ -7493,16 +7322,6 @@ namespace smt {
         do {
             if (u.str.is_concat(to_app(eqcNode))) {
                 concats.insert(eqcNode);
-            }
-            eqcNode = get_eqc_next(eqcNode);
-        } while (eqcNode != n);
-    }
-
-    void theory_str::get_var_in_eqc(expr * n, std::set<expr*> & varSet) {
-        expr * eqcNode = n;
-        do {
-            if (variable_set.find(eqcNode) != variable_set.end()) {
-                varSet.insert(eqcNode);
             }
             eqcNode = get_eqc_next(eqcNode);
         } while (eqcNode != n);

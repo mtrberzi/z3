@@ -581,10 +581,6 @@ protected:
     app * mk_int_var(std::string name);
     app_ref mk_nonempty_str_var();
     app * mk_internal_xor_var();
-    expr * mk_internal_valTest_var(expr * node, int len, int vTries);
-    app * mk_regex_rep_var();
-    app * mk_unroll_bound_var();
-    app * mk_unroll_test_var();
     void add_nonempty_constraint(expr * s);
 
     void instantiate_concat_axiom(enode * cat);
@@ -667,11 +663,6 @@ protected:
     void check_contain_by_substr(expr * varNode, expr_ref_vector & willEqClass);
     void check_contain_by_eq_nodes(expr * n1, expr * n2);
     bool in_contain_idx_map(expr * n);
-    void compute_contains(std::map<expr*, expr*> & varAliasMap,
-            std::map<expr*, expr*> & concatAliasMap, std::map<expr*, expr *> & varConstMap,
-            std::map<expr*, expr*> & concatConstMap, std::map<expr*, std::map<expr*, int> > & varEqConcatMap);
-    void check_subsequence(expr* str, expr* strDeAlias, expr* subStr, expr* subStrDeAlias, expr* boolVar,
-            std::map<expr*, std::map<std::vector<expr*>, std::set<expr*> > > & groundedMap);
 
     void get_nodes_in_concat(expr * node, ptr_vector<expr> & nodeList);
     expr * simplify_concat(expr * node);
@@ -707,23 +698,8 @@ protected:
     bool new_eq_check(expr * lhs, expr * rhs);
     void group_terms_by_eqc(expr * n, std::set<expr*> & concats, std::set<expr*> & vars, std::set<expr*> & consts);
 
-    int ctx_dep_analysis(std::map<expr*, int> & strVarMap, std::map<expr*, int> & freeVarMap,
-            std::map<expr*, std::set<expr*> > & unrollGroupMap, std::map<expr*, std::map<expr*, int> > & var_eq_concat_map);
-    void trace_ctx_dep(std::ofstream & tout,
-            std::map<expr*, expr*> & aliasIndexMap,
-            std::map<expr*, expr*> & var_eq_constStr_map,
-            std::map<expr*, std::map<expr*, int> > & var_eq_concat_map,
-            std::map<expr*, std::map<expr*, int> > & var_eq_unroll_map,
-            std::map<expr*, expr*> & concat_eq_constStr_map,
-            std::map<expr*, std::map<expr*, int> > & concat_eq_concat_map,
-            std::map<expr*, std::set<expr*> > & unrollGroupMap);
-
-    bool term_appears_as_subterm(expr * needle, expr * haystack);
-
-    expr * get_alias_index_ast(std::map<expr*, expr*> & aliasIndexMap, expr * node);
     expr * getMostLeftNodeInConcat(expr * node);
     expr * getMostRightNodeInConcat(expr * node);
-    void get_var_in_eqc(expr * n, std::set<expr*> & varSet);
     void get_concats_in_eqc(expr * n, std::set<expr*> & concats);
     void get_const_str_asts_in_node(expr * node, expr_ref_vector & constList);
     expr * eval_concat(expr * n1, expr * n2);
