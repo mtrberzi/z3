@@ -379,11 +379,6 @@ protected:
     bool opt_VerifyFinalCheckProgress;
 
     /*
-     * This constant controls how eagerly we expand unrolls in unbounded regex membership tests.
-     */
-    int opt_LCMUnrollStep;
-
-    /*
      * If NoQuickReturn_IntegerTheory is set to true,
      * integer theory integration checks that assert axioms
      * will not return from the function after asserting their axioms.
@@ -472,8 +467,6 @@ protected:
 
     int tmpStringVarCount;
     int tmpXorVarCount;
-    int tmpLenTestVarCount;
-    int tmpValTestVarCount;
     // obj_pair_map<expr, expr, std::map<int, expr*> > varForBreakConcat;
     std::map<std::pair<expr*,expr*>, std::map<int, expr*> > varForBreakConcat;
     bool avoidLoopCut;
@@ -484,31 +477,7 @@ protected:
 
     obj_hashtable<expr> variable_set;
     obj_hashtable<expr> internal_variable_set;
-    obj_hashtable<expr> regex_variable_set;
     std::map<int, obj_hashtable<expr> > internal_variable_scope_levels;
-
-    obj_hashtable<expr> internal_lenTest_vars;
-    obj_hashtable<expr> internal_valTest_vars;
-    obj_hashtable<expr> internal_unrollTest_vars;
-
-    obj_hashtable<expr> input_var_in_len;
-
-    obj_map<expr, unsigned int> fvar_len_count_map;
-    obj_map<expr, ptr_vector<expr> > fvar_lenTester_map;
-    obj_map<expr, expr*> lenTester_fvar_map;
-
-
-    obj_map<expr, std::map<int, svector<std::pair<int, expr*> > > > fvar_valueTester_map;
-
-    obj_map<expr, expr*> valueTester_fvar_map;
-
-    obj_map<expr, int_vector> val_range_map;
-
-    // This can't be an expr_ref_vector because the constructor is wrong,
-    // we would need to modify the allocator so we pass in ast_manager
-    obj_map<expr, std::map<std::set<expr*>, ptr_vector<expr> > > unroll_tries_map;
-    obj_map<expr, expr*> unroll_var_map;
-    obj_pair_map<expr, expr, expr*> concat_eq_unroll_ast_map;
 
     expr_ref_vector contains_map;
 
@@ -539,10 +508,6 @@ protected:
     obj_map<expr, unsigned> regex_intersection_fail_count;
 
     obj_map<expr, ptr_vector<expr> > string_chars; // S --> [S_0, S_1, ...] for character terms S_i
-
-    svector<char> char_set;
-    std::map<char, int>  charSetLookupTable;
-    int           charSetSize;
 
     obj_pair_map<expr, expr, expr*> concat_astNode_map;
 
@@ -782,7 +747,6 @@ protected:
     bool fixed_length_reduce_regex_membership(smt::kernel & subsolver, expr_ref f, expr_ref & cex, bool polarity);
 
     void dump_assignments();
-    void initialize_charset();
 
     void check_variable_scope();
     void recursive_check_variable_scope(expr * ex);

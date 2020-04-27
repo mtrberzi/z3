@@ -39,7 +39,6 @@ namespace smt {
         /* Options */
         opt_EagerStringConstantLengthAssertions(true),
         opt_VerifyFinalCheckProgress(false),
-        opt_LCMUnrollStep(2),
         opt_NoQuickReturn_IntegerTheory(false),
         opt_DisableIntegerTheoryIntegration(false),
         opt_DeferEQCConsistencyCheck(false),
@@ -61,8 +60,6 @@ namespace smt {
         m_persisted_axiom_todo(m),
         tmpStringVarCount(0),
         tmpXorVarCount(0),
-        tmpLenTestVarCount(0),
-        tmpValTestVarCount(0),
         avoidLoopCut(true),
         loopDetected(false),
         m_theoryStrOverlapAssumption_term(m),
@@ -76,9 +73,9 @@ namespace smt {
         m_find(*this),
         fixed_length_subterm_trail(m),
         fixed_length_assumptions(m),
+        preprocessing_iteration_count(0),
         bitvector_character_constants(m)
     {
-        initialize_charset();
     }
 
     theory_str::~theory_str() {
@@ -113,21 +110,6 @@ namespace smt {
         //regex_variable_set.reset();
         //internal_variable_scope_levels.clear();
 
-        internal_lenTest_vars.reset();
-        internal_valTest_vars.reset();
-        internal_unrollTest_vars.reset();
-
-        input_var_in_len.reset();
-
-        fvar_len_count_map.reset();
-        fvar_lenTester_map.reset();
-        lenTester_fvar_map.reset();
-        fvar_valueTester_map.reset();
-        valueTester_fvar_map.reset();
-        val_range_map.reset();
-        unroll_tries_map.reset();
-        unroll_var_map.reset();
-        concat_eq_unroll_ast_map.reset();
         contains_map.reset();
         contain_pair_bool_map.reset();
         contain_pair_idx_map.reset();
@@ -216,79 +198,6 @@ namespace smt {
         st.update("str refine negated equation", m_stats.m_refine_neq);
         st.update("str refine function", m_stats.m_refine_f);
         st.update("str refine negated function", m_stats.m_refine_nf);
-    }
-
-    void theory_str::initialize_charset() {
-        bool defaultCharset = true;
-        if (defaultCharset) {
-            // valid C strings can't contain the null byte ('\0')
-            charSetSize = 255;
-            char_set.resize(256, 0);
-            int idx = 0;
-            // small letters
-            for (int i = 97; i < 123; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // caps
-            for (int i = 65; i < 91; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // numbers
-            for (int i = 48; i < 58; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // printable marks - 1
-            for (int i = 32; i < 48; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // printable marks - 2
-            for (int i = 58; i < 65; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // printable marks - 3
-            for (int i = 91; i < 97; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // printable marks - 4
-            for (int i = 123; i < 127; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // non-printable - 1
-            for (int i = 1; i < 32; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-            // non-printable - 2
-            for (int i = 127; i < 256; i++) {
-                char_set[idx] = (char) i;
-                charSetLookupTable[char_set[idx]] = idx;
-                idx++;
-            }
-        } else {
-            const char setset[] = { 'a', 'b', 'c' };
-            int fSize = sizeof(setset) / sizeof(char);
-            char_set.resize(fSize, 0);
-            charSetSize = fSize;
-            for (int i = 0; i < charSetSize; i++) {
-                char_set[i] = setset[i];
-                charSetLookupTable[setset[i]] = i;
-            }
-        }
     }
 
     void theory_str::assert_axiom(expr * _e) {
@@ -598,17 +507,6 @@ namespace smt {
         return a;
     }
 
-    app * theory_str::mk_unroll_bound_var() {
-        return mk_int_var("unroll");
-    }
-
-    app * theory_str::mk_unroll_test_var() {
-        app * v = mk_str_var("unrollTest"); // was uRt
-        internal_unrollTest_vars.insert(v);
-        track_variable_scope(v);
-        return v;
-    }
-
     app * theory_str::mk_str_var(std::string name) {
         context & ctx = get_context();
 
@@ -632,28 +530,6 @@ namespace smt {
 
         variable_set.insert(a);
         internal_variable_set.insert(a);
-        track_variable_scope(a);
-
-        return a;
-    }
-
-    app * theory_str::mk_regex_rep_var() {
-        context & ctx = get_context();
-
-        sort * string_sort = u.str.mk_string_sort();
-        app * a = mk_fresh_const("regex", string_sort);
-        m_trail.push_back(a);
-
-        ctx.internalize(a, false);
-        SASSERT(ctx.get_enode(a) != nullptr);
-        SASSERT(ctx.e_internalized(a));
-        mk_var(ctx.get_enode(a));
-        m_basicstr_axiom_todo.push_back(ctx.get_enode(a));
-        TRACE("str", tout << "add " << mk_pp(a, get_manager()) << " to m_basicstr_axiom_todo" << std::endl;);
-
-        variable_set.insert(a);
-        //internal_variable_set.insert(a);
-        regex_variable_set.insert(a);
         track_variable_scope(a);
 
         return a;
@@ -6610,14 +6486,6 @@ namespace smt {
                     // we also want to check whether we can eval this concat,
                     // in case the rewriter did not totally finish with this term
                     m_concat_eval_todo.push_back(n);
-                } else if (u.str.is_length(ap)) {
-                    // if the argument is a variable,
-                    // keep track of this for later, we'll need it during model gen
-                    expr * var = ap->get_arg(0);
-                    app * aVar = to_app(var);
-                    if (aVar->get_num_args() == 0 && !u.str.is_string(aVar)) {
-                        input_var_in_len.insert(var);
-                    }
                 } else if (u.str.is_at(ap) || u.str.is_extract(ap) || u.str.is_replace(ap)) {
                     m_library_aware_axiom_todo.push_back(n);
                 } else if (u.str.is_itos(ap)) {
@@ -7289,9 +7157,7 @@ namespace smt {
 
     void theory_str::collect_var_concat(expr * node, std::set<expr*> & varSet, std::set<expr*> & concatSet) {
         if (variable_set.find(node) != variable_set.end()) {
-            if (internal_lenTest_vars.find(node) == internal_lenTest_vars.end()) {
-                varSet.insert(node);
-            }
+            varSet.insert(node);
         }
         else if (is_app(node)) {
             app * aNode = to_app(node);
