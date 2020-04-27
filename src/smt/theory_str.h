@@ -575,34 +575,6 @@ protected:
     expr * get_eqc_next(expr * n);
     app * get_ast(theory_var i);
 
-    // binary search heuristic data
-    struct binary_search_info {
-        rational lowerBound;
-        rational midPoint;
-        rational upperBound;
-        rational windowSize;
-
-        binary_search_info() : lowerBound(rational::zero()), midPoint(rational::zero()),
-                upperBound(rational::zero()), windowSize(rational::zero()) {}
-        binary_search_info(rational lower, rational mid, rational upper, rational windowSize) :
-            lowerBound(lower), midPoint(mid), upperBound(upper), windowSize(windowSize) {}
-
-        void calculate_midpoint() {
-            midPoint = floor(lowerBound + ((upperBound - lowerBound) / rational(2)) );
-        }
-    };
-    // maps a free string var to a stack of active length testers.
-    // can use binary_search_trail to record changes to this object
-    obj_map<expr, ptr_vector<expr> > binary_search_len_tester_stack;
-    // maps a length tester var to the *active* search window
-    obj_map<expr, binary_search_info> binary_search_len_tester_info;
-    // maps a free string var to the first length tester to be (re)used
-    obj_map<expr, expr*> binary_search_starting_len_tester;
-    // maps a length tester to the next length tester to be (re)used if the split is "low"
-    obj_map<expr, expr*> binary_search_next_var_low;
-    // maps a length tester to the next length tester to be (re)used if the split is "high"
-    obj_map<expr, expr*> binary_search_next_var_high;
-
     // fixed length model construction
     expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
@@ -688,10 +660,6 @@ protected:
 
     expr * mk_RegexIn(expr * str, expr * regexp);
     void instantiate_axiom_RegexIn(enode * e);
-    app * mk_unroll(expr * n, expr * bound);
-    void process_unroll_eq_const_str(expr * unrollFunc, expr * constStr);
-    void unroll_str2reg_constStr(expr * unrollFunc, expr * eqConstStr);
-    void process_concat_eq_unroll(expr * concat, expr * unroll);
 
     // regex automata and length-aware regex
     void solve_regex_automata();
@@ -796,26 +764,6 @@ protected:
 
     bool term_appears_as_subterm(expr * needle, expr * haystack);
 
-    expr * mk_internal_lenTest_var(expr * node, int lTries);
-    expr * gen_len_val_options_for_free_var(expr * freeVar, expr * lenTesterInCbEq, zstring lenTesterValue);
-    void process_free_var(std::map<expr*, int> & freeVar_map);
-    expr * gen_len_test_options(expr * freeVar, expr * indicator, int tries);
-    expr * gen_free_var_options(expr * freeVar, expr * len_indicator,
-            zstring len_valueStr, expr * valTesterInCbEq, zstring valTesterValueStr);
-    expr* gen_val_options(expr * freeVar, expr * len_indicator, expr * val_indicator,
-            zstring lenStr, int tries);
-    void print_value_tester_list(svector<std::pair<int, expr*> > & testerList);
-    bool get_next_val_encode(int_vector & base, int_vector & next);
-    zstring gen_val_string(int len, int_vector & encoding);
-
-    // binary search heuristic
-    expr * binary_search_length_test(expr * freeVar, expr * previousLenTester, zstring previousLenTesterValue);
-    expr_ref binary_search_case_split(expr * freeVar, expr * tester, binary_search_info & bounds, literal_vector & case_split_lits);
-
-    bool free_var_attempt(expr * nn1, expr * nn2);
-    void more_len_tests(expr * lenTester, zstring lenTesterValue);
-    void more_value_tests(expr * valTester, zstring valTesterValue);
-
     expr * get_alias_index_ast(std::map<expr*, expr*> & aliasIndexMap, expr * node);
     expr * getMostLeftNodeInConcat(expr * node);
     expr * getMostRightNodeInConcat(expr * node);
@@ -844,14 +792,6 @@ protected:
 
     // strRegex
 
-    void get_eqc_allUnroll(expr * n, expr * &constStr, std::set<expr*> & unrollFuncSet);
-    void get_eqc_simpleUnroll(expr * n, expr * &constStr, std::set<expr*> & unrollFuncSet);
-    void gen_assign_unroll_reg(std::set<expr*> & unrolls);
-    expr * gen_assign_unroll_Str2Reg(expr * n, std::set<expr*> & unrolls);
-    expr * gen_unroll_conditional_options(expr * var, std::set<expr*> & unrolls, zstring lcmStr);
-    expr * gen_unroll_assign(expr * var, zstring lcmStr, expr * testerVar, int l, int h);
-    void reduce_virtual_regex_in(expr * var, expr * regex, expr_ref_vector & items);
-    void check_regex_in(expr * nn1, expr * nn2);
     zstring get_std_regex_str(expr * r);
 
     void dump_assignments();
