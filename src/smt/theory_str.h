@@ -32,6 +32,7 @@
 #include "smt/smt_model_generator.h"
 #include "smt/smt_arith_value.h"
 #include "smt/smt_kernel.h"
+#include "smt/seq_axioms.h"
 #include<set>
 #include<stack>
 #include<vector>
@@ -442,6 +443,10 @@ protected:
 
     re2automaton m_mk_aut;
 
+    th_rewriter m_rewrite;
+    seq_axioms m_seq_axioms;
+    seq_skolem m_seq_skolem;
+
     // Unique identifier appended to unused variables to ensure that model construction
     // does not introduce equalities when they weren't enforced.
     unsigned m_unused_id;
@@ -676,12 +681,15 @@ protected:
     bool flatten(expr* ex, expr_ref_vector & flat);
     unsigned get_refine_length(expr* ex, expr_ref_vector& extra_deps);
 
+    // for seq_axioms
+    void add_axiom_literals(literal l1, literal l2 = null_literal, literal l3 = null_literal, literal l4 = null_literal, literal l5 = null_literal);
+    literal mk_eq_empty(expr* n, bool phase = true);
+
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
     void instantiate_axiom_suffixof(enode * e);
     void instantiate_axiom_Contains(enode * e);
     void instantiate_axiom_Indexof(enode * e);
-    void instantiate_axiom_Indexof_extended(enode * e);
     void instantiate_axiom_LastIndexof(enode * e);
     void instantiate_axiom_Substr(enode * e);
     void instantiate_axiom_Replace(enode * e);
@@ -847,6 +855,7 @@ protected:
             expr_ref_vector& free_variables,
             obj_map<expr, zstring> &model, expr_ref_vector &cex);
     bool fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & term_chars, expr_ref & cex);
+    bool fixed_length_reduce_char_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & term_chars, expr_ref & cex);
     bool fixed_length_get_len_value(expr * e, rational & val);
     bool fixed_length_reduce_eq(smt::kernel & subsolver, expr_ref lhs, expr_ref rhs, expr_ref & cex);
     bool fixed_length_reduce_diseq(smt::kernel & subsolver, expr_ref lhs, expr_ref rhs, expr_ref & cex);

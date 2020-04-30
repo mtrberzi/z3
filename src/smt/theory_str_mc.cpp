@@ -28,6 +28,7 @@
 #include "ast/rewriter/seq_rewriter.h"
 #include "ast/rewriter/expr_replacer.h"
 #include "smt_kernel.h"
+#include "smt/seq_skolem.h"
 #include "model/model_smt2_pp.h"
 
 namespace smt {
@@ -598,6 +599,42 @@ namespace smt {
     }
 
     /*
+         * Expressions in the vector eqc_chars exist only in the subsolver.
+         * If this method returns false, a conflict clause is returned in cex;
+         * this conflict clause exists in the main solver.
+         */
+    bool theory_str::fixed_length_reduce_char_term(smt::kernel & subsolver, expr * term,
+                ptr_vector<expr> & eqc_chars, expr_ref & cex) {
+        ast_manager & m = get_manager();
+
+        ast_manager & sub_m = subsolver.m();
+
+        bv_util bv(m);
+
+        rational unit_val;
+        if (bv.is_numeral(term, unit_val)) {
+            SASSERT(unit_val.is_nonneg() && unit_val.get_unsigned() <= 255);
+            expr_ref chTerm(bitvector_character_constants.get(unit_val.get_unsigned()), sub_m);
+            eqc_chars.push_back(chTerm);
+            return true;
+        } else if (m_seq_skolem.is_seq_last(term)) {
+            expr * arg0 = to_app(term)->get_arg(0);
+            // arg0 is a string
+            ptr_vector<expr> arg0_chars;
+            if (!fixed_length_reduce_string_term(subsolver, arg0, arg0_chars, cex)) {
+                return false;
+            }
+            // TODO what are the semantics if the subterm has length 0?
+            SASSERT(arg0_chars.size() > 0);
+            eqc_chars.push_back(arg0_chars.get(arg0_chars.size() - 1));
+            return true;
+        } else {
+            NOT_IMPLEMENTED_YET();
+            return false;
+        }
+    }
+
+    /*
      * Expressions in the vector eqc_chars exist only in the subsolver.
      * If this method returns false, a conflict clause is returned in cex;
      * this conflict clause exists in the main solver.
@@ -749,6 +786,27 @@ namespace smt {
                 }
                 return true;
             }
+        } else if (u.str.is_unit(term, arg0)) {
+            TRACE("str_fl", tout << "reduce seq.unit: " << mk_pp(arg0, m) << std::endl;);
+            if (!fixed_length_reduce_char_term(subsolver, arg0, eqc_chars, cex)) {
+                return false;
+            }
+            return true;
+        } else if (m_seq_skolem.is_seq_first(term)) {
+            // S = first(S) + unit(last(S))
+
+            expr * arg0 = to_app(term)->get_arg(0);
+            // arg0 is a string
+            ptr_vector<expr> arg0_chars;
+            if (!fixed_length_reduce_string_term(subsolver, arg0, arg0_chars, cex)) {
+                return false;
+            }
+            // TODO what are the semantics if the subterm has length 0?
+            SASSERT(arg0_chars.size() > 0);
+            for (unsigned i = 0; i < arg0_chars.size() - 1; ++i) {
+                eqc_chars.push_back(arg0_chars.get(i));
+            }
+            return true;
         } else {
             TRACE("str_fl", tout << "string term " << mk_pp(term, m) << " handled as uninterpreted function" << std::endl;);
             if (!uninterpreted_to_char_subterm_map.contains(term)) {
@@ -898,6 +956,7 @@ namespace smt {
         sort * str_sort = u.str.mk_string_sort();
         sort * bool_sort = m.mk_bool_sort();
 
+        /*
         for (expr * var : free_variables) {
             TRACE("str_fl", tout << "initialize free variable " << mk_pp(var, m) << std::endl;);
             rational var_lenVal;
@@ -916,6 +975,7 @@ namespace smt {
                 return l_undef;
             }
         }
+        */
 
         for (expr * f : formulas) {
             if (!get_context().is_relevant(f)) {
@@ -939,7 +999,7 @@ namespace smt {
                 expr * subterm;
                 expr * lhs;
                 expr * rhs;
-                if (m.is_eq(f, lhs, rhs)) {
+                if (m.is_eq(f, lhs, rhs) || m_seq_skolem.is_eq(f, lhs, rhs)) {
                     sort * lhs_sort = m.get_sort(lhs);
                     if (lhs_sort == str_sort) {
                         TRACE("str_fl", tout << "reduce string equality: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << std::endl;);
@@ -1000,7 +1060,7 @@ namespace smt {
                     }
                 }else if (m.is_not(f, subterm)) {
                     // if subterm is a string formula such as an equality, reduce it as a disequality
-                    if (m.is_eq(subterm, lhs, rhs)) {
+                    if (m.is_eq(subterm, lhs, rhs) || m_seq_skolem.is_eq(subterm, lhs, rhs)) {
                         sort * lhs_sort = m.get_sort(lhs);
                         if (lhs_sort == str_sort) {
                             TRACE("str_fl", tout << "reduce string disequality: " << mk_pp(lhs, m) << " != " << mk_pp(rhs, m) << std::endl;);
