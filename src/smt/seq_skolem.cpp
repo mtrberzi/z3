@@ -36,6 +36,7 @@ seq_skolem::seq_skolem(ast_manager& m, th_rewriter& rw):
     m_eq             = "seq.eq";
     m_seq_align      = "seq.align";
     m_max_unfolding  = "seq.max_unfolding";
+    m_length_limit   = "seq.length_limit";
 }
 
 expr_ref seq_skolem::mk(symbol const& s, expr* e1, expr* e2, expr* e3, expr* e4, sort* range) {
@@ -53,6 +54,21 @@ expr_ref seq_skolem::mk_max_unfolding_depth(unsigned depth) {
     return expr_ref(m.mk_const(f), m);
 }
 
+expr_ref seq_skolem::mk_length_limit(expr* e, unsigned d) {
+    parameter ps[3] = { parameter(m_length_limit), parameter(d), parameter(e) };
+    func_decl* f = m.mk_func_decl(seq.get_family_id(), _OP_SEQ_SKOLEM, 3, ps, 0, (sort*const*) nullptr, m.mk_bool_sort());    
+    return expr_ref(m.mk_const(f), m);
+}
+
+bool seq_skolem::is_length_limit(expr* p, unsigned& lim, expr*& s) const {
+    if (!is_length_limit(p))
+        return false;
+    lim = to_app(p)->get_parameter(1).get_int();
+    s = to_expr(to_app(p)->get_parameter(2).get_ast());
+    return true;
+}
+
+
 bool seq_skolem::is_skolem(symbol const& s, expr* e) const {
     return seq.is_skolem(e) && to_app(e)->get_decl()->get_parameter(0).get_symbol() == s;
 }
@@ -64,7 +80,7 @@ void seq_skolem::decompose(expr* e, expr_ref& head, expr_ref& tail) {
 
 decompose_main:
     if (seq.str.is_empty(e)) {
-        head = seq.str.mk_unit(seq.str.mk_nth(e, a.mk_int(0)));
+        head = seq.str.mk_unit(seq.str.mk_nth_i(e, a.mk_int(0)));
         tail = e;
     }
     else if (seq.str.is_string(e, s)) {
@@ -93,12 +109,13 @@ decompose_main:
     else if (is_skolem(m_tail, e) && a.is_numeral(to_app(e)->get_arg(1), r)) {        
         expr* s = to_app(e)->get_arg(0);        
         expr* idx = a.mk_int(r.get_unsigned() + 1);
-        head = seq.str.mk_unit(seq.str.mk_nth(s, idx));
+        head = seq.str.mk_unit(seq.str.mk_nth_i(s, idx));
         tail = mk(m_tail, s, idx);
         m_rewrite(head);
+        m_rewrite(tail);
     }
     else {
-        head = seq.str.mk_unit(seq.str.mk_nth(e, a.mk_int(0)));
+        head = seq.str.mk_unit(seq.str.mk_nth_i(e, a.mk_int(0)));
         tail = mk(m_tail, e, a.mk_int(0));
         m_rewrite(head);
         m_rewrite(tail);
@@ -120,13 +137,18 @@ bool seq_skolem::is_step(expr* e, expr*& s, expr*& idx, expr*& re, expr*& i, exp
     }
 }
 
-bool seq_skolem::is_tail(expr* e, expr*& s, unsigned& idx) const {
+bool seq_skolem::is_tail_u(expr* e, expr*& s, unsigned& idx) const {
     expr* i = nullptr;
     rational r;
-    return is_tail_match(e, s, i) && a.is_numeral(i, r) && r.is_unsigned() && (idx = r.get_unsigned(), true);
+    return is_tail(e, s, i) && a.is_numeral(i, r) && r.is_unsigned() && (idx = r.get_unsigned(), true);
 }
 
-bool seq_skolem::is_tail_match(expr* e, expr*& s, expr*& idx) const {
+bool seq_skolem::is_tail(expr* e, expr*& s) const {
+    expr* i = nullptr;
+    return is_tail(e, s, i);
+}
+
+bool seq_skolem::is_tail(expr* e, expr*& s, expr*& idx) const {
     return is_tail(e) && (s = to_app(e)->get_arg(0), idx = to_app(e)->get_arg(1), true);
 }
 
@@ -146,7 +168,7 @@ expr_ref seq_skolem::mk_unit_inv(expr* n) {
     expr* u = nullptr;
     VERIFY(seq.str.is_unit(n, u));
     sort* s = m.get_sort(u);
-    return mk(symbol("seq.unit-inv"), n, nullptr, nullptr, nullptr, s);
+    return mk(symbol("seq.unit-inv"), n, s);
 }
 
 

@@ -39,7 +39,7 @@ namespace smt {
         symbol         m_pre, m_post;                     // inverse of at: (pre s i) + (at s i) + (post s i) = s if 0 <= i < (len s)
         symbol         m_eq;                              // equality atom
         symbol         m_seq_align;
-        symbol         m_max_unfolding;
+        symbol         m_max_unfolding, m_length_limit;
 
     public:
 
@@ -79,12 +79,14 @@ namespace smt {
         expr_ref mk_digit2int(expr* ch) { return mk(symbol("seq.digit2int"), ch, nullptr, nullptr, nullptr, a.mk_int()); }
         expr_ref mk_left(expr* x, expr* y, expr* z = nullptr) { return mk("seq.left", x, y, z); }
         expr_ref mk_right(expr* x, expr* y, expr* z = nullptr) { return mk("seq.right", x, y, z); }
-        bool is_max_unfolding(expr* e) const { return is_skolem(m_max_unfolding, e); }
         expr_ref mk_max_unfolding_depth(unsigned d);
+        expr_ref mk_length_limit(expr* e, unsigned d);
         
         bool is_skolem(symbol const& s, expr* e) const;
         bool is_skolem(expr* e) const { return seq.is_skolem(e); }
 
+        bool is_unit_inv(expr* e) const { return is_skolem(symbol("seq.unit-inv"), e); }
+        bool is_unit_inv(expr* e, expr*& u) const { return is_unit_inv(e) && (u = to_app(e)->get_arg(0), true); }
         bool is_tail(expr* e) const { return is_skolem(m_tail, e); }
         bool is_seq_first(expr* e) const { return is_skolem(m_seq_first, e); }
         bool is_indexof_left(expr* e) const { return is_skolem(m_indexof_left, e); }
@@ -92,12 +94,22 @@ namespace smt {
         bool is_step(expr* e) const { return is_skolem(m_aut_step, e); }
         bool is_step(expr* e, expr*& s, expr*& idx, expr*& re, expr*& i, expr*& j, expr*& t) const;
         bool is_accept(expr* acc) const {  return is_skolem(m_accept, acc); }
+        bool is_accept(expr* a, expr*& s, expr*& i, expr*& r, expr*& n) const { 
+            return is_accept(a) && (s = to_app(a)->get_arg(0), i = to_app(a)->get_arg(1), 
+                                    r = to_app(a)->get_arg(2), n = to_app(a)->get_arg(3), 
+                                    true); 
+        }
         bool is_post(expr* e, expr*& s, expr*& start);
         bool is_pre(expr* e, expr*& s, expr*& i);
         bool is_eq(expr* e, expr*& a, expr*& b) const;
-        bool is_tail_match(expr* e, expr*& s, expr*& idx) const;
-        bool is_tail(expr* e, expr*& s, unsigned& idx) const;
+        bool is_tail(expr* e, expr*& s, expr*& idx) const;
+        bool is_tail_u(expr* e, expr*& s, unsigned& idx) const;
+        bool is_tail(expr* e, expr*& s) const;
         bool is_digit(expr* e) const { return is_skolem(symbol("seq.is_digit"), e); }
+        bool is_max_unfolding(expr* e) const { return is_skolem(m_max_unfolding, e); }
+        bool is_length_limit(expr* e) const { return is_skolem(m_length_limit, e); }
+        bool is_length_limit(expr* p, unsigned& lim, expr*& s) const; 
+
 
         void decompose(expr* e, expr_ref& head, expr_ref& tail);
 
