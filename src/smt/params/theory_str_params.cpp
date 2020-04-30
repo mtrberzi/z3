@@ -37,7 +37,6 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_RegexAutomata_FailedAutomatonThreshold = p.str_regex_automata_failed_automaton_threshold();
     m_RegexAutomata_FailedIntersectionThreshold = p.str_regex_automata_failed_intersection_threshold();
     m_RegexAutomata_LengthAttemptThreshold = p.str_regex_automata_length_attempt_threshold();
-    m_CountAbstraction = p.str_count_abstraction();
     m_FixedLengthModels = p.str_fixed_length_models();
     m_MultisetCheck = p.str_multiset_check();
     m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
@@ -75,7 +74,6 @@ void theory_str_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_RegexAutomata_LengthAttemptThreshold);
     DISPLAY_PARAM(m_FixedLengthModels);
     DISPLAY_PARAM(m_MultisetCheck);
-    DISPLAY_PARAM(m_CountAbstraction);
     DISPLAY_PARAM(m_FixedLengthPreprocessing);
     DISPLAY_PARAM(m_FixedLengthIterations);
     DISPLAY_PARAM(m_PreMilliseconds);

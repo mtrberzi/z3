@@ -155,12 +155,6 @@ struct theory_str_params {
     bool m_MultisetCheck;
 
     /*
-     * If CharacterAbstraction is true, we use the character count abstraction to 
-     * help solve word equations.
-     */
-    bool m_CountAbstraction;
-
-    /*
      * If rewriterTactic is true, we apply a global formula rewriter prior to SMT solving.
      * This can enable simplifications that aren't caught by the local term rewriter.
      */
@@ -173,7 +167,7 @@ struct theory_str_params {
      * 1 - length abstraction and fixed-length solving
      * 2 - arrangement solver (traditional Z3str)
      */
-    unsigned m_StrTactic;
+    symbol m_StrTactic;
 
     /*
      * If FixedLengthNaiveCounterexamples is true and the fixed-length equation solver is enabled,
@@ -215,9 +209,8 @@ struct theory_str_params {
         m_FixedLengthRefinement(false),
         m_PreMilliseconds(1000),
         m_MultisetCheck(false),
-        m_CountAbstraction(false),
 		m_RewriterTactic(false),
-		m_StrTactic(0),
+		m_StrTactic(symbol("z3str4")),
         m_FixedLengthNaiveCounterexamples(true),
         m_ShareConstraints(true)
     {

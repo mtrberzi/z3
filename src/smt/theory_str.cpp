@@ -829,10 +829,6 @@ namespace smt {
         }
     }
 
-    app * theory_str::mk_strcount(expr * x, expr * y) {
-        return u.str.mk_count(x,y);
-    }
-
     /*
      * Returns the simplified concatenation of two expressions,
      * where either both expressions are constant strings
@@ -7452,9 +7448,6 @@ namespace smt {
             if (m_params.m_MultisetCheck) {
                 multiset_check(lhs, rhs);
             }
-            if (m_params.m_CountAbstraction && instantiate_str_eq_count_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs))) {
-                TRACE("str", tout << "Succesfully instantiated count axiom" << std::endl;);
-            }
 	        instantiate_str_eq_length_axiom(ctx.get_enode(lhs), ctx.get_enode(rhs));
             return;
         }
@@ -9373,11 +9366,6 @@ namespace smt {
                 // UNSAT
                 preprocessing_iteration_count += 1;
                 m_stats.m_fixed_length_iterations++;
-                // if each iteration is taking too long then give up.
-                if (m_params.m_StrTactic == 3 && duration.count() > 75) {
-                    TRACE("str_fl", tout << "fixed-length preprocessing iteration took too long -- giving up!" << std::endl;);
-                    return FC_GIVEUP;
-                }
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str_fl", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     return FC_GIVEUP;
@@ -9394,11 +9382,6 @@ namespace smt {
                 // UNKNOWN
                 preprocessing_iteration_count += 1;
                 m_stats.m_fixed_length_iterations++;
-                // if each iteration is taking too long then give up.
-                if (m_params.m_StrTactic == 3 && duration.count() > 75) {
-                    TRACE("str_fl", tout << "fixed-length preprocessing iteration took too long -- giving up!" << std::endl;);
-                    return FC_GIVEUP;
-                }
                 if (preprocessing_iteration_count >= m_params.m_FixedLengthIterations) {
                     TRACE("str_fl", tout << "fixed-length preprocessing took too many iterations -- giving up!" << std::endl;);
                     return FC_GIVEUP;
@@ -10118,71 +10101,6 @@ namespace smt {
             }
         }
         return false;
-    }
-
-    /*
-     * For every literal character c appearing in the equation
-     * add an axiom of the form:
-     * (lhs == rhs) -> ( Count(c, lhs) == Count(c, rhs) )
-     */
-    bool theory_str::instantiate_str_eq_count_axiom(enode * lhs, enode * rhs) {
-        context & ctx = get_context();
-        ast_manager & m = get_manager();
-
-        app * a_lhs = lhs->get_owner();
-        app * a_rhs = rhs->get_owner();
-
-        // build premise: (lhs == rhs)
-        expr_ref premise(ctx.mk_eq_atom(a_lhs, a_rhs), m);
-
-        // get all vars that appear in the equality:
-        std::set<expr*> varSet;
-        // for each character c that appears in the equality:
-        std::set<expr*> characterSet;
-        
-        if (!get_sets(premise, &characterSet, &varSet)) {
-            return false;
-        }
-        TRACE("str_fl", tout << "CharacterSet.size(): " << characterSet.size() << std::endl;);
-        TRACE("str_fl", tout << "varSet.size(): " << varSet.size() << std::endl;);
-
-        for(auto c : characterSet)
-        {
-            // build conclusion: ( Count(c, lhs) == Count(c, rhs) )
-            expr_ref count_lhs(mk_strcount(c, a_lhs), m);
-            SASSERT(count_lhs);
-
-            expr_ref count_rhs(mk_strcount(c, a_rhs), m);
-            SASSERT(count_rhs);
-            
-            expr_ref conclusion(ctx.mk_eq_atom(count_lhs, count_rhs), m);
-            TRACE("str_fl", tout << "Conclusion before rewrite: " << mk_ismt2_pp(conclusion, m) << std::endl;);
-            th_rewriter rw(m);
-            rw(conclusion);
-
-            TRACE("str_fl", tout << "string-eq count-eq axiom: "
-                << mk_ismt2_pp(premise, m) << " -> " << mk_ismt2_pp(conclusion, m) << std::endl;);
-            assert_implication(premise, conclusion);
-
-            //also assert that for all vars X (count c X) >= 0
-            for(auto v : varSet)
-            {
-                // build LHS
-                expr_ref count_str(m);
-                count_str = mk_strcount(c, v);
-                SASSERT(count_str);
-                // build RHS
-                expr_ref zero(m);
-                zero = m_autil.mk_numeral(rational(0), true);
-                SASSERT(zero);
-                // build LHS >= RHS and assert
-                app * lhs_ge_rhs = m_autil.mk_ge(count_str, zero);
-                SASSERT(lhs_ge_rhs);
-                TRACE("str_fl", tout << "count axiom: " << mk_ismt2_pp(lhs_ge_rhs, m) << std::endl;);
-                assert_axiom(lhs_ge_rhs);
-            }
-        }
-        return true;
     }
 
     bool theory_str::get_sets(expr * ex,  std::set<expr*> *characterSet, std::set<expr*> *varSet) {

@@ -669,9 +669,6 @@ protected:
     void instantiate_basic_string_axioms(enode * str);
     void instantiate_str_eq_length_axiom(enode * lhs, enode * rhs);
 
-    // for count abstraction and refinement
-    app * mk_strcount(expr * x, expr * y);
-    bool instantiate_str_eq_count_axiom(enode * lhs, enode * rhs);
     void multiset_check(expr * lhs, expr * rhs);
     bool is_unsat_under_multiset_check(expr * lhs, expr * rhs);
     bool get_sets(expr * ex, std::set<expr*> *characterSet, std::set<expr*> *varSet);

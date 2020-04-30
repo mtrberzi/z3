@@ -23,11 +23,9 @@ Notes:
 #include "util/params.h"
 #include "tactic/tactical.h"
 #include "tactic/core/simplify_tactic.h"
-#include "tactic/str/ext_str_tactic.h"
 #include "smt/tactic/smt_tactic.h"
 #include "smt/params/smt_params.h"
 #include "ast/ast_pp.h"
-#include "tactic/str/ext_str_tactic.h"
 
 // conjunctive fragment := cf
 static bool is_cf_helper(ast_manager &m, expr * f, bool sign) 
@@ -95,47 +93,6 @@ probe * mk_is_cf_probe() {
     return alloc(is_cf_probe);
 }
 
-class z3str3_cegar_tactical : public tactic {
-protected:
-    tactic * _solver1;
-    tactic * _solver2;
-public:
-    z3str3_cegar_tactical(tactic * solver1, tactic * solver2) :
-        _solver1(solver1), _solver2(solver2) {
-    }
-    tactic * translate(ast_manager & m) override {
-        return alloc(z3str3_cegar_tactical, _solver1, _solver2);
-    }
-    void cleanup() override {
-    }
-
-    void operator()(goal_ref const & in, goal_ref_buffer& result) override {
-        ast_manager & m = in->m();
-        try {
-            _solver1->operator()(in, result);
-            return;
-        } catch (tactic_exception &) {
-            result.reset();
-        }
-        expr_ref_vector forms(m);
-        in->get_formulas(forms);
-        for (auto ex : forms) {
-            TRACE("str", tout << mk_pp(ex, m) << std::endl;);
-        }
-        _solver2->operator()(in, result);
-    }
-
-    void collect_statistics(::statistics & st) const {
-        _solver1->collect_statistics(st);
-        _solver2->collect_statistics(st);
-    }
-
-};
-
-tactic * mk_z3str3_cegar_tactical(tactic * s1, tactic * s2) {
-    return alloc(z3str3_cegar_tactical, s1, s2);
-}
-
 tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     TRACE("str", tout << "using Z3str3 portfolio tactic" << std::endl;);
     smt_params m_smt_params;
@@ -145,7 +102,6 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     preprocess_p.set_bool("str.fixed_length_preprocessing", true);
     preprocess_p.set_bool("str.fixed_length_models", true);
     preprocess_p.set_bool("str.multiset_check", true);
-    preprocess_p.set_bool("str.count_abstraction", false);
     preprocess_p.set_bool("str.search_overlaps", false);
     preprocess_p.set_sym("string_solver", symbol("z3str3"));
 
@@ -153,7 +109,6 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     general_p.set_bool("str.fixed_length_preprocessing", false);
     general_p.set_bool("str.fixed_length_models", true);
     general_p.set_bool("str.multiset_check", false);
-    general_p.set_bool("str.count_abstraction", false);
     general_p.set_sym("string_solver", symbol("z3str3"));
     general_p.set_bool("str.search_overlaps", false);
 
@@ -165,19 +120,10 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     search_overlaps_p.set_bool("str.fixed_length_preprocessing", false);
     search_overlaps_p.set_bool("str.fixed_length_models", true);
     search_overlaps_p.set_bool("str.multiset_check", false);
-    search_overlaps_p.set_bool("str.count_abstraction", false);
     search_overlaps_p.set_sym("string_solver", symbol("z3str3"));
     search_overlaps_p.set_bool("str.search_overlaps", true);
 
-    tactic * z3str3_2;
-    if (m_smt_params.m_RewriterTactic)
-    {
-        z3str3_2 = using_params(and_then(mk_ext_str_tactic(m, general_p), mk_smt_tactic(m)), general_p);
-    } 
-    else 
-    {
-        z3str3_2 = using_params(mk_smt_tactic(m), general_p);
-    }
+    tactic * z3str3_2 = using_params(mk_smt_tactic(m), general_p);
 
     // introduce search_overlaps arm which is always used immediately after z3str3 fails
     if (m_smt_params.m_SearchOverlaps) {
@@ -187,24 +133,24 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     tactic * z3str3_1 = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), preprocess_p);
     tactic * z3seq = nullptr;
     
-    if (m_smt_params.m_StrTactic == 0) {
+    if (m_smt_params.m_StrTactic == symbol("all")) {
         // apply all tactics in the portfolio
         z3seq       = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
         tactic * st = using_params(and_then(mk_simplify_tactic(m, p), cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
         return st;
-    } else if (m_smt_params.m_StrTactic == 1) {
+    } else if (m_smt_params.m_StrTactic == symbol("las")) {
         // fixed-length solver only
         TRACE("str", tout << "z3str3 tactic bypassed: performing length abstraction / fixed-length solving" << std::endl;);
         tactic * st = using_params(and_then(mk_simplify_tactic(m, p), z3str3_1), p);
         return st;
-    } else if (m_smt_params.m_StrTactic == 2) {
+    } else if (m_smt_params.m_StrTactic == symbol("arr")) {
         // arrangement solver only
         TRACE("str", tout << "z3str3 tactic bypassed: performing arrangement solving" << std::endl;);
         tactic * st = using_params(and_then(mk_simplify_tactic(m, p), z3str3_2), p);
         return st;
-    } else if (m_smt_params.m_StrTactic == 3) {
+    } else if (m_smt_params.m_StrTactic == symbol("z3str4")) {
         // Dynamic Algorithm Selection
-        // remember to set command line argument to set giveup_point
+        seq_p.set_uint("seq.giveup_point", 7);
         tactic * z3seqBefore = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
         seq_p.set_uint("seq.giveup_point", 0);
         tactic * z3seqAfter = using_params(mk_smt_tactic(m), seq_p);
