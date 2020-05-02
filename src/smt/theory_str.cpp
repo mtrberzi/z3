@@ -1278,33 +1278,28 @@ namespace smt {
         } else if (m_seq_skolem.is_pre(a_str, arg0, arg1)) {
             TRACE("str", tout << "assert (seq.pre) length axiom" << std::endl;);
             // (seq.pre s l) == (str.substr s 0 l)
-            // TODO can it happen that l is negative?
             expr_ref base(arg0, m);
             expr_ref len(arg1, m);
-            expr_ref _lenAxiom(m.mk_ite(m_autil.mk_gt(len, mk_strlen(base)),
+            expr_ref lenAxiom(m.mk_ite(m_autil.mk_gt(len, mk_strlen(base)),
                     // then
                     ctx.mk_eq_atom(mk_strlen(a_str), mk_strlen(base)),
                     // else
-                    ctx.mk_eq_atom(mk_strlen(a_str), len)
+                    m.mk_ite(m_autil.mk_lt(len, mk_int(0)), ctx.mk_eq_atom(mk_strlen(a_str), mk_int(0)), ctx.mk_eq_atom(mk_strlen(a_str), len))
                     ), m);
-            expr_ref lenAxiom(_lenAxiom, m);
-            m_rewrite(lenAxiom);
-            assert_axiom(lenAxiom);
-        } else if (m_seq_skolem.is_post(a_str, arg0, arg1)) {
+            assert_axiom_rw(lenAxiom);
+        /*} else if (m_seq_skolem.is_post(a_str, arg0, arg1)) {
             TRACE("str", tout << "assert (seq.post) length axiom" << std::endl;);
             // (seq.post base pos) == (str.substr base pos (str.len(base) - pos))
-            // TODO can it happen that pos is negative?
+            // TODO this may be wrong
             expr_ref base(arg0, m);
             expr_ref pos(arg1, m);
-            expr_ref _lenAxiom(m.mk_ite(m_autil.mk_ge(pos, mk_strlen(base)),
+            expr_ref lenAxiom(m.mk_ite(m_autil.mk_ge(pos, mk_strlen(base)),
                     // then
                     ctx.mk_eq_atom(mk_strlen(a_str), mk_int(0)),
                     // else
-                    ctx.mk_eq_atom(mk_strlen(a_str), m_autil.mk_sub(mk_strlen(base), pos))
+                    m.mk_ite(m_autil.mk_lt(pos, mk_int(0)), ctx.mk_eq_atom(mk_strlen(a_str), mk_int(0)), ctx.mk_eq_atom(mk_strlen(a_str), m_autil.mk_sub(mk_strlen(base), pos)))
                     ), m);
-            expr_ref lenAxiom(_lenAxiom, m);
-            m_rewrite(lenAxiom);
-            assert_axiom(lenAxiom);
+            assert_axiom_rw(lenAxiom);*/
         } else {
             // build axiom 1: Length(a_str) >= 0
             {

@@ -851,6 +851,7 @@ namespace smt {
             SASSERT(termLen.is_unsigned());
             if (eqc_chars.size() != termLen.get_unsigned()) {
                 TRACE("str_fl", tout << "contradiction: seq.pre term has length " << termLen.to_string() << ", but got " << base_chars.size() << " characters" << std::endl;);
+                // TODO maybe assert an implication instead
                 expr_ref wrongLength1(m.mk_not(ctx.mk_eq_atom(mk_strlen(term), mk_int(termLen))), m);
                 expr_ref wrongLength2(m.mk_not(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size()))), m);
                 expr_ref wrongLength3(m.mk_not(ctx.mk_eq_atom(len, mk_int(lenVal))), m);
@@ -893,10 +894,10 @@ namespace smt {
             SASSERT(termLen.is_unsigned());
             if (eqc_chars.size() != termLen.get_unsigned()) {
                 TRACE("str_fl", tout << "contradiction: seq.post term has length " << termLen.to_string() << ", but got " << eqc_chars.size() << " characters" << std::endl;);
-                expr_ref wrongLength1(m.mk_not(ctx.mk_eq_atom(mk_strlen(term), mk_int(termLen))), m);
-                expr_ref wrongLength2(m.mk_not(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size()))), m);
-                expr_ref wrongLength3(m.mk_not(ctx.mk_eq_atom(pos, mk_int(posVal))), m);
-                cex = expr_ref(m.mk_or(wrongLength1, wrongLength2, wrongLength3), m);
+                expr_ref premise(m.mk_and(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size())),
+                        ctx.mk_eq_atom(pos, mk_int(posVal))), m);
+                expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), mk_int(eqc_chars.size())), m);
+                cex = expr_ref(rewrite_implication(premise, conclusion), m);
                 eqc_chars.reset();
                 return false;
             }
@@ -1342,8 +1343,43 @@ namespace smt {
         } else if (subproblem_status == l_false) {
             if (m_params.m_FixedLengthNaiveCounterexamples) {
                 TRACE("str_fl", tout << "subsolver found UNSAT; constructing length counterexample" << std::endl;);
+                // String terms that only appear in e.g. skipped disequalities shouldn't appear in the (naive) counterexample.
+                // Scan the terms that would end up in the conflict clause and skip ones that don't appear in the subsolver.
                 for (auto e : fixed_length_used_len_terms) {
                     expr * var = &e.get_key();
+                    ptr_vector<expr> subterm_chars;
+                    if (var_to_char_subterm_map.find(var, subterm_chars) || uninterpreted_to_char_subterm_map.find(var, subterm_chars)) {
+                        expr * subterm;
+                        expr * lhs;
+                        expr * rhs;
+                        bool found = false;
+                        // TODO is this way of comparing expr* even correct?
+                        for (auto bvFormula : fixed_length_assumptions) {
+                            if (m.is_eq(bvFormula, lhs, rhs)) {
+                                for (auto it = subterm_chars.begin(); it != subterm_chars.end(); ++it) {
+                                    expr * subtermChar = *it;
+                                    if (subtermChar == lhs || subtermChar == rhs) {
+                                        found = true;
+                                        break;
+                                    }
+                                }
+                            } else if (m.is_not(bvFormula, subterm)) {
+                                if (m.is_eq(subterm, lhs, rhs)) {
+                                    for (auto it = subterm_chars.begin(); it != subterm_chars.end(); ++it) {
+                                        expr * subtermChar = *it;
+                                        if (subtermChar == lhs || subtermChar == rhs) {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (!found) {
+                            TRACE("str_fl", tout << "term " << mk_pp(var, m) << " doesn't actually appear in bitvector constraints; removing from counterexample" << std::endl;);
+                            continue;
+                        }
+                    }
                     cex.push_back(m.mk_eq(u.str.mk_length(var), mk_int(e.get_value())));
                 }
                 for (auto e : fixed_length_used_integer_terms) {
