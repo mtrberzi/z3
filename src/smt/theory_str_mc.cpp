@@ -628,6 +628,25 @@ namespace smt {
             SASSERT(arg0_chars.size() > 0);
             eqc_chars.push_back(arg0_chars.get(arg0_chars.size() - 1));
             return true;
+		} else if (u.str.is_nth_i(term)) {
+            expr * subterm;
+	        expr * index;
+			u.str.is_nth_i(term, subterm, index);
+
+			ptr_vector<expr> subterm_chars;
+			if (!fixed_length_reduce_string_term(subsolver, subterm, subterm_chars, cex)) {
+			    return false;
+			}
+			
+			arith_value v(m);
+			v.init(&get_context());
+			rational indexVal;
+			bool indexVal_exists = v.get_value(index, indexVal);
+			SASSERT(indexVal_exists);
+			// this should be guaranteed by the semantics of nth_i
+			SASSERT(indexVal.is_nonneg() && indexVal.get_unsigned() < subterm_chars.size());
+			eqc_chars.push_back(subterm_chars.get(indexVal.get_unsigned()));
+			return true;
         } else {
             NOT_IMPLEMENTED_YET();
             return false;
