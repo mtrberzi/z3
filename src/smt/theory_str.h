@@ -616,6 +616,7 @@ protected:
     expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
     obj_map<expr, unsigned> fixed_length_used_len_terms; // constraints used in generating fixed length model
+    obj_map<expr, rational> fixed_length_used_integer_terms; // (non-length) integer constraints used in generating fixed length model
     obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
     obj_map<expr, ptr_vector<expr> > uninterpreted_to_char_subterm_map; // maps an "uninterpreted" string term to a list of character terms *in the subsolver*
     obj_map<expr, std::tuple<rational, expr*, expr*>> fixed_length_lesson; //keep track of information for the lesson

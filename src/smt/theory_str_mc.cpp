@@ -645,6 +645,8 @@ namespace smt {
 
         ast_manager & sub_m = subsolver.m();
 
+        context & ctx = get_context();
+
         bv_util bv(m);
         sort * bv8_sort = bv.mk_sort(8);
 
@@ -702,12 +704,20 @@ namespace smt {
             }
             arith_value v(m);
             v.init(&get_context());
-            rational pos, len;
+            rational substrLength, pos, len;
+            bool substrLengthExists = fixed_length_get_len_value(term, substrLength);
+            if (!substrLengthExists) {
+                NOT_IMPLEMENTED_YET();
+            }
             bool pos_exists = v.get_value(arg1, pos);
             bool len_exists = v.get_value(arg2, len);
             ENSURE(pos_exists);
             ENSURE(len_exists);
-            TRACE("str_fl", tout << "reduce substring term: base=" << mk_pp(term, m) << " (length="<<base_chars.size()<<"), pos=" << pos.to_string() << ", len=" << len.to_string() << std::endl;);
+
+            fixed_length_used_integer_terms.insert(arg1, pos);
+            fixed_length_used_integer_terms.insert(arg2, len);
+
+            TRACE("str_fl", tout << "reduce substring term " << mk_pp(term, m) << " (length=" << substrLength.to_string() << "): base=" << mk_pp(first, m) << " (length="<<base_chars.size()<<"), pos=" << pos.to_string() << ", len=" << len.to_string() << std::endl;);
             // Case 1: pos < 0 or pos >= strlen(base) or len < 0
             // ==> (Substr ...) = ""
             if (pos.is_neg() || pos >= rational(base_chars.size()) || len.is_neg()) {
@@ -738,6 +748,7 @@ namespace smt {
             rational pos_value;
             bool pos_exists = v.get_value(pos, pos_value);
             ENSURE(pos_exists);
+            fixed_length_used_integer_terms.insert(pos, pos_value);
             TRACE("str_fl", tout << "reduce str.at: base=" << mk_pp(base, m) << ", pos=" << pos_value.to_string() << std::endl;);
             if (pos_value.is_neg() || pos_value >= rational(base_chars.size())) {
                 // return the empty string
@@ -747,6 +758,7 @@ namespace smt {
             }
             return true;
         } else if (u.str.is_itos(term, arg0)) {
+            // TODO fixed_length_used_integer_terms
             expr_ref i(arg0, m);
             arith_value v(m);
             v.init(&get_context());
@@ -807,6 +819,88 @@ namespace smt {
                 eqc_chars.push_back(arg0_chars.get(i));
             }
             return true;
+        } else if (m_seq_skolem.is_pre(term, arg0, arg1)) {
+            // this has roughly the semantics of (str.substr base 0 len)
+            expr_ref base(arg0, sub_m);
+            expr_ref len(arg1, sub_m);
+            TRACE("str_fl", tout << "reduce seq.pre: base=" << mk_pp(base, m) << ", len=" << mk_pp(len, m) << std::endl;);
+
+            ptr_vector<expr> base_chars;
+            if(!fixed_length_reduce_string_term(subsolver, base, base_chars, cex)) {
+                return false;
+            }
+            arith_value v(m);
+            v.init(&get_context());
+            rational lenVal;
+            bool lenVal_exists = v.get_value(len, lenVal);
+            SASSERT(lenVal_exists);
+            SASSERT(lenVal.is_unsigned());
+            fixed_length_used_integer_terms.insert(len, lenVal);
+
+            for (unsigned i = 0; i < base_chars.size() && i < lenVal.get_unsigned(); ++i) {
+                eqc_chars.push_back(base_chars.get(i));
+            }
+
+            // consistency check
+            rational termLen;
+            bool termLen_exists = fixed_length_get_len_value(term, termLen);
+            if (!termLen_exists) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+                return false;
+            }
+            SASSERT(termLen.is_unsigned());
+            if (eqc_chars.size() != termLen.get_unsigned()) {
+                TRACE("str_fl", tout << "contradiction: seq.pre term has length " << termLen.to_string() << ", but got " << base_chars.size() << " characters" << std::endl;);
+                expr_ref wrongLength1(m.mk_not(ctx.mk_eq_atom(mk_strlen(term), mk_int(termLen))), m);
+                expr_ref wrongLength2(m.mk_not(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size()))), m);
+                expr_ref wrongLength3(m.mk_not(ctx.mk_eq_atom(len, mk_int(lenVal))), m);
+                cex = expr_ref(m.mk_or(wrongLength1, wrongLength2, wrongLength3), m);
+                eqc_chars.reset();
+                return false;
+            }
+            fixed_length_used_len_terms.insert(term, termLen.get_unsigned());
+        } else if (m_seq_skolem.is_post(term, arg0, arg1)) {
+            // this has roughly the semantics of (str.substr base pos (str.len(base) - pos))
+            expr_ref base(arg0, sub_m);
+            expr_ref pos(arg1, sub_m);
+            TRACE("str_fl", tout << "reduce seq.post term: base=" << mk_pp(base, m) << ", pos=" << mk_pp(pos, m) << std::endl;);
+
+            ptr_vector<expr> base_chars;
+            if (!fixed_length_reduce_string_term(subsolver, base, base_chars, cex)) {
+                return false;
+            }
+            arith_value v(m);
+            v.init(&get_context());
+            rational posVal;
+            bool posVal_exists = v.get_value(pos, posVal);
+            SASSERT(posVal_exists);
+            SASSERT(posVal.is_unsigned());
+            fixed_length_used_integer_terms.insert(pos, posVal);
+
+            TRACE("str_fl", tout << "base has " << base_chars.size() << " characters, pos=" << posVal.to_string() << std::endl;);
+
+            for (unsigned i = posVal.get_unsigned(); i < base_chars.size(); ++i) {
+                eqc_chars.push_back(base_chars.get(i));
+            }
+
+            // consistency check
+            rational termLen;
+            bool termLen_exists = fixed_length_get_len_value(term, termLen);
+            if (!termLen_exists) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+                return false;
+            }
+            SASSERT(termLen.is_unsigned());
+            if (eqc_chars.size() != termLen.get_unsigned()) {
+                TRACE("str_fl", tout << "contradiction: seq.post term has length " << termLen.to_string() << ", but got " << eqc_chars.size() << " characters" << std::endl;);
+                expr_ref wrongLength1(m.mk_not(ctx.mk_eq_atom(mk_strlen(term), mk_int(termLen))), m);
+                expr_ref wrongLength2(m.mk_not(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size()))), m);
+                expr_ref wrongLength3(m.mk_not(ctx.mk_eq_atom(pos, mk_int(posVal))), m);
+                cex = expr_ref(m.mk_or(wrongLength1, wrongLength2, wrongLength3), m);
+                eqc_chars.reset();
+                return false;
+            }
+            fixed_length_used_len_terms.insert(term, termLen.get_unsigned());
         } else {
             TRACE("str_fl", tout << "string term " << mk_pp(term, m) << " handled as uninterpreted function" << std::endl;);
             if (!uninterpreted_to_char_subterm_map.contains(term)) {
@@ -817,6 +911,7 @@ namespace smt {
                     cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
                     return false;
                 }
+                SASSERT(ufLen_value.is_unsigned() && "actually arithmetic solver can assign it a very large number");
                 TRACE("str_fl", tout << "creating character terms for uninterpreted function " << mk_pp(term, m) << ", length = " << ufLen_value << std::endl;);
                 ptr_vector<expr> new_chars;
                 for (unsigned i = 0; i < ufLen_value.get_unsigned(); ++i) {
@@ -941,6 +1036,7 @@ namespace smt {
 
         fixed_length_subterm_trail.reset();
         fixed_length_used_len_terms.reset();
+        fixed_length_used_integer_terms.reset();
         fixed_length_assumptions.reset();
         var_to_char_subterm_map.reset();
         uninterpreted_to_char_subterm_map.reset();
@@ -1128,6 +1224,12 @@ namespace smt {
             precondition.push_back(m.mk_eq(u.str.mk_length(var), mk_int(e.get_value())));
         }
 
+        for (auto e : fixed_length_used_integer_terms) {
+            expr * var = &e.get_key();
+            rational value = e.get_value();
+            precondition.push_back(m.mk_eq(var, mk_int(value)));
+        }
+
         TRACE("str_fl",
             tout << "formulas asserted to bitvector subsolver:" << std::endl;
             for (auto e : fixed_length_assumptions) {
@@ -1243,6 +1345,11 @@ namespace smt {
                 for (auto e : fixed_length_used_len_terms) {
                     expr * var = &e.get_key();
                     cex.push_back(m.mk_eq(u.str.mk_length(var), mk_int(e.get_value())));
+                }
+                for (auto e : fixed_length_used_integer_terms) {
+                    expr * var = &e.get_key();
+                    rational value = e.get_value();
+                    cex.push_back(m.mk_eq(var, mk_int(value)));
                 }
                 return l_false;
             } else {

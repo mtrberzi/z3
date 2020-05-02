@@ -1236,6 +1236,8 @@ namespace smt {
 
         // generate a stronger axiom for constant strings
         app * a_str = str->get_owner();
+        expr * arg0;
+        expr * arg1;
 
         if (u.str.is_string(a_str)) {
             expr_ref len_str(m);
@@ -1273,6 +1275,36 @@ namespace smt {
                 TRACE("str", tout << mk_pp(a_str, m) << " = \"" << unitStr << "\"" << std::endl;);
                 assert_axiom(unit_eq_str);
             }
+        } else if (m_seq_skolem.is_pre(a_str, arg0, arg1)) {
+            TRACE("str", tout << "assert (seq.pre) length axiom" << std::endl;);
+            // (seq.pre s l) == (str.substr s 0 l)
+            // TODO can it happen that l is negative?
+            expr_ref base(arg0, m);
+            expr_ref len(arg1, m);
+            expr_ref _lenAxiom(m.mk_ite(m_autil.mk_gt(len, mk_strlen(base)),
+                    // then
+                    ctx.mk_eq_atom(mk_strlen(a_str), mk_strlen(base)),
+                    // else
+                    ctx.mk_eq_atom(mk_strlen(a_str), len)
+                    ), m);
+            expr_ref lenAxiom(_lenAxiom, m);
+            m_rewrite(lenAxiom);
+            assert_axiom(lenAxiom);
+        } else if (m_seq_skolem.is_post(a_str, arg0, arg1)) {
+            TRACE("str", tout << "assert (seq.post) length axiom" << std::endl;);
+            // (seq.post base pos) == (str.substr base pos (str.len(base) - pos))
+            // TODO can it happen that pos is negative?
+            expr_ref base(arg0, m);
+            expr_ref pos(arg1, m);
+            expr_ref _lenAxiom(m.mk_ite(m_autil.mk_ge(pos, mk_strlen(base)),
+                    // then
+                    ctx.mk_eq_atom(mk_strlen(a_str), mk_int(0)),
+                    // else
+                    ctx.mk_eq_atom(mk_strlen(a_str), m_autil.mk_sub(mk_strlen(base), pos))
+                    ), m);
+            expr_ref lenAxiom(_lenAxiom, m);
+            m_rewrite(lenAxiom);
+            assert_axiom(lenAxiom);
         } else {
             // build axiom 1: Length(a_str) >= 0
             {
@@ -1626,11 +1658,7 @@ namespace smt {
     }
 
     void theory_str::instantiate_axiom_Substr(enode * e) {
-        context & ctx = get_context();
         ast_manager & m = get_manager();
-        expr* substrBase = nullptr;
-        expr* substrPos = nullptr;
-        expr* substrLen = nullptr;
 
         app * expr = e->get_owner();
         if (axiomatized_terms.contains(expr)) {
@@ -1641,78 +1669,7 @@ namespace smt {
 
         TRACE("str", tout << "instantiate Substr axiom for " << mk_pp(expr, m) << std::endl;);
 
-        VERIFY(u.str.is_extract(expr, substrBase, substrPos, substrLen));
-
-        expr_ref zero(m_autil.mk_numeral(rational::zero(), true), m);
-        expr_ref minusOne(m_autil.mk_numeral(rational::minus_one(), true), m);
-        SASSERT(zero);
-        SASSERT(minusOne);
-
-        expr_ref_vector argumentsValid_terms(m);
-        // pos >= 0
-        argumentsValid_terms.push_back(m_autil.mk_ge(substrPos, zero));
-        // pos < strlen(base)
-        // --> pos + -1*strlen(base) < 0
-        argumentsValid_terms.push_back(mk_not(m, m_autil.mk_ge(
-                                                    m_autil.mk_add(substrPos, m_autil.mk_mul(minusOne, mk_strlen(substrBase))),
-                                                    zero)));
-
-        // len >= 0
-        argumentsValid_terms.push_back(m_autil.mk_ge(substrLen, zero));
-
-
-        // (pos+len) >= strlen(base)
-        // --> pos + len + -1*strlen(base) >= 0
-        expr_ref lenOutOfBounds(m_autil.mk_ge(
-                                    m_autil.mk_add(substrPos, substrLen, m_autil.mk_mul(minusOne, mk_strlen(substrBase))),
-                                    zero), m);
-        expr_ref argumentsValid = mk_and(argumentsValid_terms);
-
-        // Case 1: pos < 0 or pos >= strlen(base) or len < 0
-        // ==> (Substr ...) = ""
-        expr_ref case1_premise(m.mk_not(argumentsValid), m);
-        expr_ref case1_conclusion(ctx.mk_eq_atom(expr, mk_string("")), m);
-        expr_ref case1(m.mk_implies(case1_premise, case1_conclusion), m);
-
-        // Case 2: (pos >= 0 and pos < strlen(base) and len >= 0) and (pos+len) >= strlen(base)
-        // ==> base = t0.t1 AND len(t0) = pos AND (Substr ...) = t1
-        expr_ref t0(mk_str_var("t0"), m);
-        expr_ref t1(mk_str_var("t1"), m);
-        expr_ref case2_conclusion(m.mk_and(
-                                      ctx.mk_eq_atom(substrBase, mk_concat(t0,t1)),
-                                      ctx.mk_eq_atom(mk_strlen(t0), substrPos),
-                                      ctx.mk_eq_atom(expr, t1)), m);
-        expr_ref case2(m.mk_implies(m.mk_and(argumentsValid, lenOutOfBounds), case2_conclusion), m);
-
-        // Case 3: (pos >= 0 and pos < strlen(base) and len >= 0) and (pos+len) < strlen(base)
-        // ==> base = t2.t3.t4 AND len(t2) = pos AND len(t3) = len AND (Substr ...) = t3
-
-        expr_ref t2(mk_str_var("t2"), m);
-        expr_ref t3(mk_str_var("t3"), m);
-        expr_ref t4(mk_str_var("t4"), m);
-        expr_ref_vector case3_conclusion_terms(m);
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(substrBase, mk_concat(t2, mk_concat(t3, t4))));
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(mk_strlen(t2), substrPos));
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(mk_strlen(t3), substrLen));
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(expr, t3));
-        expr_ref case3_conclusion(mk_and(case3_conclusion_terms), m);
-        expr_ref case3(m.mk_implies(m.mk_and(argumentsValid, m.mk_not(lenOutOfBounds)), case3_conclusion), m);
-
-        {
-            th_rewriter rw(m);
-
-            expr_ref case1_rw(case1, m);
-            rw(case1_rw);
-            assert_axiom(case1_rw);
-
-            expr_ref case2_rw(case2, m);
-            rw(case2_rw);
-            assert_axiom(case2_rw);
-
-            expr_ref case3_rw(case3, m);
-            rw(case3_rw);
-            assert_axiom(case3_rw);
-        }
+        m_seq_axioms.add_extract_axiom(expr);
     }
 
     //  (str.replace s t t') is the string obtained by replacing the first occurrence
