@@ -1682,54 +1682,8 @@ namespace smt {
         axiomatized_terms.insert(ex);
 
         TRACE("str", tout << "instantiate Replace axiom for " << mk_pp(ex, m) << std::endl;);
-
-        expr_ref x1(mk_str_var("x1"), m);
-        expr_ref x2(mk_str_var("x2"), m);
-        expr_ref i1(mk_int_var("i1"), m);
-        expr_ref result(mk_str_var("result"), m);
-
-        expr * replaceS = nullptr;
-        expr * replaceT = nullptr;
-        expr * replaceTPrime = nullptr;
-        VERIFY(u.str.is_replace(ex, replaceS, replaceT, replaceTPrime));
-
-        // t empty => result = (str.++ t' s)
-        expr_ref emptySrcAst(ctx.mk_eq_atom(replaceT, mk_string("")), m);
-        expr_ref prependTPrimeToS(ctx.mk_eq_atom(result, mk_concat(replaceTPrime, replaceS)), m);
-
-        // condAst = Contains(args[0], args[1])
-        expr_ref condAst(mk_contains(ex->get_arg(0), ex->get_arg(1)), m);
-        // -----------------------
-        // true branch
-        expr_ref_vector thenItems(m);
-        //  args[0] = x1 . args[1] . x2
-        thenItems.push_back(ctx.mk_eq_atom(ex->get_arg(0), mk_concat(x1, mk_concat(ex->get_arg(1), x2))));
-        //  i1 = |x1|
-        thenItems.push_back(ctx.mk_eq_atom(i1, mk_strlen(x1)));
-        //  args[0]  = x3 . x4 /\ |x3| = |x1| + |args[1]| - 1 /\ ! contains(x3, args[1])
-        expr_ref x3(mk_str_var("x3"), m);
-        expr_ref x4(mk_str_var("x4"), m);
-        expr_ref tmpLen(m_autil.mk_add(i1, mk_strlen(ex->get_arg(1)), mk_int(-1)), m);
-        thenItems.push_back(ctx.mk_eq_atom(ex->get_arg(0), mk_concat(x3, x4)));
-        thenItems.push_back(ctx.mk_eq_atom(mk_strlen(x3), tmpLen));
-        thenItems.push_back(mk_not(m, mk_contains(x3, ex->get_arg(1))));
-        thenItems.push_back(ctx.mk_eq_atom(result, mk_concat(x1, mk_concat(ex->get_arg(2), x2))));
-        // -----------------------
-        // false branch
-        expr_ref elseBranch(ctx.mk_eq_atom(result, ex->get_arg(0)), m);
-
-        th_rewriter rw(m);
-
-        expr_ref breakdownAssert(m.mk_ite(emptySrcAst, prependTPrimeToS,
-                m.mk_ite(condAst, mk_and(thenItems), elseBranch)), m);
-        expr_ref breakdownAssert_rw(breakdownAssert, m);
-        rw(breakdownAssert_rw);
-        assert_axiom(breakdownAssert_rw);
-
-        expr_ref reduceToResult(ctx.mk_eq_atom(ex, result), m);
-        expr_ref reduceToResult_rw(reduceToResult, m);
-        rw(reduceToResult_rw);
-        assert_axiom(reduceToResult_rw);
+	
+	m_seq_axioms.add_replace_axiom(ex);
     }
 
     void theory_str::instantiate_axiom_str_to_int(enode * e) {
