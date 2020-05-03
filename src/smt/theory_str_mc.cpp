@@ -726,12 +726,22 @@ namespace smt {
             rational substrLength, pos, len;
             bool substrLengthExists = fixed_length_get_len_value(term, substrLength);
             if (!substrLengthExists) {
-                NOT_IMPLEMENTED_YET();
+                TRACE("str_fl", tout << "substring subterm has no length value" << std::endl;);
+		cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+		return false;
             }
             bool pos_exists = v.get_value(arg1, pos);
             bool len_exists = v.get_value(arg2, len);
-            ENSURE(pos_exists);
-            ENSURE(len_exists);
+            if (!pos_exists) {
+		TRACE("str_fl", tout << "substring pos argument has no length value" << std::endl;);
+		cex = expr_ref(m.mk_or(m_autil.mk_ge(arg1, mk_int(0)), m_autil.mk_le(arg1, mk_int(0))), m);
+		return false;
+	    }
+            if (!len_exists) {
+		TRACE("str_fl", tout << "substring len argument has no length value" << std::endl;);
+		cex = expr_ref(m.mk_or(m_autil.mk_ge(arg2, mk_int(0)), m_autil.mk_le(arg2, mk_int(0))), m);
+		return false;
+	    }
 
             fixed_length_used_integer_terms.insert(arg1, pos);
             fixed_length_used_integer_terms.insert(arg2, len);
