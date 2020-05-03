@@ -1389,26 +1389,7 @@ namespace smt {
 
         TRACE("str", tout << "instantiate CharAt axiom for " << mk_pp(expr, m) << std::endl;);
 
-        expr_ref ts0(mk_str_var("ts0"), m);
-        expr_ref ts1(mk_str_var("ts1"), m);
-        expr_ref ts2(mk_str_var("ts2"), m);
-
-        expr_ref cond(m.mk_and(
-                          m_autil.mk_ge(arg1, mk_int(0)),
-                          m_autil.mk_lt(arg1, mk_strlen(arg0))), m);
-
-        expr_ref_vector and_item(m);
-        and_item.push_back(ctx.mk_eq_atom(arg0, mk_concat(ts0, mk_concat(ts1, ts2))));
-        and_item.push_back(ctx.mk_eq_atom(arg1, mk_strlen(ts0)));
-        and_item.push_back(ctx.mk_eq_atom(mk_strlen(ts1), mk_int(1)));
-
-        expr_ref thenBranch(::mk_and(and_item));
-        expr_ref elseBranch(ctx.mk_eq_atom(ts1, mk_string("")), m);
-        expr_ref axiom(m.mk_ite(cond, thenBranch, elseBranch), m);
-        expr_ref reductionVar(ctx.mk_eq_atom(expr, ts1), m);
-        expr_ref finalAxiom(m.mk_and(axiom, reductionVar), m);
-        get_context().get_rewriter()(finalAxiom);
-        assert_axiom(finalAxiom);
+	m_seq_axioms.add_at_axiom(expr);
     }
 
     void theory_str::instantiate_axiom_prefixof(enode * e) {
