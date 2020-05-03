@@ -1405,28 +1405,7 @@ namespace smt {
 
         TRACE("str", tout << "instantiate prefixof axiom for " << mk_pp(expr, m) << std::endl;);
 
-        expr_ref ts0(mk_str_var("ts0"), m);
-        expr_ref ts1(mk_str_var("ts1"), m);
-
-        expr_ref_vector innerItems(m);
-        innerItems.push_back(ctx.mk_eq_atom(expr->get_arg(1), mk_concat(ts0, ts1)));
-        innerItems.push_back(ctx.mk_eq_atom(mk_strlen(ts0), mk_strlen(expr->get_arg(0))));
-        innerItems.push_back(m.mk_ite(ctx.mk_eq_atom(ts0, expr->get_arg(0)), expr, mk_not(m, expr)));
-        expr_ref then1(m.mk_and(innerItems.size(), innerItems.c_ptr()), m);
-        SASSERT(then1);
-
-        // the top-level condition is Length(arg0) >= Length(arg1)
-        expr_ref topLevelCond(
-            m_autil.mk_ge(
-                m_autil.mk_add(
-                    mk_strlen(expr->get_arg(1)), m_autil.mk_mul(mk_int(-1), mk_strlen(expr->get_arg(0)))),
-                mk_int(0))
-            , m);
-        SASSERT(topLevelCond);
-
-        expr_ref finalAxiom(m.mk_ite(topLevelCond, then1, mk_not(m, expr)), m);
-        SASSERT(finalAxiom);
-        assert_axiom(finalAxiom);
+	m_seq_axioms.add_prefix_axiom(expr);
     }
 
     void theory_str::instantiate_axiom_suffixof(enode * e) {
@@ -1442,28 +1421,7 @@ namespace smt {
 
         TRACE("str", tout << "instantiate suffixof axiom for " << mk_pp(expr, m) << std::endl;);
 
-        expr_ref ts0(mk_str_var("ts0"), m);
-        expr_ref ts1(mk_str_var("ts1"), m);
-
-        expr_ref_vector innerItems(m);
-        innerItems.push_back(ctx.mk_eq_atom(expr->get_arg(1), mk_concat(ts0, ts1)));
-        innerItems.push_back(ctx.mk_eq_atom(mk_strlen(ts1), mk_strlen(expr->get_arg(0))));
-        innerItems.push_back(m.mk_ite(ctx.mk_eq_atom(ts1, expr->get_arg(0)), expr, mk_not(m, expr)));
-        expr_ref then1(m.mk_and(innerItems.size(), innerItems.c_ptr()), m);
-        SASSERT(then1);
-
-        // the top-level condition is Length(arg0) >= Length(arg1)
-        expr_ref topLevelCond(
-            m_autil.mk_ge(
-                m_autil.mk_add(
-                    mk_strlen(expr->get_arg(1)), m_autil.mk_mul(mk_int(-1), mk_strlen(expr->get_arg(0)))),
-                mk_int(0))
-            , m);
-        SASSERT(topLevelCond);
-
-        expr_ref finalAxiom(m.mk_ite(topLevelCond, then1, mk_not(m, expr)), m);
-        SASSERT(finalAxiom);
-        assert_axiom(finalAxiom);
+	m_seq_axioms.add_suffix_axiom(expr);
     }
 
     void theory_str::instantiate_axiom_Contains(enode * e) {
