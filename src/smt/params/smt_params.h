@@ -110,6 +110,7 @@ struct smt_params : public preprocessor_params,
     bool             m_display_features;
     bool             m_new_core2th_eq;
     bool             m_ematching;
+    bool             m_induction;
     bool             m_clause_proof;
     bool             m_tactic_model_validation;
 
@@ -263,6 +264,7 @@ struct smt_params : public preprocessor_params,
         m_display_features(false),
         m_new_core2th_eq(true),
         m_ematching(true),
+        m_induction(false),
         m_clause_proof(false),
         m_tactic_model_validation(false),
         m_case_split_strategy(CS_ACTIVITY_DELAY_NEW),

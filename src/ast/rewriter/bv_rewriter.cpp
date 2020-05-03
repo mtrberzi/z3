@@ -510,6 +510,20 @@ br_status bv_rewriter::mk_leq_core(bool is_signed, expr * a, expr * b, expr_ref 
         return BR_REWRITE2;
     }
 
+    // (bvule r1 (+ r2 a)) -> 
+    // for r1 = r2, (bvule a (2^n - r2 - 1)) 
+    // other cases r1 > r2, r1 < r2 are TBD
+    if (!is_signed && is_num1 && m_util.is_bv_add(b, a1, a2) && is_numeral(a1, r2, sz)) {
+        result = m_util.mk_ule(a2, m_util.mk_numeral(-r2 - 1, sz));
+        if (r1 > r2) {
+            result = m().mk_and(result, m_util.mk_ule(m_util.mk_numeral(r1-r2, sz), a2));
+        }
+        else if (r1 < r2) {
+            result = m().mk_or(result, m_util.mk_ule(m_util.mk_numeral(r1-r2, sz), a2));
+        }
+        return BR_REWRITE2;
+    }
+        
     if (m_le_extra) {
         const br_status cst = rw_leq_concats(is_signed, a, b, result);
         if (cst != BR_FAILED) {

@@ -55,6 +55,8 @@ literal_vector collect_induction_literals::pre_select() {
             continue;
         result.push_back(lit);
     }
+    TRACE("induction", ctx.display(tout << "literal index: " << m_literal_index << "\n" << result << "\n"););
+
     ctx.push_trail(value_trail<context, unsigned>(m_literal_index));
     m_literal_index = ctx.assigned_literals().size();
     return result;
@@ -68,11 +70,6 @@ void collect_induction_literals::model_sweep_filter(literal_vector& candidates) 
     vector<expr_ref_vector> values;
     vs(terms, values);
     unsigned j = 0;
-    IF_VERBOSE(1, 
-               verbose_stream() << "terms: " << terms << "\n";
-               for (auto const& vec : values) {
-                   verbose_stream() << "assignment: " << vec << "\n";
-               });
     for (unsigned i = 0; i < terms.size(); ++i) {
         literal lit = candidates[i];
         bool is_viable_candidate = true;
@@ -108,19 +105,38 @@ literal_vector collect_induction_literals::operator()() {
 // --------------------------------------
 // create_induction_lemmas
 
-bool create_induction_lemmas::is_induction_candidate(enode* n) {
-    expr* e = n->get_owner();
+bool create_induction_lemmas::viable_induction_sort(sort* s) {
+    // potentially also induction on integers, sequences
+    return m_dt.is_datatype(s) && m_dt.is_recursive(s);
+}
+
+bool create_induction_lemmas::viable_induction_parent(enode* p, enode* n) {
+    app* o = p->get_owner();
+    return 
+        m_rec.is_defined(o) ||
+        m_dt.is_constructor(o);
+}
+
+bool create_induction_lemmas::viable_induction_children(enode* n) {
+    app* e = n->get_owner();
     if (m.is_value(e))
         return false;
-    // TBD: filter if n is equivalent to a value.
-    sort* s = m.get_sort(e);
-    if (m_dt.is_datatype(s) && m_dt.is_recursive(s))
+    if (e->get_decl()->is_skolem())
+        return false;
+    if (n->get_num_args() == 0)
         return true;
-
-    // potentially also induction on integers, sequences
-    // m_arith.is_int(s)
-    //  return true;
+    if (e->get_family_id() == m_rec.get_family_id()) 
+        return m_rec.is_defined(e);
+    if (e->get_family_id() == m_dt.get_family_id()) 
+        return m_dt.is_constructor(e);
     return false;
+}
+
+bool create_induction_lemmas::viable_induction_term(enode* p, enode* n) {
+    return 
+        viable_induction_sort(m.get_sort(n->get_owner())) &&
+        viable_induction_parent(p, n) &&
+        viable_induction_children(n);
 }
 
 /**
@@ -141,16 +157,28 @@ enode_vector create_induction_lemmas::induction_positions(enode* n) {
     add_todo(n);
     for (unsigned i = 0; i < todo.size(); ++i) {
         n = todo[i];
-        for (enode* a : smt::enode::args(n)) 
+        for (enode* a : smt::enode::args(n)) {
             add_todo(a);        
-        if (is_induction_candidate(n)) 
-            result.push_back(n);
+            if (!a->is_marked2() && viable_induction_term(n, a)) {
+                result.push_back(a);
+                a->set_mark2();
+            }
+        }
     }
     for (enode* n : todo)
         n->unset_mark();
+    for (enode* n : result)
+        n->unset_mark2();
     return result;
 }
 
+void create_induction_lemmas::abstract1(enode* n, enode* t, expr* x, abstractions& result) {
+    expr_safe_replace rep(m);
+    rep.insert(t->get_owner(), x);
+    expr_ref e(n->get_owner(), m);
+    rep(e);
+    result.push_back(abstraction(e));
+}
 
 /**
  * abstraction candidates for replacing different occurrence of t in n by x
@@ -160,14 +188,24 @@ enode_vector create_induction_lemmas::induction_positions(enode* n) {
  * TDD: add depth throttle.
  */
 void create_induction_lemmas::abstract(enode* n, enode* t, expr* x, abstractions& result) {
+    std::cout << "abs: " << result.size() << ": " << mk_pp(n->get_owner(), m) << "\n";
     if (n->get_root() == t->get_root()) {
         result.push_back(abstraction(m, x, n->get_owner(), t->get_owner()));
+        return;
     }
+    func_decl* f = n->get_owner()->get_decl();
+    // check if n is a s
+    if (f->is_skolem()) {
+        expr_ref e(n->get_owner(), m);
+        result.push_back(abstraction(e));
+    }
+        
     abstraction_args r1, r2;
     r1.push_back(abstraction_arg(m));
     for (enode* arg : enode::args(n)) {
         unsigned n = result.size();
         abstract(arg, t, x, result);
+        std::cout << result.size() << "\n";
         for (unsigned i = n; i < result.size(); ++i) {
             abstraction& a = result[i];
             for (auto const& v : r1) {
@@ -193,7 +231,9 @@ void create_induction_lemmas::filter_abstractions(bool sign, abstractions& abs) 
     vector<expr_ref_vector> values;
     expr_ref_vector fmls(m);
     for (auto & a : abs) fmls.push_back(a.m_term);
+    std::cout << "sweep\n";
     vs(fmls, values);
+    std::cout << "done sweep\n";
     unsigned j = 0;
     for (unsigned i = 0; i < fmls.size(); ++i) {
         bool all_cex = true;
@@ -207,15 +247,15 @@ void create_induction_lemmas::filter_abstractions(bool sign, abstractions& abs) 
             abs[j++] = abs.get(i);
         }
     }
+    std::cout << "resulting size: " << j << " down from " << abs.size() << "\n";
     abs.shrink(j);
 }
 
 /*
  * Create simple induction lemmas of the form:
  *
- * lit & a.eqs() & is-c(t) => is-c(sk);
  * lit & a.eqs() => alpha
- * lit & a.eqs() & is-c(t) => ~beta
+ * alpha & is-c(sk) => ~beta
  *
  * where 
  *       lit   = is a formula containing t
@@ -232,64 +272,82 @@ void create_induction_lemmas::filter_abstractions(bool sign, abstractions& abs) 
  * the instance of s is true. In the limit one can
  * set beta to all instantiations of smaller values than sk.
  * 
- * 
- * TBD: consider k-inductive lemmas.
+ * create_hypotheses creates induction hypotheses.
  */
-void create_induction_lemmas::create_lemmas(expr* t, expr* sk, abstraction& a, literal lit) {
+
+void create_induction_lemmas::create_hypotheses(
+    unsigned depth, expr* sk0, expr_ref& alpha, expr* sk, literal_vector& lits) {
+    if (depth == 0)
+        return;
+    sort* s = m.get_sort(sk);
+    for (func_decl* c : *m_dt.get_datatype_constructors(s)) {
+        func_decl* is_c = m_dt.get_constructor_recognizer(c);
+        for (func_decl* acc : *m_dt.get_constructor_accessors(c)) {
+            sort* rs = acc->get_range();
+            if (rs != s && !m_dt.is_datatype(rs))
+                continue;
+            if (rs != s && !m_dt.is_recursive(rs))
+                continue;
+
+            lits.push_back(~mk_literal(m.mk_app(is_c, sk)));
+
+            // alpha & is_c(sk) & is_c'(acc(sk)) => ~alpha[acc'(acc(sk)]
+            if (rs != s && depth > 1) {
+                app_ref acc_sk(m.mk_app(acc, sk), m);
+                create_hypotheses(depth - 1, sk0, alpha, acc_sk, lits);
+            }
+            else {
+                expr_ref beta(alpha);            // set beta := alpha[sk0/acc(sk)]
+                expr_safe_replace rep(m);
+                rep.insert(sk0, m.mk_app(acc, sk));
+                rep(beta);
+                literal b_lit = mk_literal(beta);
+
+                if (lits[0].sign()) b_lit.neg(); // maintain the same sign as alpha
+                
+                // alpha & is_c(sk) => ~beta
+                lits.push_back(~b_lit);
+                literal_vector _lits(lits);      // mk_clause could make destructive updates
+                add_th_lemma(_lits);               
+                lits.pop_back();
+            }
+            lits.pop_back();
+        }
+    }
+}
+
+void create_induction_lemmas::create_lemmas(expr* sk, abstraction& a, literal lit) {
     std::cout << "abstraction: " << a.m_term << "\n";
     sort* s = m.get_sort(sk);
     if (!m_dt.is_datatype(s))
         return;
     expr_ref alpha = a.m_term;
-    auto const& eqs = a.m_eqs;
-    literal_vector common_literals; 
-    for (func_decl* c : *m_dt.get_datatype_constructors(s)) {
-        func_decl* is_c = m_dt.get_constructor_recognizer(c);
-        bool has_1recursive = false;
-        for (func_decl* acc : *m_dt.get_constructor_accessors(c)) {
-            if (acc->get_range() != s)
-                continue;
-            if (common_literals.empty()) {
-                common_literals.push_back(~lit);
-                for (auto const& p : eqs) {
-                    common_literals.push_back(~mk_literal(m.mk_eq(p.first, p.second)));
-                }
-            }
-            has_1recursive = true;
-            literal_vector lits(common_literals);
-            lits.push_back(~mk_literal(m.mk_app(is_c, t))); 
-            expr_ref beta(alpha);
-            expr_safe_replace rep(m);
-            rep.insert(sk, m.mk_app(acc, sk));
-            rep(beta);
-            literal b_lit = mk_literal(beta);
-            if (lit.sign()) b_lit.neg();
-            lits.push_back(~b_lit);
-            add_th_lemma(lits);               
-        }
-        if (has_1recursive) {
-            literal_vector lits(common_literals);
-            lits.push_back(~mk_literal(m.mk_app(is_c, t)));
-            lits.push_back(mk_literal(m.mk_app(is_c, sk)));
-            add_th_lemma(lits);
-        }
+    literal alpha_lit = mk_literal(alpha);
+    if (lit.sign()) alpha_lit.neg();
+
+    literal_vector lits;
+    lits.push_back(~alpha_lit);
+    create_hypotheses(1, sk, alpha, sk, lits);
+    lits.pop_back();
+
+    // phi & eqs => alpha
+    lits.push_back(~lit);
+    for (auto const& p : a.m_eqs) {
+        lits.push_back(~mk_literal(m.mk_eq(p.first, p.second)));
     }
-    if (!common_literals.empty()) {
-        literal_vector lits(common_literals);
-        literal a_lit = mk_literal(alpha);
-        if (lit.sign()) a_lit.neg();
-        lits.push_back(a_lit);
-        add_th_lemma(lits);
-    }
+    lits.push_back(alpha_lit);
+    add_th_lemma(lits);    
 }
 
 void create_induction_lemmas::add_th_lemma(literal_vector const& lits) {
-    IF_VERBOSE(1, ctx.display_literals_verbose(verbose_stream() << "lemma:\n", lits) << "\n");
-    ctx.mk_clause(lits.size(), lits.c_ptr(), nullptr, smt::CLS_TH_LEMMA);
+    IF_VERBOSE(0, ctx.display_literals_verbose(verbose_stream() << "lemma:\n", lits) << "\n");
+    ctx.mk_clause(lits.size(), lits.c_ptr(), nullptr, smt::CLS_TH_AXIOM); 
+    // CLS_TH_LEMMA, but then should re-instance if GC'ed
     ++m_num_lemmas;
 }
 
 literal create_induction_lemmas::mk_literal(expr* e) {
+    expr_ref _e(e, m);
     if (!ctx.e_internalized(e)) {
         ctx.internalize(e, false);
     }
@@ -298,34 +356,23 @@ literal create_induction_lemmas::mk_literal(expr* e) {
     return ctx.get_literal(e);
 }
 
-func_decl* create_induction_lemmas::mk_skolem(sort* s) {
-    func_decl* f = nullptr;
-    if (!m_sort2skolem.find(s, f)) {
-        sort* domain[2] = { s, m.mk_bool_sort() };
-        f = m.mk_fresh_func_decl("sk", 2, domain, s);
-        m_pinned.push_back(f);
-        m_pinned.push_back(s);
-        m_sort2skolem.insert(s, f);
-    }
-    return f;
-}
-
-
 bool create_induction_lemmas::operator()(literal lit) {
     unsigned num = m_num_lemmas;
     enode* r = ctx.bool_var2enode(lit.var());
+    unsigned position = 0;
     for (enode* n : induction_positions(r)) {
         expr* t = n->get_owner();
         sort* s = m.get_sort(t);
-        expr_ref sk(m.mk_app(mk_skolem(s), t, r->get_owner()), m);
+        expr_ref sk(m.mk_fresh_const("sk", s), m);
         std::cout << "abstract " << mk_pp(t, m) << " " << sk << "\n";
         abstractions abs;
-        abstract(r, n, sk, abs);            
-        abs.pop_back(); // last position has no generalizations
-        filter_abstractions(lit.sign(), abs);
+        abstract1(r, n, sk, abs);            
+        // if (ab.size() > 1) abs.pop_back(); // last position has no generalizations
+        if (abs.size() > 1) filter_abstractions(lit.sign(), abs);
         for (abstraction& a : abs) {
-            create_lemmas(t, sk, a, lit);
+            create_lemmas(sk, a, lit);
         }
+        ++position;
     }
     return m_num_lemmas > num;
 }
@@ -335,7 +382,8 @@ create_induction_lemmas::create_induction_lemmas(context& ctx, ast_manager& m, v
     m(m),
     vs(vs),
     m_dt(m),
-    m_pinned(m),
+    m_a(m),
+    m_rec(m),
     m_num_lemmas(0)
 {}
 
@@ -352,12 +400,15 @@ void induction::init_values() {
     for (enode* n : ctx.enodes()) 
         if (m.is_value(n->get_owner())) 
             for (enode* r : *n) 
-                vs.set_value(r->get_owner(), n->get_owner());
+                if (r != n) {
+                    vs.set_value(r->get_owner(), n->get_owner());
+                }
 }
 
 bool induction::operator()() {
     bool added_lemma = false;
     vs.reset_values();
+    init_values();
     literal_vector candidates = m_collect_literals();
     for (literal lit : candidates) {
         if (m_create_lemmas(lit))

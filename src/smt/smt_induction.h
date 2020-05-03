@@ -20,6 +20,7 @@
 #include "smt/smt_types.h"
 #include "ast/rewriter/value_sweep.h"
 #include "ast/datatype_decl_plugin.h"
+#include "ast/arith_decl_plugin.h"
 
 namespace smt {
 
@@ -48,20 +49,18 @@ namespace smt {
      * Synthesize induction lemmas from induction candidates
      */
     class create_induction_lemmas {
-        context&     ctx;
-        ast_manager& m;
-        value_sweep& vs;
+        context&       ctx;
+        ast_manager&   m;
+        value_sweep&   vs;
         datatype::util m_dt;
-        obj_map<sort, func_decl*> m_sort2skolem;
-        ast_ref_vector m_pinned;
-        unsigned m_num_lemmas;
+        arith_util     m_a;
+        recfun::util   m_rec;
+        unsigned       m_num_lemmas;
 
         typedef svector<std::pair<expr*,expr*>> expr_pair_vector;
 
-        func_decl* mk_skolem(sort* s);
-
         struct abstraction {
-            expr_ref          m_term;
+            expr_ref         m_term;
             expr_pair_vector m_eqs;
             abstraction(expr_ref& e): m_term(e) {}
             abstraction(ast_manager& m, expr* e, expr* n1, expr* n2): m_term(e, m) {
@@ -69,8 +68,7 @@ namespace smt {
             }
             abstraction(ast_manager& m, expr* e, expr_pair_vector const& eqs): 
                 m_term(e, m), m_eqs(eqs) {
-            }
-            
+            }            
         };
         typedef vector<abstraction> abstractions;
         
@@ -85,11 +83,16 @@ namespace smt {
         };
         typedef vector<abstraction_arg> abstraction_args;
 
-        bool is_induction_candidate(enode* n);
+        bool viable_induction_sort(sort* s);
+        bool viable_induction_parent(enode* p, enode* n);
+        bool viable_induction_children(enode* n);
+        bool viable_induction_term(enode* p , enode* n);
         enode_vector induction_positions(enode* n);
         void abstract(enode* n, enode* t, expr* x, abstractions& result);
+        void abstract1(enode* n, enode* t, expr* x, abstractions& result);
         void filter_abstractions(bool sign, abstractions& abs);
-        void create_lemmas(expr* t, expr* sk, abstraction& a, literal lit);
+        void create_lemmas(expr* sk, abstraction& a, literal lit);
+        void create_hypotheses(unsigned depth, expr* sk0, expr_ref& alpha, expr* sk, literal_vector& lits);
         literal mk_literal(expr* e);
         void add_th_lemma(literal_vector const& lits);
 
