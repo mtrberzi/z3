@@ -86,6 +86,17 @@ namespace smt {
         return val.is_int();
     }
 
+    /*
+     * Return an axiom of the form (term >= 0 OR term <= 0)
+     * to force the arithmetic solver to reason about the value
+     * of an integer term.
+     */
+    expr_ref theory_str::fixed_length_cex_arith_val_must_exist(expr * _arithTerm) {
+	context & ctx = get_context();
+	ast_manager & m = get_manager();
+	expr_ref arithTerm(_arithTerm, m);
+	return expr_ref(m.mk_or(m_autil.mk_ge(arithTerm, mk_int(0)), m_autil.mk_le(arithTerm, mk_int(0))), m);
+    }
 
     bool theory_str::fixed_length_reduce_suffix(smt::kernel & subsolver, expr_ref f, expr_ref & cex) {
         ast_manager & m = get_manager();
@@ -734,12 +745,12 @@ namespace smt {
             bool len_exists = v.get_value(arg2, len);
             if (!pos_exists) {
 		TRACE("str_fl", tout << "substring pos argument has no length value" << std::endl;);
-		cex = expr_ref(m.mk_or(m_autil.mk_ge(arg1, mk_int(0)), m_autil.mk_le(arg1, mk_int(0))), m);
+		cex = fixed_length_cex_arith_val_must_exist(arg1);
 		return false;
 	    }
             if (!len_exists) {
 		TRACE("str_fl", tout << "substring len argument has no length value" << std::endl;);
-		cex = expr_ref(m.mk_or(m_autil.mk_ge(arg2, mk_int(0)), m_autil.mk_le(arg2, mk_int(0))), m);
+		cex = fixed_length_cex_arith_val_must_exist(arg2);
 		return false;
 	    }
 
@@ -904,11 +915,18 @@ namespace smt {
             rational posVal;
             bool posVal_exists = v.get_value(pos, posVal);
             SASSERT(posVal_exists);
-            SASSERT(posVal.is_unsigned());
+
             fixed_length_used_integer_terms.insert(pos, posVal);
 
             TRACE("str_fl", tout << "base has " << base_chars.size() << " characters, pos=" << posVal.to_string() << std::endl;);
 
+	    if (posVal.is_neg()) {
+		// empty string
+		eqc_chars.reset();
+		return true;
+	    }
+
+	    SASSERT(posVal.is_unsigned());
             for (unsigned i = posVal.get_unsigned(); i < base_chars.size(); ++i) {
                 eqc_chars.push_back(base_chars.get(i));
             }
