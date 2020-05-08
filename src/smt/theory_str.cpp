@@ -1077,6 +1077,10 @@ namespace smt {
                         instantiate_axiom_Replace(e);
                     } else if (u.str.is_in_re(a)) {
                         instantiate_axiom_RegexIn(e);
+		    } else if (u.str.is_lt(a)) {
+			instantiate_axiom_strcmp_lt(e);
+		    } else if (u.str.is_le(a)) {
+			instantiate_axiom_strcmp_le(e);
                     } else {
                         TRACE("str", tout << "BUG: unhandled library-aware term " << mk_pp(e->get_owner(), get_manager()) << std::endl;);
                         NOT_IMPLEMENTED_YET();
@@ -1376,7 +1380,6 @@ namespace smt {
     }
 
     void theory_str::instantiate_axiom_CharAt(enode * e) {
-        context & ctx = get_context();
         ast_manager & m = get_manager();
         expr* arg0, *arg1;
         app * expr = e->get_owner();
@@ -1393,7 +1396,6 @@ namespace smt {
     }
 
     void theory_str::instantiate_axiom_prefixof(enode * e) {
-        context & ctx = get_context();
         ast_manager & m = get_manager();
 
         app * expr = e->get_owner();
@@ -1409,7 +1411,6 @@ namespace smt {
     }
 
     void theory_str::instantiate_axiom_suffixof(enode * e) {
-        context & ctx = get_context();
         ast_manager & m = get_manager();
 
         app * expr = e->get_owner();
@@ -1610,7 +1611,6 @@ namespace smt {
     //  of t in s, if any, by t'. Note that if t is empty, the result is to prepend
     //  t' to s; also, if t does not occur in s then the result is s.
     void theory_str::instantiate_axiom_Replace(enode * e) {
-        context & ctx = get_context();
         ast_manager & m = get_manager();
 
         app * ex = e->get_owner();
@@ -1707,6 +1707,28 @@ namespace smt {
         }
     }
 
+    void theory_str::instantiate_axiom_strcmp_lt(enode * _e) {
+	app * e = _e->get_owner();
+	if (axiomatized_terms.contains(e)) {
+	    TRACE("str", tout << "already set up str.< axiom for " << mk_pp(e, get_manager()) << std::endl;);
+	    return;
+	}
+	axiomatized_terms.insert(e);
+	TRACE("str", tout << "instantiate str.< axiom for " << mk_pp(e, get_manager()) << std::endl;);
+	m_seq_axioms.add_lt_axiom(e);
+    }
+
+    void theory_str::instantiate_axiom_strcmp_le(enode * _e) {
+	app * e = _e->get_owner();
+	if (axiomatized_terms.contains(e)) {
+	    TRACE("str", tout << "already set up str.<= axiom for " << mk_pp(e, get_manager()) << std::endl;);
+	    return;
+	}
+	axiomatized_terms.insert(e);
+	TRACE("str", tout << "instantiate str.<= axiom for " << mk_pp(e, get_manager()) << std::endl;);
+	m_seq_axioms.add_le_axiom(e);
+    }
+    
     expr * theory_str::mk_RegexIn(expr * str, expr * regexp) {
         app * regexIn = u.re.mk_in_re(str, regexp);
         // immediately force internalization so that axiom setup does not fail
