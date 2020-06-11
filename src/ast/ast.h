@@ -35,6 +35,7 @@ Revision History:
 #include "util/small_object_allocator.h"
 #include "util/obj_ref.h"
 #include "util/ref_vector.h"
+#include "util/ref_pair_vector.h"
 #include "util/ref_buffer.h"
 #include "util/obj_mark.h"
 #include "util/obj_hashtable.h"
@@ -129,7 +130,7 @@ public:
     explicit parameter(unsigned ext_id, bool):m_kind(PARAM_EXTERNAL), m_ext_id(ext_id) {}
     parameter(parameter const&);
 
-    parameter(parameter && other) : m_kind(other.m_kind) {
+    parameter(parameter && other) noexcept : m_kind(other.m_kind) {
         switch (other.m_kind) {
         case PARAM_INT: m_int = other.get_int(); break;
         case PARAM_AST: m_ast = other.get_ast(); break;
@@ -2466,6 +2467,9 @@ typedef ref_vector<app, ast_manager>       app_ref_vector;
 typedef ref_vector<var, ast_manager>       var_ref_vector;
 typedef ref_vector<quantifier, ast_manager> quantifier_ref_vector;
 typedef app_ref_vector                     proof_ref_vector;
+
+typedef ref_pair_vector<expr, ast_manager> expr_ref_pair_vector;
+
 
 // -----------------------------------
 //

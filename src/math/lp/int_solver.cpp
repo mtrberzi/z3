@@ -148,10 +148,6 @@ lia_move int_solver::check(lp::explanation * e) {
     m_upper = false;
     lia_move r = lia_move::undef;
 
-    gomory       gc(*this);
-    int_cube     cube(*this);
-    int_branch   branch(*this);
-
     if (m_gcd.should_apply()) r = m_gcd();
 
     check_return_helper pc(lra);
@@ -161,10 +157,10 @@ lia_move int_solver::check(lp::explanation * e) {
 
     ++m_number_of_calls;
     if (r == lia_move::undef && m_patcher.should_apply()) r = m_patcher();
-    if (r == lia_move::undef && should_find_cube()) r = cube();
+    if (r == lia_move::undef && should_find_cube()) r = int_cube(*this)();
     if (r == lia_move::undef && should_hnf_cut()) r = hnf_cut();
-    if (r == lia_move::undef && should_gomory_cut()) r = gc();
-    if (r == lia_move::undef) r = branch();
+    if (r == lia_move::undef && should_gomory_cut()) r = gomory(*this)();
+    if (r == lia_move::undef) r = int_branch(*this)();
     return r;
 }
 
@@ -189,7 +185,16 @@ std::ostream& int_solver::display_inf_rows(std::ostream& out) const {
     return out;
 }
 
+bool int_solver::cut_indices_are_columns() const {
+    for (const auto & p: m_t) {
+        if (p.column().index() >= lra.A_r().column_count())
+            return false;
+    }
+    return true;
+}
+
 bool int_solver::current_solution_is_inf_on_cut() const {
+    SASSERT(cut_indices_are_columns());
     const auto & x = lrac.m_r_x;
     impq v = m_t.apply(x);
     mpq sign = m_upper ? one_of_type<mpq>()  : -one_of_type<mpq>();
@@ -279,19 +284,6 @@ lia_move int_solver::hnf_cut() {
     }
     return r;
 }
-
-void int_solver::set_value_for_nbasic_column_ignore_old_values(unsigned j, const impq & new_val) {
-    lp_assert(!is_base(j));
-    auto & x = lrac.m_r_x[j];
-    auto delta = new_val - x;
-    x = new_val;
-    TRACE("int_solver", tout << "x[" << j << "] = " << x << "\n";);
-    lra.change_basic_columns_dependend_on_a_given_nb_column(j, delta);
-}
-
-
-
-
 
 bool int_solver::has_lower(unsigned j) const {
     switch (lrac.m_column_types()[j]) {
@@ -494,18 +486,19 @@ bool int_solver::at_upper(unsigned j) const {
     }
 }
 
-void int_solver::display_row_info(std::ostream & out, unsigned row_index) const  {
+std::ostream& int_solver::display_row_info(std::ostream & out, unsigned row_index) const  {
     auto & rslv = lrac.m_r_solver;
     for (const auto &c: rslv.m_A.m_rows[row_index]) {
         if (numeric_traits<mpq>::is_pos(c.coeff()))
             out << "+";
         out << c.coeff() << rslv.column_name(c.var()) << " ";
     }
-
+    out << "\n";
     for (const auto& c: rslv.m_A.m_rows[row_index]) {
-        rslv.print_column_bound_info(c.var(), out);
+        rslv.print_column_info(c.var(), out);
+        if (is_base(c.var())) out << "j" << c.var() << " base\n";
     }
-    rslv.print_column_bound_info(rslv.m_basis[row_index], out);
+    return out;
 }
 
 bool int_solver::shift_var(unsigned j, unsigned range) {
@@ -520,7 +513,7 @@ bool int_solver::shift_var(unsigned j, unsigned range) {
     // x, the value of j column, might be shifted on a multiple of m
     if (inf_l && inf_u) {
         impq new_val = m * impq(random() % (range + 1)) + x;
-        set_value_for_nbasic_column_ignore_old_values(j, new_val);
+        lra.set_value_for_nbasic_column(j, new_val);
         return true;
     }
     if (column_is_int(j)) {
@@ -537,14 +530,14 @@ bool int_solver::shift_var(unsigned j, unsigned range) {
     if (inf_u) {
         SASSERT(!inf_l);
         impq new_val = x + m * impq(random() % (range + 1));
-        set_value_for_nbasic_column_ignore_old_values(j, new_val);
+        lra.set_value_for_nbasic_column(j, new_val);
         return true;
     }
 
     if (inf_l) {
         SASSERT(!inf_u);
         impq new_val = x - m * impq(random() % (range + 1));
-        set_value_for_nbasic_column_ignore_old_values(j, new_val);
+        lra.set_value_for_nbasic_column(j, new_val);
         return true;
     }
 
@@ -566,7 +559,7 @@ bool int_solver::shift_var(unsigned j, unsigned range) {
     impq new_val = x + m * impq(s);
     TRACE("int_solver", tout << "new_val = " << new_val << "\n";);
     SASSERT(l <= new_val && new_val <= u);
-    set_value_for_nbasic_column_ignore_old_values(j, new_val);
+    lra.set_value_for_nbasic_column(j, new_val);
     return true;
 }
 

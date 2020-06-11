@@ -254,6 +254,11 @@ stages:
       vmImage: "windows-latest"
     steps:
     - task: DownloadPipelineArtifact@2
+      displayName: 'Download Ubuntu Build'
+      inputs:
+        artifact: 'UbuntuBuild'
+        path: $(Agent.TempDirectory)
+    - task: DownloadPipelineArtifact@2
       displayName: 'Download macOS Build'
       inputs:
         artifact: 'macOSBuild'
@@ -284,6 +289,7 @@ stages:
         isPreRelease: false
 
   - job: NuGetPublish
+    condition: eq(0,1)
     displayName: "Publish to NuGet.org"
     steps:
     - task: DownloadPipelineArtifact@2
@@ -291,18 +297,19 @@ stages:
       inputs:
         artifact: 'NuGetPackage'
         path: $(Agent.TempDirectory)
-    - task: NuGetAuthenticate@0
+    - task: NuGetToolInstaller@0
       inputs:
-        nuGetServiceConnections: Z3Nuget
-#    - task: NuGetCommand@2
-#      inputs:
-#        command: push
-#        nuGetFeedType: external
-#        feedsToUse: select
-#        includeNuGetOrg: true
-#        packagesToPush: $(Agent.TempDirectory)
+        versionSpec: 5.x
+        checkLatest: false
+    - task: NuGetCommand@2
+      inputs:
+        command: push
+        nuGetFeedType: External
+        publishFeedCredentials: Z3Nuget
+        packagesToPush: $(Agent.TempDirectory)/*.nupkg
 
   - job: PyPIPublish
+    condition: eq(0,1)
     displayName: "Publish to PyPI"
     pool:
       vmImage: "ubuntu-16.04"
@@ -318,4 +325,4 @@ stages:
     - script: pip install --upgrade pip
     - script: python -m pip install --user -U setuptools importlib_metadata wheel twine 
     # Uncomment on release:
-    #- script: python -m twine upload --config-file $(pypirc.secureFilePath) -r $(pypiReleaseServer) dist/*
+    - script: python -m twine upload --config-file $(pypirc.secureFilePath) -r $(pypiReleaseServer) dist/*

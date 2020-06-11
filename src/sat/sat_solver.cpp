@@ -19,7 +19,9 @@ Revision History:
 
 
 #include <cmath>
+#ifndef SINGLE_THREAD
 #include <thread>
+#endif
 #include "util/luby.h"
 #include "util/trace.h"
 #include "util/max_cliques.h"
@@ -1198,6 +1200,7 @@ namespace sat {
             return check_par(num_lits, lits);
         }
         flet<bool> _searching(m_searching, true);
+        m_clone = nullptr;
         if (m_mc.empty() && gparams::get_ref().get_bool("model_validate", false)) {
             m_clone = alloc(solver, m_params, m_rlimit);
             m_clone->copy(*this);
@@ -1321,6 +1324,11 @@ namespace sat {
         return invoke_local_search(num_lits, lits);
     }
 
+#ifdef SINGLE_THREAD
+    lbool solver::check_par(unsigned num_lits, literal const* lits) {
+        return l_undef;
+    }
+#else
     lbool solver::check_par(unsigned num_lits, literal const* lits) {
         if (!rlimit().inc()) {
             return l_undef;
@@ -1467,6 +1475,7 @@ namespace sat {
         return result;
 
     }
+#endif
 
     /*
       \brief import lemmas/units from parallel sat solvers.
@@ -4640,7 +4649,8 @@ namespace sat {
                 else {
                     is_sat = bounded_search();
                     if (is_sat == l_undef) {
-                        do_restart(true);
+                        do_restart(true);                        
+                        propagate(false);
                     }
                     extract_fixed_consequences(unfixed_lits, assumptions, unfixed_vars, conseq);
                 }

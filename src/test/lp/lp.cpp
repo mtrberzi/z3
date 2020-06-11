@@ -78,6 +78,7 @@ void test_cn_on_expr(nex_sum *t, cross_nested& cn) {
 }
 
 void test_nex_order() {
+#if Z3DEBUG
     enable_trace("nla_cn");
     enable_trace("nla_cn_details");
     // enable_trace("nla_cn_details_");
@@ -116,6 +117,7 @@ void test_nex_order() {
     nex_mul * poly = r.mk_mul(five_a_pl_one, b);
     nex * p = r.simplify(poly);
     std::cout << "poly = " << *poly << " , p = " << *p << "\n";
+#endif
 }
 
 void test_simplify() {
@@ -311,11 +313,6 @@ void test_cn() {
 namespace lp {
 unsigned seed = 1;
 
-class my_bound_propagator : public lp_bound_propagator {
-public:
-    my_bound_propagator(lar_solver & ls): lp_bound_propagator(ls) {}
-    void consume(mpq const& v, lp::constraint_index j) override {}
-};
 
 random_gen g_rand;
 static unsigned my_random() {

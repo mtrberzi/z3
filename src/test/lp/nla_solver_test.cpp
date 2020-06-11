@@ -169,7 +169,7 @@ void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_0() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     svector<lpvar> v; v.push_back(lp_b);v.push_back(lp_d);v.push_back(lp_e);
     nla.add_monic(lp_bde, v.size(), v.begin());
     v.clear();
@@ -193,18 +193,18 @@ void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_0() {
     s.set_column_value_test(lp_bde, lp::impq(rational(16)));
 
     
-    SASSERT(nla.get_core().test_check(lv) == l_false);
+    VERIFY(nla.get_core().test_check(lv) == l_false);
     
-    nla.get_core().print_lemma(std::cout);
+    nla.get_core().print_lemma(lv.back(), std::cout);
 
-    ineq i0(llc::NE, lp::lar_term(), rational(1));
-    i0.m_term.add_var(lp_ac);
-    ineq i1(llc::EQ, lp::lar_term(), rational(0));
-    i1.m_term.add_var(lp_bde);
-    i1.m_term.add_monomial(-rational(1), lp_abcde);
-    ineq i2(llc::EQ, lp::lar_term(), rational(0));
-    i2.m_term.add_var(lp_abcde);
-    i2.m_term.add_monomial(-rational(1), lp_bde);
+    ineq i0(lp_ac, llc::NE, 1);
+    lp::lar_term t1, t2;
+    t1.add_var(lp_bde);
+    t1.add_monomial(-rational(1), lp_abcde);
+    ineq i1(llc::EQ, t1, rational(0));
+    t2.add_var(lp_abcde);
+    t2.add_monomial(-rational(1), lp_bde);
+    ineq i2(llc::EQ, t2, rational(0));
     bool found0 = false;
     bool found1 = false;
     bool found2 = false;
@@ -218,7 +218,7 @@ void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_0() {
         } 
     }
 
-    SASSERT(found0 && (found1 || found2));
+    VERIFY(found0 && (found1 || found2));
 
     
 }
@@ -246,7 +246,7 @@ void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_1() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     svector<lpvar> v; v.push_back(lp_b);v.push_back(lp_d);v.push_back(lp_e);
     nla.add_monic(lp_bde, v.size(), v.begin());
 
@@ -259,18 +259,19 @@ void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_1() {
     s_set_column_value_test(s, lp_e, rational(1));
     s_set_column_value_test(s, lp_bde, rational(3));
 
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
     SASSERT(lemma[0].size() == 4);
-    nla.get_core().print_lemma(std::cout);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
 
-    ineq i0(llc::NE, lp::lar_term(), rational(1));
-    i0.m_term.add_var(lp_b);
-    ineq i1(llc::NE, lp::lar_term(), rational(1));
-    i1.m_term.add_var(lp_d);
-    ineq i2(llc::NE, lp::lar_term(), rational(1));
-    i2.m_term.add_var(lp_e);
-    ineq i3(llc::EQ, lp::lar_term(), rational(1));
-    i3.m_term.add_var(lp_bde);
+    lp::lar_term t0, t1, t2, t3;
+    t0.add_var(lp_b);
+    t1.add_var(lp_d);
+    t2.add_var(lp_e);
+    t3.add_var(lp_bde);
+    ineq i0(llc::NE, t0, rational(1));
+    ineq i1(llc::NE, t1, rational(1));
+    ineq i2(llc::NE, t2, rational(1));
+    ineq i3(llc::EQ, t3, rational(1));
     bool found0 = false;
     bool found1 = false;
     bool found2 = false;
@@ -288,7 +289,7 @@ void test_basic_lemma_for_mon_neutral_from_factors_to_monomial_1() {
 
     }
 
-    SASSERT(found0 && found1 && found2 && found3);
+    VERIFY(found0 && found1 && found2 && found3);
 
 }
 void test_basic_lemma_for_mon_neutral_from_factors_to_monomial() {
@@ -316,7 +317,7 @@ void test_basic_lemma_for_mon_zero_from_factors_to_monomial() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     
     create_abcde(nla,
                  lp_a,
@@ -343,13 +344,15 @@ void test_basic_lemma_for_mon_zero_from_factors_to_monomial() {
     s_set_column_value_test(s, lp_acd, rational(1));
     s_set_column_value_test(s, lp_be, rational(1));
 
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
-    nla.get_core().print_lemma(std::cout);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
     SASSERT(lemma.size() == 1 && lemma[0].size() == 2);
-    ineq i0(llc::NE, lp::lar_term(), rational(0));
-    i0.m_term.add_var(lp_b);
-    ineq i1(llc::EQ, lp::lar_term(), rational(0));
-    i1.m_term.add_var(lp_be);
+    lp::lar_term t0, t1;
+    t0.add_var(lp_b);
+    t1.add_var(lp_be);
+
+    ineq i0(llc::NE, t0, rational(0));
+    ineq i1(llc::EQ, t1, rational(0));
     bool found0 = false;
     bool found1 = false;
 
@@ -361,7 +364,7 @@ void test_basic_lemma_for_mon_zero_from_factors_to_monomial() {
         }
     }
 
-    SASSERT(found0 && found1);
+    VERIFY(found0 && found1);
 }
 
 void test_basic_lemma_for_mon_zero_from_monomial_to_factors() {
@@ -376,7 +379,7 @@ void test_basic_lemma_for_mon_zero_from_monomial_to_factors() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
 
     // create monomial acd
     unsigned_vector vec;
@@ -392,16 +395,13 @@ void test_basic_lemma_for_mon_zero_from_monomial_to_factors() {
     s_set_column_value_test(s, lp_d, rational(1));
     s_set_column_value_test(s, lp_acd, rational(0));
 
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
     
-    nla.get_core().print_lemma(std::cout);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
 
-    ineq i0(llc::EQ, lp::lar_term(), rational(0));
-    i0.m_term.add_var(lp_a);
-    ineq i1(llc::EQ, lp::lar_term(), rational(0));
-    i1.m_term.add_var(lp_c);
-    ineq i2(llc::EQ, lp::lar_term(), rational(0));
-    i2.m_term.add_var(lp_d);
+    ineq i0(lp_a, llc::EQ, 0);
+    ineq i1(lp_c, llc::EQ, 0);
+    ineq i2(lp_d, llc::EQ, 0);
     bool found0 = false;
     bool found1 = false;
     bool found2 = false;
@@ -416,7 +416,7 @@ void test_basic_lemma_for_mon_zero_from_monomial_to_factors() {
         }
     }
 
-    SASSERT(found0 && found1 && found2);
+    VERIFY(found0 && found1 && found2);
     
 }
 
@@ -439,7 +439,7 @@ void test_basic_lemma_for_mon_neutral_from_monomial_to_factors() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     
     create_abcde(nla,
                  lp_a,
@@ -471,14 +471,12 @@ void test_basic_lemma_for_mon_neutral_from_monomial_to_factors() {
     s_set_column_value_test(s, lp_b, - rational(2));
     // we have bde = -b, therefore d = +-1 and e = +-1
     s_set_column_value_test(s, lp_d,  rational(3));
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
 
     
-    nla.get_core().print_lemma(std::cout);
-    ineq i0(llc::EQ, lp::lar_term(), rational(1));
-    i0.m_term.add_var(lp_d);
-    ineq i1(llc::EQ, lp::lar_term(), -rational(1));
-    i1.m_term.add_var(lp_d);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
+    ineq i0(lp_d, llc::EQ, 1);
+    ineq i1(lp_d, llc::EQ, -1);
     bool found0 = false;
     bool found1 = false;
 
@@ -490,7 +488,7 @@ void test_basic_lemma_for_mon_neutral_from_monomial_to_factors() {
         }
     }
 
-    SASSERT(found0 && found1);
+    VERIFY(found0 && found1);
 }
 
 void test_horner() {
@@ -516,7 +514,7 @@ void test_horner() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     vector<lpvar> v;
     v.push_back(a); v.push_back(b);
     nla.add_monic(lp_ab, v.size(), v.begin());
@@ -553,7 +551,7 @@ void test_basic_sign_lemma() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     // create monomial bde
     vector<unsigned> vec;
 
@@ -587,14 +585,14 @@ void test_basic_sign_lemma() {
     s_set_column_value_test(s, lp_acd, rational(3));
    
     vector<lemma> lemmas;
-    SASSERT(nla.get_core().test_check(lemmas) == l_false);
+    VERIFY(nla.get_core().test_check(lemmas) == l_false);
 
     lp::lar_term t;
     t.add_var(lp_bde);
     t.add_var(lp_acd);
     ineq q(llc::EQ, t, rational(0));
    
-    nla.get_core().print_lemma(std::cout);
+    nla.get_core().print_lemma(lemmas.back(), std::cout);
 }
 
 void test_order_lemma_params(bool var_equiv, int sign) {
@@ -628,7 +626,7 @@ void test_order_lemma_params(bool var_equiv, int sign) {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s,l);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -711,13 +709,13 @@ void test_order_lemma_params(bool var_equiv, int sign) {
     }
     vector<lemma> lemma;
 
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
     // lp::lar_term t;
     // t.add_monomial(lp_bde);
     // t.add_monomial(lp_acd);
     // ineq q(llc::EQ, t, rational(0));
    
-    nla.get_core().print_lemma(std::cout);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
     // SASSERT(q == lemma.back());
     // ineq i0(llc::EQ, lp::lar_term(), rational(0));
     // i0.m_term.add_monomial(lp_bde);
@@ -759,7 +757,7 @@ void test_monotone_lemma() {
     
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -795,8 +793,8 @@ void test_monotone_lemma() {
     s_set_column_value_test(s, lp_ef, s.get_column_value(lp_ij));
 
     vector<lemma> lemma;
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
-    nla.get_core().print_lemma(std::cout);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
     */
 }
 
@@ -816,7 +814,7 @@ void test_tangent_lemma_rat() {
     s_set_column_value_test(s, lp_ab, v);
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -824,8 +822,8 @@ void test_tangent_lemma_rat() {
     nla.add_monic(lp_ab, vec.size(), vec.begin());
     
     vector<lemma> lemma;
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
-    nla.get_core().print_lemma(std::cout);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
 }
 
 void test_tangent_lemma_reg() {
@@ -843,7 +841,7 @@ void test_tangent_lemma_reg() {
     s_set_column_value_test(s, lp_ab, rational(11));
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -851,8 +849,8 @@ void test_tangent_lemma_reg() {
     nla.add_monic(lp_ab, vec.size(), vec.begin());
     
     vector<lemma> lemma;
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
-    nla.get_core().print_lemma(std::cout);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
 }
 
 void test_tangent_lemma_equiv() {
@@ -887,7 +885,7 @@ void test_tangent_lemma_equiv() {
     s_set_column_value_test(s, lp_a, - s.get_column_value(lp_k));
     reslimit l;
     params_ref p;
-    solver nla(s);
+    solver nla(s, l);
     // create monomial ab
     vector<unsigned> vec;
     vec.push_back(lp_a);
@@ -897,8 +895,8 @@ void test_tangent_lemma_equiv() {
     s_set_column_value_test(s, lp_ab, nla.get_core().mon_value_by_vars(mon_ab) + rational(10)); // greater by ten than the correct value
     vector<lemma> lemma;
 
-    SASSERT(nla.get_core().test_check(lemma) == l_false);
-    nla.get_core().print_lemma(std::cout);
+    VERIFY(nla.get_core().test_check(lemma) == l_false);
+    nla.get_core().print_lemma(lemma.back(), std::cout);
     */
 }
 

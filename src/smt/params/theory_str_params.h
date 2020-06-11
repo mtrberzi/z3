@@ -68,34 +68,7 @@ struct theory_str_params {
      */
     bool m_StringConstantCache;
 
-    /*
-     * If FiniteOverlapModels is set to true,
-     * arrangements that result in overlapping variables will generate a small number of models
-     * to test instead of completely giving up on the case.
-     */
-    bool m_FiniteOverlapModels;
-
-    /*
-     * If SearchOverlaps is set to true,
-     * arrangements that result in overlapping variables will be searched as far as possible,
-     * potentially allowing model construction to take place, instead of skipping the
-     * branch and returning UNKNOWN.
-     */
-    bool m_SearchOverlaps;
-    // Number of milliseconds to try searching overlaps with the arrangement solver.
-    unsigned m_SearchOverlapsMilliseconds;
-
-    bool m_UseBinarySearch;
-    unsigned m_BinarySearchInitialUpperBound;
-
     double m_OverlapTheoryAwarePriority;
-
-    /*
-     * If RegexAutomata is set to true,
-     * Z3str3 will use automata-based methods to reason about
-     * regular expression constraints.
-     */
-    bool m_RegexAutomata;
 
     /*
      * RegexAutomata_DifficultyThreshold is the lowest difficulty above which Z3str3
@@ -126,15 +99,6 @@ struct theory_str_params {
      * before which we begin checking unsatisfiability of a regex term.
      */
     unsigned m_RegexAutomata_LengthAttemptThreshold;
-    
-    /*
-     * If FixedLengthModels is true, Z3str3 will use a fixed-length equation solver to construct models in final_check.
-     * If false, Z3str3 will use the legacy length tester and value tester procedure.
-     */
-    bool m_FixedLengthModels;
-
-    bool m_FixedLengthPreprocessing;
-    unsigned m_FixedLengthIterations;
 
     /*
      * If FixedLengthRefinement is true and the fixed-length equation solver is enabled,
@@ -191,21 +155,12 @@ struct theory_str_params {
         m_UseFastLengthTesterCache(false),
         m_UseFastValueTesterCache(true),
         m_StringConstantCache(true),
-        m_FiniteOverlapModels(false),
-        m_SearchOverlaps(true),
-        m_SearchOverlapsMilliseconds(5000),
-        m_UseBinarySearch(false),
-        m_BinarySearchInitialUpperBound(64),
         m_OverlapTheoryAwarePriority(-0.1),
-        m_RegexAutomata(true),
         m_RegexAutomata_DifficultyThreshold(1000),
         m_RegexAutomata_IntersectionDifficultyThreshold(1000),
         m_RegexAutomata_FailedAutomatonThreshold(10),
         m_RegexAutomata_FailedIntersectionThreshold(10),
         m_RegexAutomata_LengthAttemptThreshold(10),
-        m_FixedLengthModels(true),
-        m_FixedLengthPreprocessing(true),
-        m_FixedLengthIterations(5),
         m_FixedLengthRefinement(false),
         m_PreMilliseconds(1000),
         m_MultisetCheck(false),

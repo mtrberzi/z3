@@ -24,14 +24,13 @@ Revision History:
 
 #include "util/vector.h"
 #include "math/lp/implied_bound.h"
-#include "math/lp/lp_bound_propagator.h"
 #include "math/lp/test_bound_analyzer.h"
 
 namespace lp {
-template <typename C> // C plays a role of a container
+template <typename C, typename B> // C plays a role of a container, B - lp_bound_propagator
 class bound_analyzer_on_row {
     const C&                           m_row;
-    lp_bound_propagator &              m_bp;
+    B &                                m_bp;
     unsigned                           m_row_or_term_index;
     int                                m_column_of_u; // index of an unlimited from above monoid
     // -1 means that such a value is not found, -2 means that at least two of such monoids were found
@@ -45,7 +44,7 @@ public :
         unsigned  bj, // basis column for the row
         const numeric_pair<mpq>& rs,
         unsigned row_or_term_index,
-        lp_bound_propagator & bp)
+        B & bp)
         :
         m_row(it),
         m_bp(bp),
@@ -55,6 +54,18 @@ public :
         m_rs(rs)
     {}
 
+    
+    static void analyze_row(const C & row,
+                            unsigned bj, // basis column for the row
+                            const numeric_pair<mpq>& rs,
+                            unsigned row_or_term_index,
+                            B & bp) {
+        bound_analyzer_on_row a(row, bj, rs, row_or_term_index, bp);
+        a.analyze();
+        // TBD: a.analyze_eq();
+    }
+
+private:
 
     void analyze() {
         for (const auto & c : m_row) {
@@ -71,6 +82,37 @@ public :
             limit_monoid_l_from_above();
         else if (m_column_of_l == -1)
             limit_all_monoids_from_above();
+    }
+
+
+    void analyze_eq() {
+        lpvar x = null_lpvar, y = null_lpvar;
+        for (const auto & c : m_row) {
+            if (m_bp.get_column_type(c.var()) == column_type::fixed)
+                continue;
+            if (x == null_lpvar && c.coeff().is_one())
+                x = c.var();
+            else if (y == null_lpvar && c.coeff().is_minus_one())
+                y = c.var();
+            else 
+                return;
+        }        
+        if (x == null_lpvar || y == null_lpvar)
+            return;
+        impq value;
+        for (const auto & c : m_row) {
+            if (m_bp.get_column_type(c.var()) == column_type::fixed)
+                value += c.coeff() * lb(c.var());
+        }
+        if (!value.is_zero()) {
+            // insert / check offset table to infer equalities
+            // of the form y = z from offset table collision:
+            // value = (x - y)
+            // value = (x - z)
+        } 
+        else {
+            // m_bp.try_add_fixed(x, y, m_row_or_term_index);
+        }
     }
 
     bool bound_is_available(unsigned j, bool lower_bound) {
@@ -319,14 +361,6 @@ public :
         }
     }
 
-    static void analyze_row(const C & row,
-                            unsigned bj, // basis column for the row
-                            const numeric_pair<mpq>& rs,
-                            unsigned row_or_term_index,
-                            lp_bound_propagator & bp) {
-        bound_analyzer_on_row a(row, bj, rs, row_or_term_index, bp);
-        a.analyze();
-    }
 
 };
 }

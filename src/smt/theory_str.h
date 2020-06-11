@@ -472,8 +472,6 @@ protected:
 
     int tmpStringVarCount;
     int tmpXorVarCount;
-    int tmpLenTestVarCount;
-    int tmpValTestVarCount;
     // obj_pair_map<expr, expr, std::map<int, expr*> > varForBreakConcat;
     std::map<std::pair<expr*,expr*>, std::map<int, expr*> > varForBreakConcat;
     bool avoidLoopCut;
@@ -484,40 +482,12 @@ protected:
 
     obj_hashtable<expr> variable_set;
     obj_hashtable<expr> internal_variable_set;
-    obj_hashtable<expr> regex_variable_set;
     std::map<int, obj_hashtable<expr> > internal_variable_scope_levels;
-
-    obj_hashtable<expr> internal_lenTest_vars;
-    obj_hashtable<expr> internal_valTest_vars;
-    obj_hashtable<expr> internal_unrollTest_vars;
-
-    obj_hashtable<expr> input_var_in_len;
-
-    obj_map<expr, unsigned int> fvar_len_count_map;
-    obj_map<expr, ptr_vector<expr> > fvar_lenTester_map;
-    obj_map<expr, expr*> lenTester_fvar_map;
-
-
-    obj_map<expr, std::map<int, svector<std::pair<int, expr*> > > > fvar_valueTester_map;
-
-    obj_map<expr, expr*> valueTester_fvar_map;
-
-    obj_map<expr, int_vector> val_range_map;
-
-    // This can't be an expr_ref_vector because the constructor is wrong,
-    // we would need to modify the allocator so we pass in ast_manager
-    obj_map<expr, std::map<std::set<expr*>, ptr_vector<expr> > > unroll_tries_map;
-    obj_map<expr, expr*> unroll_var_map;
-    obj_pair_map<expr, expr, expr*> concat_eq_unroll_ast_map;
 
     expr_ref_vector contains_map;
 
     theory_str_contain_pair_bool_map_t contain_pair_bool_map;
     obj_map<expr, std::set<std::pair<expr*, expr*> > > contain_pair_idx_map;
-
-    // TBD: do a curried map for determinism.
-    std::map<std::pair<expr*, zstring>, expr*> regex_in_bool_map;
-    obj_map<expr, std::set<zstring> > regex_in_var_reg_str_map;
 
     // regex automata
     scoped_ptr_vector<eautomaton> m_automata;
@@ -554,11 +524,6 @@ protected:
     expr_ref_vector string_int_conversion_terms;
     obj_hashtable<expr> string_int_axioms;
 
-    // used when opt_FastLengthTesterCache is true
-    rational_map lengthTesterCache;
-    // used when opt_FastValueTesterCache is true
-    string_map valueTesterCache;
-
     string_map stringConstantCache;
     unsigned long totalCacheAccessCount;
     unsigned long cacheHitCount;
@@ -570,47 +535,16 @@ protected:
     obj_map<expr, app*> length_ast_map;
 
     th_trail_stack m_trail_stack;
+    th_trail_stack m_library_aware_trail_stack;
     th_union_find m_find;
     theory_var get_var(expr * n) const;
     expr * get_eqc_next(expr * n);
     app * get_ast(theory_var i);
 
-    // binary search heuristic data
-    struct binary_search_info {
-        rational lowerBound;
-        rational midPoint;
-        rational upperBound;
-        rational windowSize;
-
-        binary_search_info() : lowerBound(rational::zero()), midPoint(rational::zero()),
-                upperBound(rational::zero()), windowSize(rational::zero()) {}
-        binary_search_info(rational lower, rational mid, rational upper, rational windowSize) :
-            lowerBound(lower), midPoint(mid), upperBound(upper), windowSize(windowSize) {}
-
-        void calculate_midpoint() {
-            midPoint = floor(lowerBound + ((upperBound - lowerBound) / rational(2)) );
-        }
-    };
-    // maps a free string var to a stack of active length testers.
-    // can use binary_search_trail to record changes to this object
-    obj_map<expr, ptr_vector<expr> > binary_search_len_tester_stack;
-    // maps a length tester var to the *active* search window
-    obj_map<expr, binary_search_info> binary_search_len_tester_info;
-    // maps a free string var to the first length tester to be (re)used
-    obj_map<expr, expr*> binary_search_starting_len_tester;
-    // maps a length tester to the next length tester to be (re)used if the split is "low"
-    obj_map<expr, expr*> binary_search_next_var_low;
-    // maps a length tester to the next length tester to be (re)used if the split is "high"
-    obj_map<expr, expr*> binary_search_next_var_high;
-
-    // finite model finding data
-    // maps a finite model tester var to a list of variables that will be tested
-    obj_map<expr, ptr_vector<expr> > finite_model_test_varlists;
-
     // fixed length model construction
     expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
-    obj_map<expr, unsigned> fixed_length_used_len_terms; // constraints used in generating fixed length model
+    obj_map<expr, rational> fixed_length_used_len_terms; // constraints used in generating fixed length model
     obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
     obj_map<expr, ptr_vector<expr> > uninterpreted_to_char_subterm_map; // maps an "uninterpreted" string term to a list of character terms *in the subsolver*
     obj_map<expr, std::tuple<rational, expr*, expr*>> fixed_length_lesson; //keep track of information for the lesson
@@ -658,10 +592,6 @@ protected:
     app * mk_int_var(std::string name);
     app_ref mk_nonempty_str_var();
     app * mk_internal_xor_var();
-    expr * mk_internal_valTest_var(expr * node, int len, int vTries);
-    app * mk_regex_rep_var();
-    app * mk_unroll_bound_var();
-    app * mk_unroll_test_var();
     void add_nonempty_constraint(expr * s);
 
     void instantiate_concat_axiom(enode * cat);
@@ -678,7 +608,7 @@ protected:
     expr* refine_dis(expr* lhs, expr* rhs);
     expr* refine_function(expr* f);
     bool flatten(expr* ex, expr_ref_vector & flat);
-    unsigned get_refine_length(expr* ex, expr_ref_vector& extra_deps);
+    rational get_refine_length(expr* ex, expr_ref_vector& extra_deps);
 
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
@@ -696,13 +626,9 @@ protected:
 
     expr * mk_RegexIn(expr * str, expr * regexp);
     void instantiate_axiom_RegexIn(enode * e);
-    app * mk_unroll(expr * n, expr * bound);
-    void process_unroll_eq_const_str(expr * unrollFunc, expr * constStr);
-    void unroll_str2reg_constStr(expr * unrollFunc, expr * eqConstStr);
-    void process_concat_eq_unroll(expr * concat, expr * unroll);
 
     // regex automata and length-aware regex
-    void solve_regex_automata();
+    bool solve_regex_automata();
     unsigned estimate_regex_complexity(expr * re);
     unsigned estimate_regex_complexity_under_complement(expr * re);
     unsigned estimate_automata_intersection_difficulty(eautomaton * aut1, eautomaton * aut2);
@@ -748,6 +674,7 @@ protected:
 
     app * mk_value_helper(app * n);
     expr * get_eqc_value(expr * n, bool & hasEqcValue);
+    bool get_string_constant_eqc(expr * n, zstring & stringVal);
     expr * z3str2_get_eqc_value(expr * n , bool & hasEqcValue);
     bool in_same_eqc(expr * n1, expr * n2);
     expr * collect_eq_nodes(expr * n, expr_ref_vector & eqcSet);
@@ -823,6 +750,10 @@ protected:
     bool new_eq_check(expr * lhs, expr * rhs);
     void group_terms_by_eqc(expr * n, std::set<expr*> & concats, std::set<expr*> & vars, std::set<expr*> & consts);
 
+    void check_consistency_prefix(expr * e, bool is_true);
+    void check_consistency_suffix(expr * e, bool is_true);
+    void check_consistency_contains(expr * e, bool is_true);
+
     int ctx_dep_analysis(std::map<expr*, int> & strVarMap, std::map<expr*, int> & freeVarMap,
             std::map<expr*, std::set<expr*> > & unrollGroupMap, std::map<expr*, std::map<expr*, int> > & var_eq_concat_map);
     void trace_ctx_dep(std::ofstream & tout,
@@ -839,26 +770,6 @@ protected:
             std::map<expr*, int> & concatMap, std::map<expr*, int> & unrollMap);
     void classify_ast_by_type_in_positive_context(std::map<expr*, int> & varMap,
             std::map<expr*, int> & concatMap, std::map<expr*, int> & unrollMap);
-
-    expr * mk_internal_lenTest_var(expr * node, int lTries);
-    expr * gen_len_val_options_for_free_var(expr * freeVar, expr * lenTesterInCbEq, zstring lenTesterValue);
-    void process_free_var(std::map<expr*, int> & freeVar_map);
-    expr * gen_len_test_options(expr * freeVar, expr * indicator, int tries);
-    expr * gen_free_var_options(expr * freeVar, expr * len_indicator,
-            zstring len_valueStr, expr * valTesterInCbEq, zstring valTesterValueStr);
-    expr* gen_val_options(expr * freeVar, expr * len_indicator, expr * val_indicator,
-            zstring lenStr, int tries);
-    void print_value_tester_list(svector<std::pair<int, expr*> > & testerList);
-    bool get_next_val_encode(int_vector & base, int_vector & next);
-    zstring gen_val_string(int len, int_vector & encoding);
-
-    // binary search heuristic
-    expr * binary_search_length_test(expr * freeVar, expr * previousLenTester, zstring previousLenTesterValue);
-    expr_ref binary_search_case_split(expr * freeVar, expr * tester, binary_search_info & bounds, literal_vector & case_split_lits);
-
-    bool free_var_attempt(expr * nn1, expr * nn2);
-    void more_len_tests(expr * lenTester, zstring lenTesterValue);
-    void more_value_tests(expr * valTester, zstring valTesterValue);
 
     expr * get_alias_index_ast(std::map<expr*, expr*> & aliasIndexMap, expr * node);
     expr * getMostLeftNodeInConcat(expr * node);
@@ -886,18 +797,6 @@ protected:
     bool fixed_length_reduce_negative_suffix(smt::kernel & subsolver, expr_ref f, expr_ref & cex);
     bool fixed_length_reduce_regex_membership(smt::kernel & subsolver, expr_ref f, expr_ref & cex, bool polarity);
 
-    // strRegex
-
-    void get_eqc_allUnroll(expr * n, expr * &constStr, std::set<expr*> & unrollFuncSet);
-    void get_eqc_simpleUnroll(expr * n, expr * &constStr, std::set<expr*> & unrollFuncSet);
-    void gen_assign_unroll_reg(std::set<expr*> & unrolls);
-    expr * gen_assign_unroll_Str2Reg(expr * n, std::set<expr*> & unrolls);
-    expr * gen_unroll_conditional_options(expr * var, std::set<expr*> & unrolls, zstring lcmStr);
-    expr * gen_unroll_assign(expr * var, zstring lcmStr, expr * testerVar, int l, int h);
-    void reduce_virtual_regex_in(expr * var, expr * regex, expr_ref_vector & items);
-    void check_regex_in(expr * nn1, expr * nn2);
-    zstring get_std_regex_str(expr * r);
-
     void dump_assignments();
     void initialize_charset();
 
@@ -912,14 +811,12 @@ protected:
     // TESTING
     void refresh_theory_var(expr * e);
 
-    expr_ref set_up_finite_model_test(expr * lhs, expr * rhs);
-    void finite_model_test(expr * v, expr * c);
-
 public:
-    theory_str(ast_manager & m, theory_str_params const & params);
+    theory_str(context& ctx, ast_manager & m, theory_str_params const & params);
     ~theory_str() override;
 
     char const * get_name() const override { return "seq"; }
+    void init() override;
     void display(std::ostream & out) const override;
 
     void collect_statistics(::statistics & st) const override;
@@ -940,8 +837,7 @@ protected:
     void new_eq_eh(theory_var, theory_var) override;
     void new_diseq_eh(theory_var, theory_var) override;
 
-    theory* mk_fresh(context* c) override { return alloc(theory_str, c->get_manager(), m_params); }
-    void init(context * ctx) override;
+    theory* mk_fresh(context* c) override { return alloc(theory_str, *c, c->get_manager(), m_params); }
     void init_search_eh() override;
     void add_theory_assumptions(expr_ref_vector & assumptions) override;
     lbool validate_unsat_core(expr_ref_vector & unsat_core) override;

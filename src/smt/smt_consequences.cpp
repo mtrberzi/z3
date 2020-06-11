@@ -29,9 +29,10 @@ namespace smt {
     expr_ref context::antecedent2fml(index_set const& vars) {
         expr_ref_vector premises(m);
         for (unsigned v : vars) {
-            expr* e =  bool_var2expr(v);
-            e = m_assumption2orig.find(e);
-            premises.push_back(get_assignment(v) != l_false ? e : m.mk_not(e));
+            expr* e;
+            if (m_assumption2orig.find(v, e)) {
+                premises.push_back(get_assignment(v) != l_false ? e : m.mk_not(e));
+            }
         }
         return mk_and(premises);
     }
@@ -47,11 +48,11 @@ namespace smt {
     // 
     void context::extract_fixed_consequences(literal lit, index_set const& assumptions, expr_ref_vector& conseq) {
         datatype_util dt(m);
-        expr* e1, *e2;       
+        expr* e1, *e2, *arg;
         expr_ref fml(m);        
         if (lit == true_literal) return;
         expr* e = bool_var2expr(lit.var());
-        TRACE("context", display(tout << mk_pp(e, m) << "\n"););
+        TRACE("context", tout << mk_pp(e, m) << "\n";);
         index_set s;
         if (assumptions.contains(lit.var())) {
             s.insert(lit.var());
@@ -60,9 +61,6 @@ namespace smt {
             justify(lit, s);
         }
         m_antecedents.insert(lit.var(), s);
-        TRACE("context", display_literal_verbose(tout, lit); 
-              for (auto v : s) tout << " " << v;
-              tout << "\n";);
         bool found = false;
         if (m_var2val.contains(e)) {
             found = true;
@@ -85,11 +83,11 @@ namespace smt {
                 fml = m.mk_eq(e1, e2);
             }
         }
-        else if (!lit.sign() && is_app(e) && dt.is_recognizer(to_app(e)->get_decl())) {
-            if (m_var2val.contains(to_app(e)->get_arg(0))) {
+        else if (!lit.sign() && dt.is_recognizer(e, arg)) {
+            if (m_var2val.contains(arg)) {
                 found = true;
-                fml = m.mk_eq(to_app(e)->get_arg(0), m.mk_const(dt.get_recognizer_constructor(to_app(e)->get_decl())));
-                m_var2val.erase(to_app(e)->get_arg(0));
+                fml = m.mk_eq(arg, m.mk_const(dt.get_recognizer_constructor(to_app(e)->get_decl())));
+                m_var2val.erase(arg);
             }
         }
         if (found) {
@@ -100,6 +98,14 @@ namespace smt {
 
     void context::justify(literal lit, index_set& s) {
         (void)m;
+        auto add_antecedent = [&](literal l) {
+            CTRACE("context", !m_antecedents.contains(l.var()), 
+                   tout << "untracked literal: " << l << " " 
+                   << mk_pp(bool_var2expr(l.var()), m) << "\n";);
+            if (m_antecedents.contains(l.var())) {
+                s |= m_antecedents[l.var()];
+            }
+        };
         b_justification js = get_justification(lit.var());
         switch (js.get_kind()) {
         case b_justification::CLAUSE: {
@@ -107,13 +113,13 @@ namespace smt {
             if (!cls) break;
             for (literal lit2 : *cls) {
                 if (lit2.var() != lit.var()) {
-                    s |= m_antecedents.find(lit2.var());
+                    add_antecedent(lit2);
                 }
             }
             break;
         }
         case b_justification::BIN_CLAUSE: {
-            s |= m_antecedents.find(js.get_literal().var());
+            add_antecedent(js.get_literal());
             break;
             }
         case b_justification::AXIOM: {
@@ -123,10 +129,7 @@ namespace smt {
             literal_vector literals;
             m_conflict_resolution->justification2literals(js.get_justification(), literals);
             for (unsigned j = 0; j < literals.size(); ++j) {
-                if (!m_antecedents.contains(literals[j].var())) {
-                    TRACE("context", tout << literals[j] << " " << mk_pp(bool_var2expr(literals[j].var()), m) << "\n";);
-                }
-                s |= m_antecedents.find(literals[j].var());
+                add_antecedent(literals[j]);
             }
             break;
         }
@@ -275,6 +278,7 @@ namespace smt {
         m_antecedents.insert(true_literal.var(), index_set());
         pop_to_base_lvl();
         expr_ref_vector vars(m), assumptions(m);
+        index_set _assumptions;
         m_var2val.reset();
         m_var2orig.reset();
         m_assumption2orig.reset();
@@ -289,6 +293,7 @@ namespace smt {
             }
         };
         scoped_level _lvl(*this);
+        bool pushed = false;
 
         for (expr* v : vars0) {
             if (is_uninterp_const(v)) {
@@ -296,7 +301,7 @@ namespace smt {
                 m_var2orig.insert(v, v);
             }
             else {
-                push();                
+                if (!pushed) pushed = true, push();                
                 expr_ref c(m.mk_fresh_const("v", m.get_sort(v)), m);
                 expr_ref eq(m.mk_eq(c, v), m);
                 assert_expr(eq);
@@ -307,17 +312,21 @@ namespace smt {
         for (expr* a : assumptions0) {
             if (is_uninterp_const(a)) {
                 assumptions.push_back(a);
-                m_assumption2orig.insert(a, a);
             }
             else {
-                push();                
+                if (!pushed) pushed = true, push();                
                 expr_ref c(m.mk_fresh_const("a", m.get_sort(a)), m);
                 expr_ref eq(m.mk_eq(c, a), m);
                 assert_expr(eq);
-                assumptions.push_back(c);
-                m_assumption2orig.insert(c, a);                
+                assumptions.push_back(c);                
             }
+            expr* e = assumptions.back();
+            if (!e_internalized(e)) internalize(e, false);
+            literal lit = get_literal(e);
+            _assumptions.insert(lit.var());
+            m_assumption2orig.insert(lit.var(), a);
         }
+
         lbool is_sat = check(assumptions.size(), assumptions.c_ptr());
         if (is_sat != l_true) {
             TRACE("context", tout << is_sat << "\n";);
@@ -330,11 +339,6 @@ namespace smt {
 
         TRACE("context", display(tout););
 
-        index_set _assumptions;
-        for (expr* e : assumptions) {
-            if (!e_internalized(e)) internalize(e, false);
-            _assumptions.insert(get_literal(e).var());
-        }
         model_ref mdl;
         get_model(mdl);
         expr_ref_vector trail(m);
@@ -357,11 +361,15 @@ namespace smt {
         TRACE("context", 
               tout << "vars: " << vars.size() << "\n";
               tout << "lits: " << num_units << "\n";);
+        pop_to_base_lvl();
         m_case_split_queue->init_search_eh();
         unsigned num_iterations = 0;
         unsigned num_fixed_eqs = 0;
         unsigned chunk_size = 100; 
-        
+
+        init_assumptions(assumptions);
+        num_units = 0;
+
         while (!m_var2val.empty()) {
             unsigned num_vars = 0;
             for (auto const& kv : m_var2val) {
@@ -381,11 +389,14 @@ namespace smt {
                 push_scope();
                 assign(lit, b_justification::mk_axiom(), true);
                 while (can_propagate()) {
-                    if (!propagate() && (!resolve_conflict() || inconsistent())) {
-                        TRACE("context", tout << "inconsistent\n";);
+                    if (propagate())
+                        break;
+                    if (resolve_conflict())
+                        continue;
+                    if (inconsistent()) {
                         SASSERT(inconsistent());
-                        m_conflict = null_b_justification;
-                        m_not_l = null_literal;                   
+                        IF_VERBOSE(1, verbose_stream() << "(get-consequences base-inconsistent " << get_scope_level() << ")\n");
+                        return l_undef;
                     }
                 }
             }
@@ -399,7 +410,7 @@ namespace smt {
                     return is_sat;
                 }
                 if (is_sat == l_undef) {
-                    IF_VERBOSE(0, verbose_stream() << "(get-consequences inc-limits)\n";);
+                    IF_VERBOSE(1, verbose_stream() << "(get-consequences inc-limits)\n";);
                     inc_limits();
                     continue;
                 }
@@ -411,6 +422,7 @@ namespace smt {
                 m_not_l = null_literal;
             }
             if (is_sat == l_true) {
+                TRACE("context", display(tout););
                 delete_unfixed(unfixed);
             }
             extract_fixed_consequences(num_units, _assumptions, conseq);
@@ -448,9 +460,7 @@ namespace smt {
         }
 
         m_antecedents.reset();
-        literal_vector const& lits = assigned_literals();
-        for (unsigned i = 0; i < lits.size(); ++i) {
-            literal lit = lits[i];
+        for (literal lit : assigned_literals()) {
             index_set s;
             if (_asms.contains(lit.index())) {
                 s.insert(lit.var());
@@ -461,10 +471,8 @@ namespace smt {
             m_antecedents.insert(lit.var(), s);
             if (_nasms.contains(lit.index())) {
                 expr_ref_vector core(m);
-                index_set::iterator it = s.begin(), end = s.end();
-                for (; it != end; ++it) {
-                    core.push_back(var2expr[*it]);
-                }
+                for (auto v : s) 
+                    core.push_back(var2expr[v]);                
                 core.push_back(var2expr[lit.var()]);
                 cores.push_back(core);
                 min_core_size = std::min(min_core_size, core.size());
@@ -626,7 +634,7 @@ namespace smt {
             for (expr* a : assumptions) {
                 assert_expr(a);
             }
-            TRACE("context", tout << "checking: " << mk_pp(c, m) << "\n";);
+            TRACE("context", tout << "checking fixed: " << mk_pp(c, m) << "\n";);
             tmp = m.mk_not(c);
             assert_expr(tmp);
             VERIFY(check() != l_true);

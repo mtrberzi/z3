@@ -81,7 +81,8 @@ namespace smt {
     };
 
     void arith_eq_adapter::mk_axioms(enode * n1, enode * n2) {
-        SASSERT(n1 != n2);
+        if (n1 == n2)
+            return;
         ast_manager & m = get_manager();
         TRACE("arith_eq_adapter_mk_axioms", tout << "#" << n1->get_owner_id() << " #" << n2->get_owner_id() << "\n";
               tout << mk_ismt2_pp(n1->get_owner(), m) << "\n" << mk_ismt2_pp(n2->get_owner(), m) << "\n";);
@@ -154,8 +155,8 @@ namespace smt {
         // Requires that the theory arithmetic internalizer accept non simplified terms of the form t1 - t2 
         // if t1 and t2 already have slacks (theory variables) associated with them.
         // It also accepts terms with repeated variables (Issue #429).
-        app * le = nullptr;
-        app * ge = nullptr;
+        
+        app_ref le(m), ge(m);
         if (m_util.is_numeral(t1))
             std::swap(t1, t2);
         if (m_util.is_numeral(t2)) {
@@ -210,7 +211,7 @@ namespace smt {
               << " " << mk_pp(ge, m) << ": " << ge_lit 
               << " " << mk_pp(t1_eq_t2, m) << ": " << t1_eq_t2_lit << "\n";);
 
-        if (m_params.m_arith_add_binary_bounds) {
+        if (m_owner.get_fparams().m_arith_add_binary_bounds) {
             TRACE("arith_eq_adapter", tout << "adding binary bounds...\n";);
             ctx.mk_th_axiom(tid, le_lit, ge_lit, m_proof_hint.size(), m_proof_hint.c_ptr());
         }
@@ -219,7 +220,7 @@ namespace smt {
             ctx.add_relevancy_eh(n1->get_owner(), eh);
             ctx.add_relevancy_eh(n2->get_owner(), eh);
         }
-        if (!m_params.m_arith_lazy_adapter && !ctx.at_base_level() && 
+        if (!m_owner.get_fparams().m_arith_lazy_adapter && !ctx.at_base_level() && 
             n1->get_iscope_lvl() <= ctx.get_base_level() && n2->get_iscope_lvl() <= ctx.get_base_level()) {
             m_restart_pairs.push_back(enode_pair(n1, n2));
         }

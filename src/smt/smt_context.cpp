@@ -47,7 +47,7 @@ namespace smt {
         m_fparams(p),
         m_params(_p),
         m_setup(*this, p),
-        m_relevancy_lvl(p.m_relevancy_lvl),
+        m_relevancy_lvl(m_fparams.m_relevancy_lvl),
         m_asserted_formulas(m, p, _p),
         m_rewriter(m),
         m_qmanager(alloc(quantifier_manager, *this, p, _p)),
@@ -554,7 +554,7 @@ namespace smt {
         catch (...) {
             // Restore trail size since procedure was interrupted in the middle.
             // If the add_eq_trail remains on the trail stack, then Z3 may crash when the destructor is invoked.
-            TRACE("add_eq", tout << "add_eq interrupted. This is unsafe " << m.limit().get_cancel_flag() << "\n";);
+            TRACE("add_eq", tout << "add_eq interrupted. This is unsafe " << m.limit().is_canceled() << "\n";);
             m_trail_stack.shrink(old_trail_size);
             throw;
         }
@@ -2832,9 +2832,8 @@ namespace smt {
         }
         TRACE("internalize", tout << this << " " << th->get_family_id() << "\n";);
         SASSERT(std::find(m_theory_set.begin(), m_theory_set.end(), th) == m_theory_set.end());
-        SASSERT(!already_internalized_theory(th));
-        th->init(this);
         m_theories.register_plugin(th);
+        th->init();
         m_theory_set.push_back(th);
         {
 #ifdef Z3DEBUG
@@ -2846,12 +2845,13 @@ namespace smt {
         }
     }
 
-    void context::push() {
-        TRACE("unit_subsumption_bug", display(tout << "context::push()\n"););        
+    void context::push() {       
         pop_to_base_lvl();
         setup_context(false);
         bool was_consistent = !inconsistent();
         internalize_assertions(); // internalize assertions before invoking m_asserted_formulas.push_scope
+        if (!m.inc())
+            throw default_exception("push canceled");
         scoped_suspend_rlimit _suspend_cancel(m.limit());
         propagate();
         if (was_consistent && inconsistent() && !m_asserted_formulas.inconsistent()) {
@@ -2940,12 +2940,14 @@ namespace smt {
         // If we don't use the theory case split heuristic,
         // for each pair of literals (l1, l2) we add the clause (~l1 OR ~l2)
         // to enforce the condition that at most one literal can be assigned 'true'.
-        if (!m_fparams.m_theory_case_split && !m.proofs_enabled()) {
-            for (unsigned i = 0; i < num_lits; ++i) {
-                for (unsigned j = i+1; j < num_lits; ++j) {
-                    literal l1 = lits[i];
-                    literal l2 = lits[j];
-                    mk_clause(~l1, ~l2, (justification*) nullptr);
+        if (!m_fparams.m_theory_case_split) {
+            if (!m.proofs_enabled()) {
+                for (unsigned i = 0; i < num_lits; ++i) {
+                    for (unsigned j = i + 1; j < num_lits; ++j) {
+                        literal l1 = lits[i];
+                        literal l2 = lits[j];
+                        mk_clause(~l1, ~l2, (justification*) nullptr);
+                    }
                 }
             }
         } else {
@@ -3019,7 +3021,8 @@ namespace smt {
                     literal l2 = *set_it;
                     if (l2 != l) {
                         b_justification js(l);
-                        TRACE("theory_case_split", tout << "case split literal "; l2.display(tout, m, m_bool_var2expr.c_ptr()););
+                        TRACE("theory_case_split", tout << "case split literal "; l2.display(tout, m, m_bool_var2expr.c_ptr()); tout << std::endl;);
+                        if (l2 == true_literal || l2 == false_literal || l2 == null_literal) continue;
                         assign(~l2, js);
                         if (inconsistent()) {
                             TRACE("theory_case_split", tout << "conflict detected!" << std::endl;);
@@ -3082,6 +3085,7 @@ namespace smt {
         TRACE("internalize_assertions", tout << "internalize_assertions()...\n";);
         timeit tt(get_verbosity_level() >= 100, "smt.preprocessing");
         reduce_assertions();
+        if (get_cancel_flag()) return;
         if (!m_asserted_formulas.inconsistent()) {
             unsigned sz    = m_asserted_formulas.get_num_formulas();
             unsigned qhead = m_asserted_formulas.get_qhead();
@@ -3646,7 +3650,10 @@ namespace smt {
         if (status == l_true && m_qmanager->has_quantifiers()) {
             // possible outcomes   DONE l_true, DONE l_undef, CONTINUE
             mk_proto_model();
-            quantifier_manager::check_model_result cmr = m_qmanager->check_model(m_proto_model.get(), m_model_generator->get_root2value());
+            quantifier_manager::check_model_result cmr = quantifier_manager::UNKNOWN;
+            if (m_proto_model.get()) {
+                cmr = m_qmanager->check_model(m_proto_model.get(), m_model_generator->get_root2value());
+            }
             switch (cmr) {
             case quantifier_manager::SAT:
                 return false;
@@ -4472,15 +4479,15 @@ namespace smt {
 
     bool context::has_case_splits() {
         for (unsigned i = get_num_b_internalized(); i-- > 0; ) {
-            if (get_assignment(i) == l_undef)
+            if (is_relevant(i) && get_assignment(i) == l_undef)
                 return true;
         }
         return false;
     }
 
-    void context::get_model(model_ref & m) {
-        if (inconsistent())
-            m = nullptr;       
+    void context::get_model(model_ref & mdl) {
+        if (inconsistent() || !m.inc())
+            mdl = nullptr;       
         else {
             mk_proto_model();
             if (!m_model && m_proto_model) {
@@ -4492,7 +4499,7 @@ namespace smt {
                     // no op
                 }                
             }
-            m = m_model.get();
+            mdl = m_model.get();
         }
     }
 

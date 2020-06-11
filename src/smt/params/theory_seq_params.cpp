@@ -22,4 +22,6 @@ void theory_seq_params::updt_params(params_ref const & _p) {
     m_split_w_len = p.seq_split_w_len();
     m_seq_validate = p.seq_validate();
     m_giveup_point = p.seq_giveup_point();
+    m_seq_use_derivatives = p.seq_use_derivatives();
+    m_seq_use_unicode = p.seq_use_unicode();
 }
