@@ -147,6 +147,12 @@ struct theory_str_params {
      */
     bool m_ShareConstraints;
 
+    bool m_SearchOverlaps;
+    unsigned m_SearchOverlapsMilliseconds;
+
+    bool m_FixedLengthPreprocessing;
+    unsigned m_FixedLengthIterations;
+    
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
         m_AggressiveLengthTesting(false),
@@ -163,11 +169,13 @@ struct theory_str_params {
         m_RegexAutomata_LengthAttemptThreshold(10),
         m_FixedLengthRefinement(false),
         m_PreMilliseconds(1000),
-        m_MultisetCheck(false),
+            m_MultisetCheck(false),
 		m_RewriterTactic(false),
 		m_StrTactic(symbol("z3str4")),
         m_FixedLengthNaiveCounterexamples(true),
-        m_ShareConstraints(true)
+            m_ShareConstraints(true),
+            m_SearchOverlaps(false),
+            m_SearchOverlapsMilliseconds(1000)
     {
         updt_params(p);
     }

@@ -354,6 +354,8 @@ final_check_status theory_seq::final_check_eh() {
     TRACE("seq", display(tout << "level: " << ctx.get_scope_level() << "\n"););
     TRACE("seq_verbose", ctx.display(tout););
 
+    auto m_params = ctx.get_fparams();
+    
     if (m_params.m_giveup_point == 7 && (m_stats.m_num_reductions > 50000 || m_stats.m_propagate_automata > 100)) {
         TRACE("str_fl", tout << "sequence solver made too many reductions---giving up!" << std::endl;);
         return FC_GIVEUP;
@@ -439,20 +441,11 @@ final_check_status theory_seq::final_check_eh() {
         }
         return FC_CONTINUE;
     }
-    if (branch_ternary_variable1()) {
+    if (branch_ternary_variable()) {
         ++m_stats.m_branch_variable;
         TRACEFIN("branch_variable");
         if (m_params.m_giveup_point == 3) {
             TRACE("str_fl", tout << "sequence solver got to point 3---giving up!" << std::endl;);
-            return FC_GIVEUP;
-        }
-        return FC_CONTINUE;
-    }
-    if (branch_ternary_variable2()) {
-        ++m_stats.m_branch_variable;
-        TRACEFIN("branch_variable");
-        if (m_params.m_giveup_point == 4) {
-            TRACE("str_fl", tout << "sequence solver got to point 4---giving up!" << std::endl;);
             return FC_GIVEUP;
         }
         return FC_CONTINUE;

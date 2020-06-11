@@ -199,19 +199,6 @@ namespace smt {
     }
 
 
-    class seq_expr_solver : public expr_solver {
-        kernel m_kernel;
-    public:
-        seq_expr_solver(ast_manager& m, smt_params& fp):
-            m_kernel(m, fp) {}
-        lbool check_sat(expr* e) override {
-            m_kernel.push();
-            m_kernel.assert_expr(e);
-            lbool r = m_kernel.check();
-            m_kernel.pop(1);
-            return r;
-        }
-    };
 
 
     void theory_str::collect_statistics(::statistics & st) const {
@@ -221,12 +208,6 @@ namespace smt {
         st.update("str refine negated function", m_stats.m_refine_nf);
         st.update("str solved by", m_stats.m_solved_by);
         st.update("str fixed length iterations", m_stats.m_fixed_length_iterations);
-    }
-
-    void theory_str::init(context * ctx) {
-        theory::init(ctx);
-        m_mk_aut.set_solver(alloc(seq_expr_solver, get_manager(),
-                                  get_context().get_fparams()));
     }
 
     void theory_str::initialize_charset() {

@@ -693,7 +693,7 @@ namespace smt {
             // ==> (Substr ...) = ""
             if (pos.is_neg() || pos >= rational(base_chars.size()) || len.is_neg()) {
                 eqc_chars.reset();
-                fixed_length_used_len_terms.insert(term, 0);
+                fixed_length_used_len_terms.insert(term, rational::zero());
                 return true;
             }
             else if (!pos.is_unsigned() || !len.is_unsigned()) {
@@ -705,12 +705,14 @@ namespace smt {
                     return false;
                 if (_pos + _len >= base_chars.size()) {
                     // take as many characters as possible up to the end of base_chars
+                    rational count = rational::zero();
                     for (unsigned i = _pos; i < base_chars.size(); ++i) {
                         eqc_chars.push_back(base_chars.get(i));
                         count++;
                     }
                     fixed_length_used_len_terms.insert(term, count);
                 } else {
+                    rational count = rational::zero();
                     for (unsigned i = _pos; i < _pos + _len; ++i) {
                         eqc_chars.push_back(base_chars.get(i));
                         count++;
