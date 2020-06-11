@@ -156,6 +156,10 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         tactic * z3seqAfter = using_params(mk_smt_tactic(m), seq_p);
         tactic * st = using_params(and_then(mk_simplify_tactic(m, p), cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seqAfter), or_else(z3seqBefore, z3str3_2, z3str3_1))), p);
         return st;
+    } else if (m_smt_params.m_StrTactic == symbol("regex")) {
+        // use LAS followed by Z3str3
+        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), or_else(z3str3_1, z3str3_2)), p);
+        return st;
     } else {
         // unknown tactic
         NOT_IMPLEMENTED_YET();
