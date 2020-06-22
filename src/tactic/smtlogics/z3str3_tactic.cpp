@@ -94,9 +94,9 @@ probe * mk_is_cf_probe() {
 }
 
 tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
-    TRACE("str", tout << "using Z3str3 portfolio tactic" << std::endl;);
     smt_params m_smt_params;
     m_smt_params.updt_params(p);
+    TRACE("str", tout << "using Z3str3 portfolio tactic " << m_smt_params.m_StrTactic << std::endl;);
 
     params_ref preprocess_p = p;
     preprocess_p.set_bool("str.fixed_length_preprocessing", true);
