@@ -25,7 +25,7 @@ struct theory_seq_params {
      */
     bool m_split_w_len;
     bool m_seq_validate;
-    uint m_giveup_point;
+    unsigned m_giveup_point;
     bool m_seq_use_derivatives;
     bool m_seq_use_unicode;
    
