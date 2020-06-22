@@ -466,6 +466,9 @@ namespace smt {
 
         // TODO reuse some of the automaton framework from theory_str_regex
         eautomaton * aut = m_mk_aut(re);
+        if (aut == nullptr) {
+            m.raise_exception("regex contains non-constant term or other non-supported expression");
+        }
         aut->compress();
 
         ptr_vector<expr> str_chars;
