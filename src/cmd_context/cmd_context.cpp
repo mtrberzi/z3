@@ -1346,6 +1346,7 @@ void cmd_context::push() {
     s.m_macros_stack_lim       = m_macros_stack.size();
     s.m_aux_pdecls_lim         = m_aux_pdecls.size();
     s.m_assertions_lim         = m_assertions.size();
+    pm().push();
     unsigned timeout = m_params.m_timeout;
     m().limit().push(m_params.rlimit());
     cancel_eh<reslimit> eh(m().limit());
@@ -1474,6 +1475,7 @@ void cmd_context::pop(unsigned n) {
     restore_assertions(s.m_assertions_lim);
     restore_psort_inst(s.m_psort_inst_stack_lim);
     m_scopes.shrink(new_lvl);
+    pm().pop(n);
     while (n--) {
         m().limit().pop();
     }
@@ -1490,10 +1492,8 @@ void cmd_context::check_sat(unsigned num_assumptions, expr * const * assumptions
     unsigned rlimit  = m_params.rlimit();
     scoped_watch sw(*this);
     lbool r;
-    bool was_opt = false;
 
     if (m_opt && !m_opt->empty()) {
-        was_opt = true;
         m_check_sat_result = get_opt();
         cancel_eh<reslimit> eh(m().limit());
         scoped_ctrl_c ctrlc(eh);

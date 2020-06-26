@@ -36,11 +36,19 @@ namespace smt {
             m_lit(l), m_s(s), m_re(r), m_active(true) {}
         };
 
+        struct propagation_lit {
+            literal m_lit;
+            literal m_trigger;
+            propagation_lit(literal lit, literal t): m_lit(lit), m_trigger(t) {}
+            propagation_lit(literal lit): m_lit(lit), m_trigger(null_literal) {}
+            propagation_lit(): m_lit(null_literal), m_trigger(null_literal) {}
+        };
+
         theory_seq&      th;
         context&         ctx;
         ast_manager&     m;
         vector<s_in_re> m_s_in_re;
-        scoped_vector<literal> m_to_propagate;
+        scoped_vector<propagation_lit> m_to_propagate;
 
         seq_util& u();
         class seq_util::re& re();
@@ -55,15 +63,15 @@ namespace smt {
 
         bool coallesce_in_re(literal lit);
 
-        bool propagate(literal lit);
+        bool propagate(literal lit, literal& trigger);
 
         bool block_unfolding(literal lit, unsigned i);
 
-        void propagate_nullable(literal lit, expr* e, expr* s, unsigned idx, expr* r);
+        void propagate_nullable(literal lit, expr* s, unsigned idx, expr* r);
 
-        bool propagate_derivative(literal lit, expr* e, expr* s, expr* i, unsigned idx, expr* r);
+        bool propagate_derivative(literal lit, expr* e, expr* s, expr* i, unsigned idx, expr* r, literal& trigger);
 
-        expr_ref mk_first(expr* r);
+        expr_ref mk_first(expr* r, expr* n);
 
         expr_ref unroll_non_empty(expr* r, expr_mark& seen, unsigned depth);
 
@@ -88,6 +96,8 @@ namespace smt {
 
         void pop_scope(unsigned num_scopes) { m_to_propagate.pop_scope(num_scopes); }
 
+        bool can_propagate() const;
+
         bool propagate();
 
         void propagate_in_re(literal lit);
@@ -99,7 +109,7 @@ namespace smt {
         void propagate_eq(expr* r1, expr* r2);
 
         void propagate_ne(expr* r1, expr* r2);
-
+        
         void propagate_is_non_empty(literal lit);
 
         void propagate_is_empty(literal lit);
