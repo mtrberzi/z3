@@ -175,7 +175,9 @@ struct theory_str_params {
         m_FixedLengthNaiveCounterexamples(true),
         m_ShareConstraints(true),
         m_SearchOverlaps(false),
-        m_SearchOverlapsMilliseconds(1000)
+        m_SearchOverlapsMilliseconds(1000),
+        m_FixedLengthPreprocessing(false),
+        m_FixedLengthIterations(5)
     {
         updt_params(p);
     }

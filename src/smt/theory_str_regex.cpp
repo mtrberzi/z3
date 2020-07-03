@@ -45,7 +45,6 @@ namespace smt {
 
     // Returns false if we need to give up solving, e.g. because we found symbolic expressions in an automaton.
     bool theory_str::solve_regex_automata() {
-
         // TODO since heuristics might fail, the "no progress" flag might need to be handled specially here
         bool regex_axiom_add = false;
         for (obj_hashtable<expr>::iterator it = regex_terms.begin(); it != regex_terms.end(); ++it) {
@@ -116,7 +115,7 @@ namespace smt {
             } // re not in regex_terms_with_length_constraints
 
             rational exact_length_value;
-            if (get_len_value(str, exact_length_value)) {
+            if (fixed_length_get_len_value(str, exact_length_value)) {
                 TRACE("str", tout << "exact length of " << mk_pp(str, m) << " is " << exact_length_value << std::endl;);
 
                 if (regex_terms_with_path_constraints.contains(str_in_re)) {
@@ -202,6 +201,7 @@ namespace smt {
                         regex_inc_counter(regex_length_attempt_count, re);
                         continue;
                     } else {
+                        regex_inc_counter(regex_length_attempt_count, re);
                         // fixed-length model construction handles path constraints on our behalf, and with a better reduction
                         continue;
                     }
@@ -539,7 +539,6 @@ namespace smt {
                 }
             }
         } // foreach (entry in regex_terms)
-
         for (obj_map<expr, ptr_vector<expr> >::iterator it = regex_terms_by_string.begin();
                 it != regex_terms_by_string.end(); ++it) {
             // TODO do we need to check equivalence classes of strings here?
@@ -560,6 +559,8 @@ namespace smt {
                 expr * re = nullptr;
                 SASSERT(u.str.is_in_re(*term_it));
                 u.str.is_in_re(*term_it, _unused, re);
+
+                TRACE("str", tout << "consider intersecting regex " << mk_pp(*term_it, m) << std::endl;);
 
                 rational exact_len;
                 bool has_exact_len = get_len_value(str, exact_len);

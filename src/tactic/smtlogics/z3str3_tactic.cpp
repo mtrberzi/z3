@@ -23,6 +23,7 @@ Notes:
 #include "util/params.h"
 #include "tactic/tactical.h"
 #include "tactic/core/simplify_tactic.h"
+#include "tactic/str/ext_str_tactic.h"
 #include "smt/tactic/smt_tactic.h"
 #include "smt/params/smt_params.h"
 #include "ast/ast_pp.h"
@@ -158,7 +159,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         return st;
     } else if (m_smt_params.m_StrTactic == symbol("regex")) {
         // use LAS followed by Z3str3
-        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), or_else(z3str3_1, z3str3_2)), p);
+        tactic * st = using_params(and_then(and_then(mk_simplify_tactic(m, p), mk_ext_str_tactic(m, p)), or_else(z3str3_1, z3str3_2)), p);
         return st;
     } else {
         // unknown tactic

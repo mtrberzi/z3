@@ -8842,6 +8842,15 @@ namespace smt {
             }
         }
 
+        arith_value v(get_manager());
+        v.init(&ctx);
+        final_check_status arith_fc_status = v.final_check();
+        if (arith_fc_status != FC_DONE) {
+            TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
+            return FC_CONTINUE;
+        }
+        TRACE("str", tout << "arithmetic solver done in final check" << std::endl;);
+
         if (!solve_regex_automata()) {
             TRACE("str", tout << "regex engine requested to give up!" << std::endl;);
             return FC_GIVEUP;
@@ -9077,14 +9086,7 @@ namespace smt {
             // that work might be useless
             TRACE("str", tout << "using fixed-length model construction" << std::endl;);
 
-            arith_value v(get_manager());
-            v.init(&ctx);
-            final_check_status arith_fc_status = v.final_check();
-            if (arith_fc_status != FC_DONE) {
-                TRACE("str", tout << "arithmetic solver not done yet, continuing search" << std::endl;);
-                return FC_CONTINUE;
-            }
-            TRACE("str", tout << "arithmetic solver done in final check" << std::endl;);
+            // arith_value checks from here were moved to be run before solve_regex_automata()
 
             expr_ref_vector assignments(m);
             ctx.get_assignments(assignments);
