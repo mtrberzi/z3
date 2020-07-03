@@ -76,7 +76,7 @@ class ext_str_tactic : public tactic {
             expr* haystack;
             u.str.is_prefix(prefix, needle, haystack);
 
-            // Rewrite: (str.prefixof "constant" X) --> (str.in_re S ("constant" ++ .*))
+            // Rewrite: (str.prefixof "constant" S) --> (str.in_re S ("constant" ++ .*))
             {
                 zstring string_constant;
                 if (u.str.is_string(needle, string_constant)) {
@@ -102,7 +102,7 @@ class ext_str_tactic : public tactic {
             expr* haystack;
             u.str.is_suffix(suffix, needle, haystack);
 
-            // Rewrite: (str.suffixof "constant" X) --> (str.in_re S (.* ++ "constant"))
+            // Rewrite: (str.suffixof "constant" S) --> (str.in_re S (.* ++ "constant"))
             {
                 zstring string_constant;
                 if (u.str.is_string(needle, string_constant)) {
