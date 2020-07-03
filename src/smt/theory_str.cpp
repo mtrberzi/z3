@@ -8611,6 +8611,11 @@ namespace smt {
             }
             TRACE("str_fl", tout << "arithmetic solver done in final check" << std::endl;);
 
+            if (!solve_regex_automata()) {
+                TRACE("str", tout << "regex engine requested to give up!" << std::endl;);
+                return FC_GIVEUP;
+            }
+
             expr_ref_vector assignments(m);
             ctx.get_assignments(assignments);
 

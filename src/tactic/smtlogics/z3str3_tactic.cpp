@@ -104,6 +104,9 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     preprocess_p.set_bool("str.fixed_length_models", true);
     preprocess_p.set_bool("str.multiset_check", true);
     preprocess_p.set_bool("str.search_overlaps", false);
+    preprocess_p.set_uint("str.regex_automata_length_attempt_threshold", 3);
+    preprocess_p.set_uint("str.regex_automata_failed_automaton_threshold", 3);
+    preprocess_p.set_uint("str.regex_automata_failed_intersection_threshold", 1);
     preprocess_p.set_sym("string_solver", symbol("z3str3"));
 
     params_ref general_p = p;
