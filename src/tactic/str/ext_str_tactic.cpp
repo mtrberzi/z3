@@ -69,6 +69,58 @@ class ext_str_tactic : public tactic {
             stack.push_back(rhs);
         }
 
+        void process_prefix(expr* prefix, goal_ref const& g, expr_substitution& sub) {
+            if (sub.contains(prefix)) return;
+
+            expr* needle;
+            expr* haystack;
+            u.str.is_prefix(prefix, needle, haystack);
+
+            // Rewrite: (str.prefixof "constant" X) --> (str.in_re S ("constant" ++ .*))
+            {
+                zstring string_constant;
+                if (u.str.is_string(needle, string_constant)) {
+                    TRACE("ext_str_tactic", tout << "str.prefixof rewrite applies: " << mk_pp(haystack, m) << " in " << string_constant << " .*" << std::endl;);
+                    expr_ref string_expr(u.str.mk_string(string_constant), m);
+                    expr_ref string_expr_re(u.re.mk_to_re(string_expr), m);
+                    sort* re_str_sort = m.get_sort(string_expr_re);
+                    expr_ref re_any_string(u.re.mk_full_seq(re_str_sort), m);
+                    expr_ref regex(u.re.mk_concat(string_expr_re, re_any_string), m);
+                    expr_ref str_in_regex(u.re.mk_in_re(haystack, regex), m);
+                    sub.insert(prefix, str_in_regex);
+                }
+            }
+
+            stack.push_back(needle);
+            stack.push_back(haystack);
+        }
+
+        void process_suffix(expr* suffix, goal_ref const& g, expr_substitution& sub) {
+            if (sub.contains(suffix)) return;
+
+            expr* needle;
+            expr* haystack;
+            u.str.is_suffix(suffix, needle, haystack);
+
+            // Rewrite: (str.suffixof "constant" X) --> (str.in_re S (.* ++ "constant"))
+            {
+                zstring string_constant;
+                if (u.str.is_string(needle, string_constant)) {
+                    TRACE("ext_str_tactic", tout << "str.suffixof rewrite applies: " << mk_pp(haystack, m) << " in .* " << string_constant << std::endl;);
+                    expr_ref string_expr(u.str.mk_string(string_constant), m);
+                    expr_ref string_expr_re(u.re.mk_to_re(string_expr), m);
+                    sort* re_str_sort = m.get_sort(string_expr_re);
+                    expr_ref re_any_string(u.re.mk_full_seq(re_str_sort), m);
+                    expr_ref regex(u.re.mk_concat(re_any_string, string_expr_re), m);
+                    expr_ref str_in_regex(u.re.mk_in_re(haystack, regex), m);
+                    sub.insert(suffix, str_in_regex);
+                }
+            }
+
+            stack.push_back(needle);
+            stack.push_back(haystack);
+        }
+
         void operator()(goal_ref const& g, goal_ref_buffer& result) {
             SASSERT(g->is_well_formed());
             tactic_report report("ext_str", *g);
@@ -111,6 +163,10 @@ class ext_str_tactic : public tactic {
 
                         if (m.is_eq(curr)) {
                             process_eq(curr, g, sub);
+                        } else if (u.str.is_prefix(curr)) {
+                            process_prefix(curr, g, sub);
+                        } else if (u.str.is_suffix(curr)) {
+                            process_suffix(curr, g, sub);
                         }
                     }
                 }
