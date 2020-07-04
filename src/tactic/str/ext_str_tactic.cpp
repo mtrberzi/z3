@@ -17,6 +17,8 @@ class ext_str_tactic : public tactic {
         ref<mc> m_mc;
         bool m_produce_models;
 
+        const rational str_to_int_finitization_upper_bound = rational(50);
+
         imp(ast_manager& _m, params_ref const& p) :
             m(_m),
             u(m),
@@ -27,6 +29,33 @@ class ext_str_tactic : public tactic {
 
         void updt_params(params_ref const& p) {
 
+        }
+
+        // Returns a regular expression of the form (re.++ 0* (re.union 0 1 2 ... upper_bound))
+        // Precondition: upper_bound >= 0
+        expr_ref finitize_str_to_int(rational upper_bound) {
+            if (upper_bound.is_neg()) {
+                return expr_ref(m.mk_false(), m);
+            }
+
+            expr_ref_vector union_terms(m);
+            for (rational i = rational::zero(); i <= upper_bound; i += 1) {
+                symbol i_string(i.to_string().c_str());
+                expr_ref i_expr(u.re.mk_to_re(u.str.mk_string(i_string)), m);
+                union_terms.push_back(i_expr);
+            }
+            
+            symbol zero("0");
+            expr_ref re_leading_zeroes(u.re.mk_star(u.re.mk_to_re(u.str.mk_string(zero))), m);
+
+            expr_ref re_union(union_terms.get(0), m);
+            if (union_terms.size() > 1) {
+                for (unsigned i = 1; i < union_terms.size(); ++i) {
+                    re_union = expr_ref(u.re.mk_union(re_union, union_terms.get(i)), m);
+                }
+            }
+
+            return expr_ref(u.re.mk_concat(re_leading_zeroes, re_union), m);
         }
 
         void process_eq(expr* eq, goal_ref const& g, expr_substitution& sub) {
@@ -67,6 +96,98 @@ class ext_str_tactic : public tactic {
 
             stack.push_back(lhs);
             stack.push_back(rhs);
+        }
+
+        void process_le(expr* le, goal_ref const& g, expr_substitution& sub) {
+            if (sub.contains(le)) return;
+
+            expr* lhs;
+            expr* rhs;
+            m_autil.is_le(le, lhs, rhs);
+
+            // Rewrite: (<= (str.to.int S) #const) and #const is not too large ==> (str.to.int S) = -1 OR (str.in_re S (0* ++ (0, 1, 2, ..., #const)))
+            {
+                expr* string_subterm = nullptr;
+                rational integer_constant;
+                if (m_autil.is_numeral(rhs, integer_constant) && integer_constant.is_nonneg() && integer_constant <= str_to_int_finitization_upper_bound) {
+                    if (u.str.is_stoi(lhs, string_subterm)) {
+                        TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant << std::endl;);
+                        expr_ref re_finite = finitize_str_to_int(integer_constant);
+                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
+                        sub.insert(le, subst);
+                    }
+                }
+            }
+        }
+
+        void process_ge(expr* ge, goal_ref const& g, expr_substitution& sub) {
+            if (sub.contains(ge)) return;
+
+            expr* lhs;
+            expr* rhs;
+            m_autil.is_ge(ge, lhs, rhs);
+
+            // Rewrite: (>= #const (str.to.int S)) and #const is not too large ==> (str.to.int S) = -1 OR (str.in_re S (0* ++ (0, 1, 2, ..., #const)))
+            {
+                expr* string_subterm = nullptr;
+                rational integer_constant;
+                if (m_autil.is_numeral(lhs, integer_constant) && integer_constant.is_nonneg() && integer_constant <= str_to_int_finitization_upper_bound) {
+                    if (u.str.is_stoi(rhs, string_subterm)) {
+                        TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant << std::endl;);
+                        expr_ref re_finite = finitize_str_to_int(integer_constant);
+                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
+                        sub.insert(ge, subst);
+                    }
+                }
+            }
+        }
+
+        void process_lt(expr* lt, goal_ref const& g, expr_substitution& sub) {
+            if (sub.contains(lt)) return;
+
+            expr* lhs;
+            expr* rhs;
+            m_autil.is_lt(lt, lhs, rhs);
+
+            // Rewrite: (< (str.to.int S) #const) and #const is not too large ==> (str.to.int S) = -1 OR (str.in_re S (0* ++ (0, 1, 2, ..., #const-1)))
+            {
+                expr* string_subterm = nullptr;
+                rational integer_constant;
+                if (m_autil.is_numeral(rhs, integer_constant) && integer_constant >= rational(1) && integer_constant <= str_to_int_finitization_upper_bound) {
+                    if (u.str.is_stoi(lhs, string_subterm)) {
+                        TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant - 1 << std::endl;);
+                        expr_ref re_finite = finitize_str_to_int(integer_constant - 1);
+                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
+                        sub.insert(lt, subst);
+                    }
+                }
+            }
+        }
+
+        void process_gt(expr* gt, goal_ref const& g, expr_substitution& sub) {
+            if (sub.contains(gt)) return;
+
+            expr* lhs;
+            expr* rhs;
+            m_autil.is_gt(gt, lhs, rhs);
+
+            // Rewrite: (> #const (str.to.int S)) and #const is not too large ==> (str.to.int S) = -1 OR (str.in_re S (0* ++ (0, 1, 2, ..., #const-1)))
+            {
+                expr* string_subterm = nullptr;
+                rational integer_constant;
+                if (m_autil.is_numeral(lhs, integer_constant) && integer_constant >= rational(1) && integer_constant <= str_to_int_finitization_upper_bound) {
+                    if (u.str.is_stoi(rhs, string_subterm)) {
+                        TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant-1 << std::endl;);
+                        expr_ref re_finite = finitize_str_to_int(integer_constant-1);
+                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
+                        sub.insert(gt, subst);
+                    }
+                }
+            }
         }
 
         void process_prefix(expr* prefix, goal_ref const& g, expr_substitution& sub) {
@@ -163,6 +284,14 @@ class ext_str_tactic : public tactic {
 
                         if (m.is_eq(curr)) {
                             process_eq(curr, g, sub);
+                        } else if (m_autil.is_le(curr)) {
+                            process_le(curr, g, sub);
+                        } else if (m_autil.is_ge(curr)) {
+                            process_ge(curr, g, sub);
+                        } else if (m_autil.is_lt(curr)) {
+                            process_lt(curr, g, sub);
+                        } else if (m_autil.is_gt(curr)) {
+                            process_gt(curr, g, sub);
                         } else if (u.str.is_prefix(curr)) {
                             process_prefix(curr, g, sub);
                         } else if (u.str.is_suffix(curr)) {
