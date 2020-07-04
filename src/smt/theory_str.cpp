@@ -1811,6 +1811,9 @@ namespace smt {
         axiomatized_terms.insert(ex);
 
         TRACE("str", tout << "instantiate str.to-int axiom for " << mk_pp(ex, m) << std::endl;);
+        expr * _S;
+        u.str.is_stoi(ex, _S);
+        expr_ref S(_S, m);
 
         // let expr = (str.to-int S)
         // axiom 1: expr >= -1
@@ -1822,6 +1825,12 @@ namespace smt {
             expr_ref axiom1(m_autil.mk_ge(ex, m_autil.mk_numeral(rational::minus_one(), true)), m);
             SASSERT(axiom1);
             assert_axiom_rw(axiom1);
+        }
+
+        {
+            expr_ref lhs(m_autil.mk_ge(ex, mk_int(0)), m);
+            expr_ref rhs(mk_RegexIn(S, u.re.mk_plus(u.re.mk_range(mk_string("0"), mk_string("9")))), m);
+            assert_axiom_rw(rewrite_implication(lhs, rhs));
         }
 # if 0
         {
