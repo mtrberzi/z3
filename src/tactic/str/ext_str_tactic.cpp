@@ -31,6 +31,14 @@ class ext_str_tactic : public tactic {
 
         }
 
+        // Returns a regular expression of the form [0-9]+.
+        expr_ref re_one_or_more_digits() {
+            symbol zero("0");
+            symbol nine("9");
+            expr_ref re_zero_to_nine(u.re.mk_range(u.str.mk_string(zero), u.str.mk_string(nine)), m);
+            return expr_ref(u.re.mk_plus(re_zero_to_nine), m);
+        }
+        
         // Returns a regular expression of the form (re.++ 0* (re.union 0 1 2 ... upper_bound))
         // Precondition: upper_bound >= 0
         expr_ref finitize_str_to_int(rational upper_bound) {
@@ -113,12 +121,15 @@ class ext_str_tactic : public tactic {
                     if (u.str.is_stoi(lhs, string_subterm)) {
                         TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant << std::endl;);
                         expr_ref re_finite = finitize_str_to_int(integer_constant);
-                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        expr_ref subst(m.mk_or(m.mk_not(u.re.mk_in_re(string_subterm, re_one_or_more_digits())), u.re.mk_in_re(string_subterm, re_finite)), m);
                         TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
                         sub.insert(le, subst);
                     }
                 }
             }
+
+            stack.push_back(lhs);
+            stack.push_back(rhs);
         }
 
         void process_ge(expr* ge, goal_ref const& g, expr_substitution& sub) {
@@ -136,12 +147,14 @@ class ext_str_tactic : public tactic {
                     if (u.str.is_stoi(rhs, string_subterm)) {
                         TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant << std::endl;);
                         expr_ref re_finite = finitize_str_to_int(integer_constant);
-                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        expr_ref subst(m.mk_or(m.mk_not(u.re.mk_in_re(string_subterm, re_one_or_more_digits())), u.re.mk_in_re(string_subterm, re_finite)), m);
                         TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
                         sub.insert(ge, subst);
                     }
                 }
             }
+            stack.push_back(lhs);
+            stack.push_back(rhs);
         }
 
         void process_lt(expr* lt, goal_ref const& g, expr_substitution& sub) {
@@ -159,12 +172,14 @@ class ext_str_tactic : public tactic {
                     if (u.str.is_stoi(lhs, string_subterm)) {
                         TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant - 1 << std::endl;);
                         expr_ref re_finite = finitize_str_to_int(integer_constant - 1);
-                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        expr_ref subst(m.mk_or(m.mk_not(u.re.mk_in_re(string_subterm, re_one_or_more_digits())), u.re.mk_in_re(string_subterm, re_finite)), m);
                         TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
                         sub.insert(lt, subst);
                     }
                 }
             }
+            stack.push_back(lhs);
+            stack.push_back(rhs);
         }
 
         void process_gt(expr* gt, goal_ref const& g, expr_substitution& sub) {
@@ -182,12 +197,14 @@ class ext_str_tactic : public tactic {
                     if (u.str.is_stoi(rhs, string_subterm)) {
                         TRACE("ext_str_tactic", tout << "str.to_int finitization applies: " << mk_pp(rhs, m) << " <= " << integer_constant-1 << std::endl;);
                         expr_ref re_finite = finitize_str_to_int(integer_constant-1);
-                        expr_ref subst(m.mk_or(m.mk_eq(rhs, m_autil.mk_numeral(rational::minus_one(), true)), u.re.mk_in_re(string_subterm, re_finite)), m);
+                        expr_ref subst(m.mk_or(m.mk_not(u.re.mk_in_re(string_subterm, re_one_or_more_digits())), u.re.mk_in_re(string_subterm, re_finite)), m);
                         TRACE("ext_str_tactic", tout << mk_pp(subst, m) << std::endl;);
                         sub.insert(gt, subst);
                     }
                 }
             }
+            stack.push_back(lhs);
+            stack.push_back(rhs);
         }
 
         void process_prefix(expr* prefix, goal_ref const& g, expr_substitution& sub) {
