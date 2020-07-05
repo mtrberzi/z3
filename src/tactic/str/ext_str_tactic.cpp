@@ -106,6 +106,26 @@ class ext_str_tactic : public tactic {
             stack.push_back(rhs);
         }
 
+        void process_regex_membership(expr * str_in_re, goal_ref const & g, expr_substitution & sub) {
+            if (sub.contains(str_in_re)) return;
+
+            expr * str_term;
+            expr * re_term;
+
+            u.str.is_in_re(str_in_re, str_term, re_term);
+
+            // Rewrite: (str.in_re S re.allchar) --> (= (str.len S) 1)
+            {
+                if (u.re.is_full_char(re_term)) {
+                    expr_ref subst(m.mk_eq(u.str.mk_length(str_term), m_autil.mk_numeral(rational::one(), true)), m);
+                    sub.insert(str_in_re, subst);
+                }
+            }
+            
+            stack.push_back(str_term);
+            stack.push_back(re_term);
+        }
+        
         void process_le(expr* le, goal_ref const& g, expr_substitution& sub) {
             if (sub.contains(le)) return;
 
@@ -313,6 +333,8 @@ class ext_str_tactic : public tactic {
                             process_prefix(curr, g, sub);
                         } else if (u.str.is_suffix(curr)) {
                             process_suffix(curr, g, sub);
+                        } else if (u.str.is_in_re(curr)) {
+                            process_regex_membership(curr, g, sub);
                         }
                     }
                 }
