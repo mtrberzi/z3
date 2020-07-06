@@ -150,7 +150,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     } else if (m_smt_params.m_StrTactic == symbol("arr")) {
         // arrangement solver only
         TRACE("str", tout << "z3str3 tactic bypassed: performing arrangement solving" << std::endl;);
-        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), z3str3_2), p);
+        tactic * st = using_params(and_then(and_then(mk_simplify_tactic(m, p), mk_ext_str_tactic(m, p)), z3str3_2), p);
         return st;
     } else if (m_smt_params.m_StrTactic == symbol("z3str4")) {
         // Dynamic Algorithm Selection
