@@ -69,6 +69,9 @@ namespace smt {
         m_trail(m),
         m_factory(nullptr),
         m_mk_aut(m),
+        m_rewrite(m),
+        m_seq_axioms(*this, m_rewrite),
+        m_seq_skolem(m, m_rewrite),
         m_unused_id(0),
         m_delayed_axiom_setup_terms(m),
         m_delayed_assertions_todo(m),
@@ -105,6 +108,18 @@ namespace smt {
     void theory_str::init() {
         initialize_charset();
         m_mk_aut.set_solver(alloc(seq_expr_solver, get_manager(), ctx.get_fparams()));
+
+        params_ref p;
+        p.set_bool("coalesce_chars", false);
+        m_rewrite.updt_params(p);
+
+
+        std::function<void(literal, literal, literal, literal, literal)> add_ax = [&](literal l1, literal l2, literal l3, literal l4, literal l5) {
+            add_axiom_literals(l1, l2, l3, l4, l5);
+        };
+        std::function<literal(expr*, bool)> mk_eq_emp = [&](expr* e, bool p) { return mk_eq_empty(e, p); };
+        m_seq_axioms.add_axiom5 = add_ax;
+        m_seq_axioms.mk_eq_empty2 = mk_eq_emp;
     }
 
     void theory_str::reset_internal_data_structures() {
@@ -164,6 +179,7 @@ namespace smt {
         fixed_length_subterm_trail.reset();
         fixed_length_assumptions.reset();
         fixed_length_used_len_terms.reset();
+        fixed_length_used_integer_terms.reset();
         var_to_char_subterm_map.reset();
         uninterpreted_to_char_subterm_map.reset();
         fixed_length_lesson.reset();
@@ -271,6 +287,49 @@ namespace smt {
                 charSetLookupTable[setset[i]] = i;
             }
         }
+    }
+
+    void theory_str::add_axiom_literals(literal l1, literal l2, literal l3, literal l4, literal l5) {
+        context& ctx = get_context();
+        literal_vector lits;
+        if (l1 == true_literal || l2 == true_literal || l3 == true_literal || l4 == true_literal || l5 == true_literal) return;
+        if (l1 != null_literal && l1 != false_literal) { ctx.mark_as_relevant(l1); lits.push_back(l1); }
+        if (l2 != null_literal && l2 != false_literal) { ctx.mark_as_relevant(l2); lits.push_back(l2); }
+        if (l3 != null_literal && l3 != false_literal) { ctx.mark_as_relevant(l3); lits.push_back(l3); }
+        if (l4 != null_literal && l4 != false_literal) { ctx.mark_as_relevant(l4); lits.push_back(l4); }
+        if (l5 != null_literal && l5 != false_literal) { ctx.mark_as_relevant(l5); lits.push_back(l5); }
+        TRACE("str", ctx.display_literals_verbose(tout << "assert:", lits) << "\n";);
+
+        ctx.mk_th_axiom(get_id(), lits.size(), lits.c_ptr());
+    }
+
+    literal theory_str::mk_eq_empty(expr* _e, bool phase) {
+        context& ctx = get_context();
+        ast_manager& m = get_manager();
+        expr_ref e(_e, m);
+        SASSERT(u.str.is_string_term(e));
+        expr_ref emp(m);
+        zstring s;
+        if (u.str.is_empty(e)) {
+            return true_literal;
+        }
+        expr_ref_vector concats(m);
+        u.str.get_concat_units(e, concats);
+        for (auto c : concats) {
+            if (u.str.is_unit(c)) {
+                return false_literal;
+            }
+            if (u.str.is_string(c, s) && s.length() > 0) {
+                return false_literal;
+            }
+        }
+        // emp = m_util.str.mk_empty(m.get_sort(e));
+        emp = mk_string("");
+
+        literal lit = mk_eq(e, emp, false);
+        ctx.force_phase(phase ? lit : ~lit);
+        ctx.mark_as_relevant(lit);
+        return lit;
     }
 
     void theory_str::assert_axiom(expr * _e) {
@@ -884,23 +943,39 @@ namespace smt {
                 for (auto const& e : axioms_tmp) {
                     app * a = e->get_owner();
                     if (u.str.is_stoi(a)) {
-                        instantiate_axiom_str_to_int(e);
+                        //instantiate_axiom_str_to_int(e);
+                        TRACE("str", tout << "new str.to_int axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_itos(a)) {
-                        instantiate_axiom_int_to_str(e);
+                        //instantiate_axiom_int_to_str(e);
+                        TRACE("str", tout << "new str.from_int axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_at(a)) {
-                        instantiate_axiom_CharAt(e);
+                        //instantiate_axiom_CharAt(e);
+                        TRACE("str", tout << "new str.at axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_prefix(a)) {
-                        instantiate_axiom_prefixof(e);
+                        //instantiate_axiom_prefixof(e);
+                        TRACE("str", tout << "new str.prefixof axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_suffix(a)) {
-                        instantiate_axiom_suffixof(e);
+                        //instantiate_axiom_suffixof(e);
+                        TRACE("str", tout << "new str.suffixof axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_contains(a)) {
-                        instantiate_axiom_Contains(e);
+                        //instantiate_axiom_Contains(e);
+                        TRACE("str", tout << "new str.contains axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_index(a)) {
-                        instantiate_axiom_Indexof(e);
+                        //instantiate_axiom_Indexof(e);
+                        TRACE("str", tout << "new str.indexof axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_extract(a)) {
                         instantiate_axiom_Substr(e);
                     } else if (u.str.is_replace(a)) {
-                        instantiate_axiom_Replace(e);
+                        //instantiate_axiom_Replace(e);
+                        TRACE("str", tout << "new str.replace axioms not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_in_re(a)) {
                         instantiate_axiom_RegexIn(e);
                     } else {
@@ -1066,6 +1141,9 @@ namespace smt {
         // generate a stronger axiom for constant strings
         app * a_str = str->get_owner();
 
+        expr* arg0;
+        expr* arg1;
+
         if (u.str.is_string(a_str)) {
             expr_ref len_str(m);
             len_str = mk_strlen(a_str);
@@ -1082,6 +1160,17 @@ namespace smt {
             if (m.has_trace_stream()) log_axiom_instantiation(ctx.bool_var2expr(lit.var()));
             ctx.mk_th_axiom(get_id(), 1, &lit);
             if (m.has_trace_stream()) m.trace_stream() << "[end-of-instance]\n";
+        } else if (m_seq_skolem.is_pre(a_str, arg0, arg1)) {
+            TRACE("str", tout << "assert seq.pre length axiom" << std::endl;);
+            // (seq.pre s l) == (str.substr s 0 l)
+            expr_ref length_axiom = generate_substr_length_facts(a_str, arg0, mk_int(0), arg1);
+            assert_axiom_rw(length_axiom);
+        } else if (m_seq_skolem.is_post(a_str, arg0, arg1)) {
+            TRACE("str", tout << "assert seq.post length axiom" << std::endl;);
+            // (seq.post x y) == (str.substr x y (len(x) - y))
+            expr_ref len_x_minus_y(m_autil.mk_sub(mk_strlen(arg0), arg1), m);
+            expr_ref length_axiom = generate_substr_length_facts(a_str, arg0, arg1, len_x_minus_y);
+            assert_axiom_rw(length_axiom);
         } else {
             // build axiom 1: Length(a_str) >= 0
             {
@@ -1633,6 +1722,49 @@ namespace smt {
         assert_axiom(finalAxiom);
     }
 
+    // Generate length facts about a str.substr term.
+    // base, pos, len are passed explicitly because this method is also used for generating
+    // length facts about str.pre, str.post, etc. terms
+    expr_ref theory_str::generate_substr_length_facts(expr* term, expr* base, expr* pos, expr* len) {
+        expr_ref_vector axioms(m);
+
+        // (substrPos is negative || substrLen is not in the interval [0, len(substrBase)-1]) == length_oob
+        expr_ref_vector precondition_terms(m);
+        precondition_terms.push_back(m_autil.mk_le(pos, mk_int(-1)));
+        precondition_terms.push_back(m_autil.mk_le(len, mk_int(-1)));
+        precondition_terms.push_back(m_autil.mk_ge(len, mk_strlen(base)));
+        expr_ref length_oob(mk_or(precondition_terms), m);
+
+        // substrPos + substrLen >= len(substrBase)
+        expr_ref pos_plus_len_overruns(m_autil.mk_ge(m_autil.mk_add(pos, len), mk_strlen(base)), m);
+
+        // length_oob ==> len(substr) = 0
+        {
+            expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), mk_int(0)), m);
+            expr_ref axiom(m.mk_implies(length_oob, conclusion), m);
+            axioms.push_back(axiom);
+        }
+
+        // !length_oob && pos_plus_len_overruns ==> len(substr) = len(substrBase) - substrPos
+        {
+            expr_ref precondition(m.mk_and(m.mk_not(length_oob), pos_plus_len_overruns), m);
+            expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), m_autil.mk_sub(mk_strlen(base), pos)), m);
+            expr_ref axiom(m.mk_implies(precondition, conclusion), m);
+            axioms.push_back(axiom);
+        }
+
+        // !length_oob && !pos_plus_len_overruns ==> len(substr) = substrLen
+        {
+            expr_ref precondition(m.mk_and(m.mk_not(length_oob), m.mk_not(pos_plus_len_overruns)), m);
+            expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), len), m);
+            expr_ref axiom(m.mk_implies(precondition, conclusion), m);
+            axioms.push_back(axiom);
+        }
+
+        expr_ref final_axiom(mk_and(axioms), m);
+        return final_axiom;
+    }
+
     void theory_str::instantiate_axiom_Substr(enode * e) {
         ast_manager & m = get_manager();
         expr* substrBase = nullptr;
@@ -1650,76 +1782,13 @@ namespace smt {
 
         VERIFY(u.str.is_extract(expr, substrBase, substrPos, substrLen));
 
-        expr_ref zero(m_autil.mk_numeral(rational::zero(), true), m);
-        expr_ref minusOne(m_autil.mk_numeral(rational::minus_one(), true), m);
-        SASSERT(zero);
-        SASSERT(minusOne);
+        m_seq_axioms.add_extract_axiom(expr);
+        // TODO seq_axioms enforces pos in the interval [0, len(base)]
+        // but the SMT-LIB standard enforces pos in the interval [0, len(base) - 1].
+        // what's correct?
 
-        expr_ref_vector argumentsValid_terms(m);
-        // pos >= 0
-        argumentsValid_terms.push_back(m_autil.mk_ge(substrPos, zero));
-        // pos < strlen(base)
-        // --> pos + -1*strlen(base) < 0
-        argumentsValid_terms.push_back(mk_not(m, m_autil.mk_ge(
-                                                    m_autil.mk_add(substrPos, m_autil.mk_mul(minusOne, mk_strlen(substrBase))),
-                                                    zero)));
-
-        // len >= 0
-        argumentsValid_terms.push_back(m_autil.mk_ge(substrLen, zero));
-
-
-        // (pos+len) >= strlen(base)
-        // --> pos + len + -1*strlen(base) >= 0
-        expr_ref lenOutOfBounds(m_autil.mk_ge(
-                                    m_autil.mk_add(substrPos, substrLen, m_autil.mk_mul(minusOne, mk_strlen(substrBase))),
-                                    zero), m);
-        expr_ref argumentsValid = mk_and(argumentsValid_terms);
-
-        // Case 1: pos < 0 or pos >= strlen(base) or len < 0
-        // ==> (Substr ...) = ""
-        expr_ref case1_premise(m.mk_not(argumentsValid), m);
-        expr_ref case1_conclusion(ctx.mk_eq_atom(expr, mk_string("")), m);
-        expr_ref case1(m.mk_implies(case1_premise, case1_conclusion), m);
-
-        // Case 2: (pos >= 0 and pos < strlen(base) and len >= 0) and (pos+len) >= strlen(base)
-        // ==> base = t0.t1 AND len(t0) = pos AND (Substr ...) = t1
-        expr_ref t0(mk_str_var("t0"), m);
-        expr_ref t1(mk_str_var("t1"), m);
-        expr_ref case2_conclusion(m.mk_and(
-                                      ctx.mk_eq_atom(substrBase, mk_concat(t0,t1)),
-                                      ctx.mk_eq_atom(mk_strlen(t0), substrPos),
-                                      ctx.mk_eq_atom(expr, t1)), m);
-        expr_ref case2(m.mk_implies(m.mk_and(argumentsValid, lenOutOfBounds), case2_conclusion), m);
-
-        // Case 3: (pos >= 0 and pos < strlen(base) and len >= 0) and (pos+len) < strlen(base)
-        // ==> base = t2.t3.t4 AND len(t2) = pos AND len(t3) = len AND (Substr ...) = t3
-
-        expr_ref t2(mk_str_var("t2"), m);
-        expr_ref t3(mk_str_var("t3"), m);
-        expr_ref t4(mk_str_var("t4"), m);
-        expr_ref_vector case3_conclusion_terms(m);
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(substrBase, mk_concat(t2, mk_concat(t3, t4))));
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(mk_strlen(t2), substrPos));
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(mk_strlen(t3), substrLen));
-        case3_conclusion_terms.push_back(ctx.mk_eq_atom(expr, t3));
-        expr_ref case3_conclusion(mk_and(case3_conclusion_terms), m);
-        expr_ref case3(m.mk_implies(m.mk_and(argumentsValid, m.mk_not(lenOutOfBounds)), case3_conclusion), m);
-
-        {
-            th_rewriter rw(m);
-
-            expr_ref case1_rw(case1, m);
-            rw(case1_rw);
-            assert_axiom(case1_rw);
-
-            expr_ref case2_rw(case2, m);
-            rw(case2_rw);
-            assert_axiom(case2_rw);
-
-            expr_ref case3_rw(case3, m);
-            rw(case3_rw);
-            assert_axiom(case3_rw);
-        }
+        expr_ref length_axioms = generate_substr_length_facts(expr, substrBase, substrPos, substrLen);
+        assert_axiom_rw(length_axioms);
 
         // Auxiliary axioms
         {

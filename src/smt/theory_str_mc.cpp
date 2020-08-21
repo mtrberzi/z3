@@ -29,8 +29,20 @@
 #include "ast/rewriter/expr_replacer.h"
 #include "smt_kernel.h"
 #include "model/model_smt2_pp.h"
+#include "smt/seq_skolem.h"
 
 namespace smt {
+
+    /*
+    * Return an axiom that forces the arithmetic solver 
+    * to reason about the value of an integer term.
+    */
+    expr_ref theory_str::fixed_length_cex_arith_val_must_exist(expr* _arithTerm) {
+        context& ctx = get_context();
+        ast_manager& m = get_manager();
+        expr_ref arithTerm(_arithTerm, m);
+        return expr_ref(m.mk_or(m_autil.mk_ge(arithTerm, mk_int(0)), m_autil.mk_le(arithTerm, mk_int(0))), m);
+    }
 
     /*
      * Use the current model in the arithmetic solver to get the length of a term.
@@ -676,16 +688,20 @@ namespace smt {
             arith_value v(m);
             v.init(&get_context());
             rational pos, len;
-            bool pos_exists = v.get_value(arg1, pos);
-            bool len_exists = v.get_value(arg2, len);
+            bool pos_exists = v.get_value(second, pos);
+            bool len_exists = v.get_value(third, len);
             if (!pos_exists) {
-                cex = expr_ref(m.mk_or(m_autil.mk_ge(arg1, mk_int(0)), m_autil.mk_le(arg1, mk_int(0))), m);
+                cex = fixed_length_cex_arith_val_must_exist(second);
                 return false;
             }
             if (!len_exists) {
-                cex = expr_ref(m.mk_or(m_autil.mk_ge(arg2, mk_int(0)), m_autil.mk_le(arg2, mk_int(0))), m);
+                cex = fixed_length_cex_arith_val_must_exist(third);
                 return false;
             }
+
+            fixed_length_used_integer_terms.insert(second, pos);
+            fixed_length_used_integer_terms.insert(third, len);
+
             TRACE("str_fl", tout << "reduce substring term: base=" << mk_pp(term, m) << " (length="<<base_chars.size()<<"), pos=" << pos.to_string() << ", len=" << len.to_string() << std::endl;);
             // Case 1: pos < 0 or pos >= strlen(base) or len < 0
             // ==> (Substr ...) = ""
@@ -712,6 +728,8 @@ namespace smt {
                 }
             }
         } else if (u.str.is_at(term, arg0, arg1)) {
+            TRACE("str", tout << "new str.at fixed-length reduction not implemented yet!" << std::endl;);
+            NOT_IMPLEMENTED_YET();
             // (str.at Base Pos)
             expr_ref base(arg0, sub_m);
             expr_ref pos(arg1, sub_m);
@@ -739,6 +757,8 @@ namespace smt {
             }
             return true;
         } else if (u.str.is_itos(term, arg0)) {
+            TRACE("str", tout << "new str.from_int fixed-length reduction not implemented yet!" << std::endl;);
+            NOT_IMPLEMENTED_YET();
             expr_ref i(arg0, m);
             arith_value v(m);
             v.init(&get_context());
@@ -750,7 +770,7 @@ namespace smt {
             }
             rational termLen;
             bool termLen_exists = v.get_value(mk_strlen(term), termLen);
-            if(!termLen_exists) {
+            if (!termLen_exists) {
                 cex = expr_ref(m.mk_or(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m_autil.mk_le(mk_strlen(term), mk_int(0))), m);
                 return false;
             }
@@ -778,6 +798,95 @@ namespace smt {
                 }
                 return true;
             }
+        } else if (m_seq_skolem.is_pre(term, arg0, arg1)) {
+            // this has roughly the semantics of (str.substr base 0 len)
+            expr_ref base(arg0, sub_m);
+            expr_ref len(arg1, sub_m);
+            TRACE("str_fl", tout << "reduce seq.pre: base=" << mk_pp(base, m) << ", len=" << mk_pp(len, m) << std::endl;);
+
+            ptr_vector<expr> base_chars;
+            if (!fixed_length_reduce_string_term(subsolver, base, base_chars, cex)) {
+                return false;
+            }
+            arith_value v(m);
+            v.init(&get_context());
+            rational lenVal;
+            bool lenVal_exists = v.get_value(len, lenVal);
+            SASSERT(lenVal_exists);
+            SASSERT(lenVal.is_unsigned());
+            fixed_length_used_integer_terms.insert(len, lenVal);
+
+            for (unsigned i = 0; i < base_chars.size() && i < lenVal.get_unsigned(); ++i) {
+                eqc_chars.push_back(base_chars.get(i));
+            }
+
+            // consistency check
+            rational termLen;
+            bool termLen_exists = fixed_length_get_len_value(term, termLen);
+            if (!termLen_exists) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+                return false;
+            }
+            SASSERT(termLen.is_unsigned());
+            if (eqc_chars.size() != termLen.get_unsigned()) {
+                TRACE("str_fl", tout << "contradiction: seq.pre term has length " << termLen.to_string() << ", but got " << base_chars.size() << " characters" << std::endl;);
+                // TODO maybe assert an implication instead
+                expr_ref wrongLength1(m.mk_not(ctx.mk_eq_atom(mk_strlen(term), mk_int(termLen))), m);
+                expr_ref wrongLength2(m.mk_not(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size()))), m);
+                expr_ref wrongLength3(m.mk_not(ctx.mk_eq_atom(len, mk_int(lenVal))), m);
+                cex = expr_ref(m.mk_or(wrongLength1, wrongLength2, wrongLength3), m);
+                eqc_chars.reset();
+                return false;
+            }
+            fixed_length_used_len_terms.insert(term, termLen);
+        } else if (m_seq_skolem.is_post(term, arg0, arg1)) {
+            // this has roughly the semantics of (str.substr base pos (str.len(base) - pos))
+            expr_ref base(arg0, sub_m);
+            expr_ref pos(arg1, sub_m);
+            TRACE("str_fl", tout << "reduce seq.post term: base=" << mk_pp(base, m) << ", pos=" << mk_pp(pos, m) << std::endl;);
+
+            ptr_vector<expr> base_chars;
+            if (!fixed_length_reduce_string_term(subsolver, base, base_chars, cex)) {
+                return false;
+            }
+            arith_value v(m);
+            v.init(&get_context());
+            rational posVal;
+            bool posVal_exists = v.get_value(pos, posVal);
+            SASSERT(posVal_exists);
+
+            fixed_length_used_integer_terms.insert(pos, posVal);
+
+            TRACE("str_fl", tout << "base has " << base_chars.size() << " characters, pos=" << posVal.to_string() << std::endl;);
+
+            if (posVal.is_neg()) {
+                // empty string
+                eqc_chars.reset();
+                return true;
+            }
+
+            SASSERT(posVal.is_unsigned());
+            for (unsigned i = posVal.get_unsigned(); i < base_chars.size(); ++i) {
+                eqc_chars.push_back(base_chars.get(i));
+            }
+
+            // consistency check
+            rational termLen;
+            bool termLen_exists = fixed_length_get_len_value(term, termLen);
+            if (!termLen_exists || termLen.is_neg()) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+                return false;
+            }
+            if (rational(eqc_chars.size()) != termLen) {
+                TRACE("str_fl", tout << "contradiction: seq.post term has length " << termLen.to_string() << ", but got " << eqc_chars.size() << " characters" << std::endl;);
+                expr_ref premise(m.mk_and(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size())),
+                    ctx.mk_eq_atom(pos, mk_int(posVal))), m);
+                expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), mk_int(eqc_chars.size())), m);
+                cex = expr_ref(rewrite_implication(premise, conclusion), m);
+                eqc_chars.reset();
+                return false;
+            }
+            fixed_length_used_len_terms.insert(term, termLen);
         } else {
             TRACE("str_fl", tout << "string term " << mk_pp(term, m) << " handled as uninterpreted function" << std::endl;);
             if (!uninterpreted_to_char_subterm_map.contains(term)) {
@@ -909,6 +1018,7 @@ namespace smt {
 
         fixed_length_subterm_trail.reset();
         fixed_length_used_len_terms.reset();
+        fixed_length_used_integer_terms.reset();
         fixed_length_assumptions.reset();
         var_to_char_subterm_map.reset();
         uninterpreted_to_char_subterm_map.reset();
@@ -968,7 +1078,7 @@ namespace smt {
                 expr * subterm;
                 expr * lhs;
                 expr * rhs;
-                if (m.is_eq(f, lhs, rhs)) {
+                if (m.is_eq(f, lhs, rhs) || m_seq_skolem.is_eq(f, lhs, rhs)) {
                     sort * lhs_sort = m.get_sort(lhs);
                     if (lhs_sort == str_sort) {
                         TRACE("str_fl", tout << "reduce string equality: " << mk_pp(lhs, m) << " == " << mk_pp(rhs, m) << std::endl;);
@@ -996,6 +1106,8 @@ namespace smt {
                     }
                     fixed_length_reduced_boolean_formulas.push_back(f);
                 } else if (u.str.is_contains(f)) {
+                    TRACE("str", tout << "new str.contains fixed-length reduction not implemented yet!" << std::endl;);
+                    NOT_IMPLEMENTED_YET();
                     // TODO in some cases (e.g. len(haystack) is only slightly greater than len(needle))
                     // we might be okay to assert the full disjunction because there are very few disjuncts
                     if (m_params.m_FixedLengthRefinement) {
@@ -1013,6 +1125,8 @@ namespace smt {
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     }
                 } else if (u.str.is_prefix(f)) {
+                    TRACE("str", tout << "new str.prefixof fixed-length reduction not implemented yet!" << std::endl;);
+                    NOT_IMPLEMENTED_YET();
                     TRACE("str_fl", tout << "reduce positive prefix: " << mk_pp(f, m) << std::endl;);
                     expr_ref cex(m);
                     expr_ref pref(f, m);
@@ -1023,6 +1137,8 @@ namespace smt {
                     }
                     fixed_length_reduced_boolean_formulas.push_back(f);
                 } else if (u.str.is_suffix(f)) {
+                    TRACE("str", tout << "new str.suffixof fixed-length reduction not implemented yet!" << std::endl;);
+                    NOT_IMPLEMENTED_YET();
                     TRACE("str_fl", tout << "reduce positive suffix: " << mk_pp(f, m) << std::endl;);
                     expr_ref cex(m);
                     expr_ref suf(f, m);
@@ -1034,7 +1150,7 @@ namespace smt {
                     fixed_length_reduced_boolean_formulas.push_back(f);
                 }else if (m.is_not(f, subterm)) {
                     // if subterm is a string formula such as an equality, reduce it as a disequality
-                    if (m.is_eq(subterm, lhs, rhs)) {
+                    if (m.is_eq(subterm, lhs, rhs) || m_seq_skolem.is_eq(subterm, lhs, rhs)) {
                         sort * lhs_sort = m.get_sort(lhs);
                         if (lhs_sort == str_sort) {
                             TRACE("str_fl", tout << "reduce string disequality: " << mk_pp(lhs, m) << " != " << mk_pp(rhs, m) << std::endl;);
@@ -1060,6 +1176,8 @@ namespace smt {
                         }
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     } else if (u.str.is_contains(subterm)) {
+                        TRACE("str", tout << "new negative str.contains fixed-length reduction not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                         TRACE("str_fl", tout << "reduce negative contains: " << mk_pp(subterm, m) << std::endl;);
                         expr_ref cex(m);
                         expr_ref cont(subterm, m);
@@ -1070,6 +1188,8 @@ namespace smt {
                         }
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     } else if (u.str.is_prefix(subterm)) {
+                        TRACE("str", tout << "new negative str.contains fixed-length reduction not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                         TRACE("str_fl", tout << "reduce negative prefix: " << mk_pp(subterm, m) << std::endl;);
                         expr_ref cex(m);
                         expr_ref pref(subterm, m);
@@ -1080,6 +1200,8 @@ namespace smt {
                         }
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     } else if (u.str.is_suffix(subterm)) {
+                        TRACE("str", tout << "new str.contains fixed-length reduction not implemented yet!" << std::endl;);
+                        NOT_IMPLEMENTED_YET();
                         TRACE("str_fl", tout << "reduce negative suffix: " << mk_pp(subterm, m) << std::endl;);
                         expr_ref cex(m);
                         expr_ref suf(subterm, m);
@@ -1206,6 +1328,12 @@ namespace smt {
             expr * var = &e.get_key();
             rational val = e.get_value();
             precondition.push_back(m.mk_eq(u.str.mk_length(var), mk_int(val)));
+        }
+
+        for (auto e : fixed_length_used_integer_terms) {
+            expr* var = &e.get_key();
+            rational value = e.get_value();
+            precondition.push_back(m.mk_eq(var, mk_int(value)));
         }
 
         TRACE("str_fl",
@@ -1406,6 +1534,8 @@ namespace smt {
 
             return l_true;
         } else if (subproblem_status == l_false) {
+            // TODO string terms that only appear in skipped disequalities shouldn't appear in the (naive) counterexample (?)
+            // see seq-axioms branch code
             if (m_params.m_FixedLengthNaiveCounterexamples) {
                 TRACE("str_fl", tout << "subsolver found UNSAT; constructing length counterexample" << std::endl;);
                 for (auto e : fixed_length_used_len_terms) {
@@ -1415,6 +1545,11 @@ namespace smt {
                 }
                 for (auto e : fixed_length_reduced_boolean_formulas) {
                     cex.push_back(e);
+                }
+                for (auto e : fixed_length_used_integer_terms) {
+                    expr* var = &e.get_key();
+                    rational value = e.get_value();
+                    cex.push_back(m.mk_eq(var, mk_int(value)));
                 }
                 return l_false;
             } else {

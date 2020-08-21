@@ -31,6 +31,7 @@
 #include "smt/smt_model_generator.h"
 #include "smt/smt_arith_value.h"
 #include "smt/smt_kernel.h"
+#include "smt/seq_axioms.h"
 #include<set>
 #include<stack>
 #include<vector>
@@ -437,6 +438,10 @@ protected:
 
     re2automaton m_mk_aut;
 
+    th_rewriter m_rewrite;
+    seq_axioms m_seq_axioms;
+    seq_skolem m_seq_skolem;
+
     // Unique identifier appended to unused variables to ensure that model construction
     // does not introduce equalities when they weren't enforced.
     unsigned m_unused_id;
@@ -540,6 +545,7 @@ protected:
     expr_ref_vector fixed_length_subterm_trail; // trail for subterms generated *in the subsolver*
     expr_ref_vector fixed_length_assumptions; // cache of boolean terms to assert *into the subsolver*, unsat core is a subset of these
     obj_map<expr, rational> fixed_length_used_len_terms; // constraints used in generating fixed length model
+    obj_map<expr, rational> fixed_length_used_integer_terms; // (non-length-based) integer terms whose values were used in generating fixed length model
     obj_map<expr, ptr_vector<expr> > var_to_char_subterm_map; // maps a var to a list of character terms *in the subsolver*
     obj_map<expr, ptr_vector<expr> > uninterpreted_to_char_subterm_map; // maps an "uninterpreted" string term to a list of character terms *in the subsolver*
     obj_map<expr, std::tuple<rational, expr*, expr*>> fixed_length_lesson; //keep track of information for the lesson
@@ -601,6 +607,10 @@ protected:
     bool flatten(expr* ex, expr_ref_vector & flat);
     rational get_refine_length(expr* ex, expr_ref_vector& extra_deps);
 
+    // for seq_axioms
+    void add_axiom_literals(literal l1, literal l2 = null_literal, literal l3 = null_literal, literal l4 = null_literal, literal l5 = null_literal);
+    literal mk_eq_empty(expr* n, bool phase = true);
+
     void instantiate_axiom_CharAt(enode * e);
     void instantiate_axiom_prefixof(enode * e);
     void instantiate_axiom_suffixof(enode * e);
@@ -609,6 +619,7 @@ protected:
     void instantiate_axiom_Indexof_extended(enode * e);
     void instantiate_axiom_LastIndexof(enode * e);
     void instantiate_axiom_Substr(enode * e);
+    expr_ref generate_substr_length_facts(expr* term, expr* base, expr* pos, expr* len);
     void instantiate_axiom_Replace(enode * e);
     void instantiate_axiom_str_to_int(enode * e);
     void instantiate_axiom_int_to_str(enode * e);
@@ -753,6 +764,7 @@ protected:
     lbool fixed_length_model_construction(expr_ref_vector formulas, expr_ref_vector &precondition,
             expr_ref_vector& free_variables,
             obj_map<expr, zstring> &model, expr_ref_vector &cex);
+    expr_ref fixed_length_cex_arith_val_must_exist(expr* arithTerm);
     bool fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & term_chars, expr_ref & cex);
     bool fixed_length_get_len_value(expr * e, rational & val);
     bool fixed_length_reduce_eq(smt::kernel & subsolver, expr_ref lhs, expr_ref rhs, expr_ref & cex);
