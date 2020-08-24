@@ -213,20 +213,20 @@ namespace smt {
         expr_ref haystack(full, m);
         expr_ref needle(pref, m);
 
-        ptr_vector<expr> full_chars, pref_chars;
-        if (!fixed_length_reduce_string_term(subsolver, haystack, full_chars, cex)
-                || !fixed_length_reduce_string_term(subsolver, needle, pref_chars, cex)) {
+        ptr_vector<expr> haystack_chars, needle_chars;
+        if (!fixed_length_reduce_string_term(subsolver, haystack, haystack_chars, cex)
+                || !fixed_length_reduce_string_term(subsolver, needle, needle_chars, cex)) {
             return false;
         }
 
 
-        if (pref_chars.size() == 0) {
-            // all strings startwith the empty one
+        if (needle_chars.size() == 0) {
+            // all strings start with the empty one
             return true;
         }
 
-        if (full_chars.size() == 0 && pref_chars.size() > 0) {
-            // the empty string doesn't "stratwith" any non-empty string
+        if (haystack_chars.size() == 0 && needle_chars.size() > 0) {
+            // the empty string doesn't "start with" any non-empty string
             cex = m.mk_or(m.mk_not(f), ctx.mk_eq_atom(mk_strlen(pref), mk_int(0)),
                     m_autil.mk_ge(mk_strlen(full), mk_int(0)));
             th_rewriter m_rw(m);
@@ -234,9 +234,9 @@ namespace smt {
             return false;
         }
 
-        if (full_chars.size() < pref_chars.size()) {
-            // a string can't startwith a longer one
-            // X startswith Y -> len(X) >= len(Y)
+        if (haystack_chars.size() < needle_chars.size()) {
+            // a string can't start with a longer one
+            // X starts with Y -> len(X) >= len(Y)
             expr_ref minus_one(m_autil.mk_numeral(rational::minus_one(), true), m);
             expr_ref zero(m_autil.mk_numeral(rational::zero(), true), m);
             expr_ref lens(m_autil.mk_add(mk_strlen(full), m_autil.mk_mul(minus_one, mk_strlen(pref))), m);
@@ -247,10 +247,10 @@ namespace smt {
         }
 
         expr_ref_vector branch(m);
-        for (unsigned j = 0; j < pref_chars.size(); ++j) {
+        for (unsigned j = 0; j < needle_chars.size(); ++j) {
             // full[j] == pref[j]
-            expr_ref cLHS(full_chars.get(j), sub_m);
-            expr_ref cRHS(pref_chars.get(j), sub_m);
+            expr_ref cLHS(haystack_chars.get(j), sub_m);
+            expr_ref cRHS(needle_chars.get(j), sub_m);
             expr_ref _e(sub_m.mk_eq(cLHS, cRHS), sub_m);
             branch.push_back(_e);
         }
@@ -274,36 +274,36 @@ namespace smt {
         expr_ref haystack(full, m);
         expr_ref needle(pref, m);
 
-        ptr_vector<expr> full_chars, pref_chars;
-        if (!fixed_length_reduce_string_term(subsolver, haystack, full_chars, cex)
-                || !fixed_length_reduce_string_term(subsolver, needle, pref_chars, cex)) {
+        ptr_vector<expr> haystack_chars, needle_chars;
+        if (!fixed_length_reduce_string_term(subsolver, haystack, haystack_chars, cex)
+                || !fixed_length_reduce_string_term(subsolver, needle, needle_chars, cex)) {
             return false;
         }
 
-        if (pref_chars.size() == 0) {
-            // all strings startwith the empty one
+        if (needle_chars.size() == 0) {
+            // all strings start with the empty one
             cex = m.mk_or(m.mk_not(f), m.mk_not(ctx.mk_eq_atom(mk_strlen(pref), mk_int(0))));
             th_rewriter m_rw(m);
             m_rw(cex);
             return false;
         }
 
-        if (full_chars.size() == 0 && pref_chars.size() > 0) {
-            // the empty string doesn't "stratwith" any non-empty string
+        if (haystack_chars.size() == 0 && needle_chars.size() > 0) {
+            // the empty string doesn't "start with" any non-empty string
             return true;
         }
 
-        if (full_chars.size() < pref_chars.size()) {
-            // a string can't startwith a longer one
-            // X startswith Y -> len(X) >= len(Y)
+        if (haystack_chars.size() < needle_chars.size()) {
+            // a string can't start with a longer one
+            // X starts with Y -> len(X) >= len(Y)
             return true;
         }
 
         expr_ref_vector branch(m);
-        for (unsigned j = 0; j < pref_chars.size(); ++j) {
+        for (unsigned j = 0; j < needle_chars.size(); ++j) {
             // full[j] == pref[j]
-            expr_ref cLHS(full_chars.get(j), sub_m);
-            expr_ref cRHS(pref_chars.get(j), sub_m);
+            expr_ref cLHS(haystack_chars.get(j), sub_m);
+            expr_ref cRHS(needle_chars.get(j), sub_m);
             expr_ref _e(sub_m.mk_eq(cLHS, cRHS), sub_m);
             branch.push_back(_e);
         }
@@ -1123,8 +1123,6 @@ namespace smt {
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     }
                 } else if (u.str.is_prefix(f)) {
-                    TRACE("str", tout << "new str.prefixof fixed-length reduction not implemented yet!" << std::endl;);
-                    NOT_IMPLEMENTED_YET();
                     TRACE("str_fl", tout << "reduce positive prefix: " << mk_pp(f, m) << std::endl;);
                     expr_ref cex(m);
                     expr_ref pref(f, m);
@@ -1135,8 +1133,6 @@ namespace smt {
                     }
                     fixed_length_reduced_boolean_formulas.push_back(f);
                 } else if (u.str.is_suffix(f)) {
-                    TRACE("str", tout << "new str.suffixof fixed-length reduction not implemented yet!" << std::endl;);
-                    NOT_IMPLEMENTED_YET();
                     TRACE("str_fl", tout << "reduce positive suffix: " << mk_pp(f, m) << std::endl;);
                     expr_ref cex(m);
                     expr_ref suf(f, m);
@@ -1184,8 +1180,6 @@ namespace smt {
                         }
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     } else if (u.str.is_prefix(subterm)) {
-                        TRACE("str", tout << "new negative str.contains fixed-length reduction not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
                         TRACE("str_fl", tout << "reduce negative prefix: " << mk_pp(subterm, m) << std::endl;);
                         expr_ref cex(m);
                         expr_ref pref(subterm, m);
@@ -1196,8 +1190,6 @@ namespace smt {
                         }
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     } else if (u.str.is_suffix(subterm)) {
-                        TRACE("str", tout << "new str.contains fixed-length reduction not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
                         TRACE("str_fl", tout << "reduce negative suffix: " << mk_pp(subterm, m) << std::endl;);
                         expr_ref cex(m);
                         expr_ref suf(subterm, m);
