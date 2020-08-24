@@ -963,9 +963,7 @@ namespace smt {
                         TRACE("str", tout << "new str.suffixof axioms not implemented yet!" << std::endl;);
                         NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_contains(a)) {
-                        //instantiate_axiom_Contains(e);
-                        TRACE("str", tout << "new str.contains axioms not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        instantiate_axiom_Contains(e);
                     } else if (u.str.is_index(a)) {
                         //instantiate_axiom_Indexof(e);
                         TRACE("str", tout << "new str.indexof axioms not implemented yet!" << std::endl;);
@@ -1375,6 +1373,7 @@ namespace smt {
             return;
         }
 
+        // TODO for core refactor: can we improve or remove contain_pair_idx_map handling? Why do we need this?
         { // register Contains()
             expr * str = ex->get_arg(0);
             expr * substr = ex->get_arg(1);

@@ -1106,8 +1106,6 @@ namespace smt {
                     }
                     fixed_length_reduced_boolean_formulas.push_back(f);
                 } else if (u.str.is_contains(f)) {
-                    TRACE("str", tout << "new str.contains fixed-length reduction not implemented yet!" << std::endl;);
-                    NOT_IMPLEMENTED_YET();
                     // TODO in some cases (e.g. len(haystack) is only slightly greater than len(needle))
                     // we might be okay to assert the full disjunction because there are very few disjuncts
                     if (m_params.m_FixedLengthRefinement) {
@@ -1176,8 +1174,6 @@ namespace smt {
                         }
                         fixed_length_reduced_boolean_formulas.push_back(f);
                     } else if (u.str.is_contains(subterm)) {
-                        TRACE("str", tout << "new negative str.contains fixed-length reduction not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
                         TRACE("str_fl", tout << "reduce negative contains: " << mk_pp(subterm, m) << std::endl;);
                         expr_ref cex(m);
                         expr_ref cont(subterm, m);
