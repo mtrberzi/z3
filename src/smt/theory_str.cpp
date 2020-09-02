@@ -951,9 +951,7 @@ namespace smt {
                         TRACE("str", tout << "new str.from_int axioms not implemented yet!" << std::endl;);
                         NOT_IMPLEMENTED_YET();
                     } else if (u.str.is_at(a)) {
-                        //instantiate_axiom_CharAt(e);
-                        TRACE("str", tout << "new str.at axioms not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        instantiate_axiom_CharAt(e);
                     } else if (u.str.is_prefix(a)) {
                         instantiate_axiom_prefixof(e);
                     } else if (u.str.is_suffix(a)) {
@@ -1154,6 +1152,26 @@ namespace smt {
             if (m.has_trace_stream()) log_axiom_instantiation(ctx.bool_var2expr(lit.var()));
             ctx.mk_th_axiom(get_id(), 1, &lit);
             if (m.has_trace_stream()) m.trace_stream() << "[end-of-instance]\n";
+        } else if (u.str.is_unit(a_str)) {
+            bv_util bv(m);
+            // axiom 1: len(unit) = 1
+            expr_ref len_unit(mk_strlen(a_str), m);
+            expr_ref one(mk_int(1), m);
+            expr_ref len_unit_eq_one(ctx.mk_eq_atom(len_unit, one), m);
+            TRACE("str", tout << "len(" << mk_pp(a_str, m) << " = 1" << std::endl;);
+            assert_axiom(len_unit_eq_one);
+
+            expr* subterm;
+            u.str.is_unit(a_str, subterm);
+            rational unit_val;
+            if (bv.is_numeral(subterm, unit_val)) {
+                // axiom 2: unit(bv) = "bv"
+                SASSERT(unit_val.is_nonneg() && unit_val.get_unsigned() <= 255);
+                zstring unitStr(unit_val.get_unsigned());
+                expr_ref unit_eq_str(ctx.mk_eq_atom(a_str, mk_string(unitStr)), m);
+                TRACE("str", tout << mk_pp(a_str, m) << " = \"" << unitStr << "\"" << std::endl;);
+                assert_axiom(unit_eq_str);
+            }
         } else if (m_seq_skolem.is_pre(a_str, arg0, arg1)) {
             TRACE("str", tout << "assert seq.pre length axiom" << std::endl;);
             // (seq.pre s l) == (str.substr s 0 l)
@@ -1164,6 +1182,15 @@ namespace smt {
             // (seq.post x y) == (str.substr x y (len(x) - y))
             expr_ref len_x_minus_y(m_autil.mk_sub(mk_strlen(arg0), arg1), m);
             expr_ref length_axiom = generate_substr_length_facts(a_str, arg0, arg1, len_x_minus_y);
+            assert_axiom_rw(length_axiom);
+        } else if (m_seq_skolem.is_tail(a_str, arg0, arg1)) {
+            TRACE("str", tout << "assert seq.tail length axiom" << std::endl;);
+            // (seq.tail x y) has the same semantics as (str.substr x (y + 1) ((str.len x) - (y + 1)))
+            expr_ref x(arg0, m);
+            expr_ref y(arg1, m);
+            expr_ref y1(m_autil.mk_add(y, m_autil.mk_int(1)), m);
+            expr_ref z(m_autil.mk_sub(u.str.mk_length(x), y1), m);
+            expr_ref length_axiom = generate_substr_length_facts(a_str, x, y1, z);
             assert_axiom_rw(length_axiom);
         } else {
             // build axiom 1: Length(a_str) >= 0
@@ -1252,26 +1279,7 @@ namespace smt {
 
         TRACE("str", tout << "instantiate CharAt axiom for " << mk_pp(expr, m) << std::endl;);
 
-        expr_ref ts0(mk_str_var("ts0"), m);
-        expr_ref ts1(mk_str_var("ts1"), m);
-        expr_ref ts2(mk_str_var("ts2"), m);
-
-        expr_ref cond(m.mk_and(
-                          m_autil.mk_ge(arg1, mk_int(0)),
-                          m_autil.mk_lt(arg1, mk_strlen(arg0))), m);
-
-        expr_ref_vector and_item(m);
-        and_item.push_back(ctx.mk_eq_atom(arg0, mk_concat(ts0, mk_concat(ts1, ts2))));
-        and_item.push_back(ctx.mk_eq_atom(arg1, mk_strlen(ts0)));
-        and_item.push_back(ctx.mk_eq_atom(mk_strlen(ts1), mk_int(1)));
-
-        expr_ref thenBranch(::mk_and(and_item));
-        expr_ref elseBranch(ctx.mk_eq_atom(ts1, mk_string("")), m);
-        expr_ref axiom(m.mk_ite(cond, thenBranch, elseBranch), m);
-        expr_ref reductionVar(ctx.mk_eq_atom(expr, ts1), m);
-        expr_ref finalAxiom(m.mk_and(axiom, reductionVar), m);
-        ctx.get_rewriter()(finalAxiom);
-        assert_axiom(finalAxiom);
+        m_seq_axioms.add_at_axiom(expr);
     }
 
     void theory_str::instantiate_axiom_prefixof(enode * e) {

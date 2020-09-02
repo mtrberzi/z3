@@ -766,6 +766,7 @@ protected:
             obj_map<expr, zstring> &model, expr_ref_vector &cex);
     expr_ref fixed_length_cex_arith_val_must_exist(expr* arithTerm);
     bool fixed_length_reduce_string_term(smt::kernel & subsolver, expr * term, ptr_vector<expr> & term_chars, expr_ref & cex);
+    bool fixed_length_reduce_char_term(smt::kernel& subsolver, expr* term, ptr_vector<expr>& eqc_chars, expr_ref& cex);
     bool fixed_length_get_len_value(expr * e, rational & val);
     bool fixed_length_reduce_eq(smt::kernel & subsolver, expr_ref lhs, expr_ref rhs, expr_ref & cex);
     bool fixed_length_reduce_diseq(smt::kernel & subsolver, expr_ref lhs, expr_ref rhs, expr_ref & cex);

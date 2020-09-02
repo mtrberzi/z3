@@ -621,6 +621,61 @@ namespace smt {
     }
 
     /*
+        * Expressions in the vector eqc_chars exist only in the subsolver.
+        * If this method returns false, a conflict clause is returned in cex;
+        * this conflict clause exists in the main solver.
+        */
+    bool theory_str::fixed_length_reduce_char_term(smt::kernel& subsolver, expr* term,
+        ptr_vector<expr>& eqc_chars, expr_ref& cex) {
+        ast_manager& m = get_manager();
+
+        ast_manager& sub_m = subsolver.m();
+
+        bv_util bv(m);
+
+        rational unit_val;
+        expr* arg0;
+        if (bv.is_numeral(term, unit_val)) {
+            SASSERT(unit_val.is_nonneg() && unit_val.get_unsigned() <= 255);
+            expr_ref chTerm(bitvector_character_constants.get(unit_val.get_unsigned()), sub_m);
+            eqc_chars.push_back(chTerm);
+            return true;
+        } else if (m_seq_skolem.is_last(term, arg0)) {
+            // arg0 is a string
+            ptr_vector<expr> arg0_chars;
+            if (!fixed_length_reduce_string_term(subsolver, arg0, arg0_chars, cex)) {
+                return false;
+            }
+            // TODO what are the semantics if the subterm has length 0?
+            SASSERT(arg0_chars.size() > 0);
+            eqc_chars.push_back(arg0_chars.get(arg0_chars.size() - 1));
+            return true;
+        } else if (u.str.is_nth_i(term)) {
+            expr* subterm;
+            expr* index;
+            u.str.is_nth_i(term, subterm, index);
+
+            ptr_vector<expr> subterm_chars;
+            if (!fixed_length_reduce_string_term(subsolver, subterm, subterm_chars, cex)) {
+                return false;
+            }
+
+            arith_value v(m);
+            v.init(&get_context());
+            rational indexVal;
+            bool indexVal_exists = v.get_value(index, indexVal);
+            SASSERT(indexVal_exists);
+            // this should be guaranteed by the semantics of nth_i
+            SASSERT(indexVal.is_nonneg() && indexVal.get_unsigned() < subterm_chars.size());
+            eqc_chars.push_back(subterm_chars.get(indexVal.get_unsigned()));
+            return true;
+        } else {
+            NOT_IMPLEMENTED_YET();
+            return false;
+        }
+    }
+
+    /*
      * Expressions in the vector eqc_chars exist only in the subsolver.
      * If this method returns false, a conflict clause is returned in cex;
      * this conflict clause exists in the main solver.
@@ -728,8 +783,6 @@ namespace smt {
                 }
             }
         } else if (u.str.is_at(term, arg0, arg1)) {
-            TRACE("str", tout << "new str.at fixed-length reduction not implemented yet!" << std::endl;);
-            NOT_IMPLEMENTED_YET();
             // (str.at Base Pos)
             expr_ref base(arg0, sub_m);
             expr_ref pos(arg1, sub_m);
@@ -745,6 +798,9 @@ namespace smt {
                 cex = m.mk_or(m_autil.mk_ge(pos, mk_int(0)), m_autil.mk_le(pos, mk_int(0)));
                 return false;
             }
+
+            fixed_length_used_integer_terms.insert(pos, pos_value);
+
             TRACE("str_fl", tout << "reduce str.at: base=" << mk_pp(base, m) << ", pos=" << pos_value.to_string() << std::endl;);
             if (pos_value.is_neg() || pos_value >= rational(base_chars.size())) {
                 // return the empty string
@@ -887,6 +943,59 @@ namespace smt {
                 return false;
             }
             fixed_length_used_len_terms.insert(term, termLen);
+        } else if (m_seq_skolem.is_tail(term, arg0, arg1)) {
+            // this has the semantics of (str.substr arg0 (arg1 + 1) (len(arg0) - (arg1 + 1)))
+            expr_ref base(arg0, m);
+            expr_ref pos(arg1, m);
+            TRACE("str_fl", tout << "reduce seq.tail: " << mk_pp(base, m) << " " << mk_pp(pos, m) << std::endl;);
+            ptr_vector<expr> base_chars;
+            if (!fixed_length_reduce_string_term(subsolver, base, base_chars, cex)) {
+                return false;
+            }
+            arith_value v(m);
+            v.init(&get_context());
+            rational posVal;
+            bool posVal_exists = v.get_value(pos, posVal);
+            SASSERT(posVal_exists);
+
+            rational termLen;
+            bool termLen_exists = fixed_length_get_len_value(term, termLen);
+            if (!termLen_exists || termLen.is_neg()) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+                return false;
+            }
+
+            fixed_length_used_integer_terms.insert(pos, posVal);
+
+            TRACE("str_fl", tout << "base has " << base_chars.size() << " characters, pos=" << posVal.to_string() << std::endl;);
+            rational start_position = posVal + rational::one();
+            if (start_position.is_neg() || start_position >= termLen) {
+                eqc_chars.reset();
+                return true;
+            }
+
+            SASSERT(start_position.is_unsigned());
+            SASSERT(termLen.is_unsigned());
+            for (unsigned i = start_position.get_unsigned(); i < termLen; ++i) {
+                eqc_chars.push_back(base_chars.get(i));
+            }
+
+            // consistency check
+            if (rational(eqc_chars.size()) != termLen) {
+                TRACE("str_fl", tout << "contradiction: seq.tail term has " << termLen.to_string() << " characters, but got " << eqc_chars.size() << std::endl;);
+                expr_ref premise(m.mk_and(ctx.mk_eq_atom(mk_strlen(base), mk_int(base_chars.size())),
+                    ctx.mk_eq_atom(pos, mk_int(posVal))), m);
+                expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), mk_int(eqc_chars.size())), m);
+                cex = expr_ref(rewrite_implication(premise, conclusion), m);
+                eqc_chars.reset();
+                return false;
+            }
+        } else if (u.str.is_unit(term, arg0)) {
+            TRACE("str_fl", tout << "reduce seq.unit: " << mk_pp(arg0, m) << std::endl;);
+            if (!fixed_length_reduce_char_term(subsolver, arg0, eqc_chars, cex)) {
+                return false;
+            }
+            return true;
         } else {
             TRACE("str_fl", tout << "string term " << mk_pp(term, m) << " handled as uninterpreted function" << std::endl;);
             if (!uninterpreted_to_char_subterm_map.contains(term)) {
