@@ -62,6 +62,7 @@ namespace smt {
             expr* c = todo.back();
             todo.pop_back();
             zstring tmp;
+            TRACE("str_fl", tout << "get_len_value " << mk_pp(c, m) << std::endl;);
             if (u.str.is_concat(c, e1, e2)) {
                 todo.push_back(e1);
                 todo.push_back(e2);
@@ -70,6 +71,9 @@ namespace smt {
                 unsigned int sl = tmp.length();
                 val += rational(sl);
             }
+            else if (u.str.is_unit(c)) {
+                val += rational::one();
+            }
             else {
                 len = mk_strlen(c);
                 arith_value v(get_manager());
@@ -77,6 +81,7 @@ namespace smt {
                 if (v.get_value(len, val1)) {
                     val += val1;
                 } else {
+                    TRACE("str_fl", tout << "len_value for " << mk_pp(c,m) << " doesn't exist!" << std::endl;);
                     return false;
                 }
             }
@@ -990,12 +995,147 @@ namespace smt {
                 eqc_chars.reset();
                 return false;
             }
+            return true;
         } else if (u.str.is_unit(term, arg0)) {
             TRACE("str_fl", tout << "reduce seq.unit: " << mk_pp(arg0, m) << std::endl;);
             if (!fixed_length_reduce_char_term(subsolver, arg0, eqc_chars, cex)) {
                 return false;
             }
             return true;
+        /*} else if (m_seq_skolem.is_indexof_left(term, arg0, arg1)) {
+            // result = m_util.str.mk_substr(x, m_autil.mk_int(0), m_util.str.mk_index(x, y, m_autil.mk_int(0)));
+            TRACE("str_fl", tout << "reduce seq.idx.left: " << mk_pp(arg0, m) << " " << mk_pp(arg1, m) << std::endl;);
+
+            ptr_vector<expr> base_chars;
+            if (!fixed_length_reduce_string_term(subsolver, arg0, base_chars, cex)) {
+                return false;
+            }
+
+            rational termLen;
+            bool termLen_exists = fixed_length_get_len_value(term, termLen);
+            if (!termLen_exists || termLen.is_neg()) {
+                TRACE("str_fl", tout << "inconsistency: term length doesn't exist or is negative" << std::endl;);
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+                return false;
+            }
+
+            rational arg0_len;
+            bool arg0_len_exists = fixed_length_get_len_value(arg1, arg0_len);
+            if (!arg0_len_exists || arg0_len.is_neg()) {
+                TRACE("str_fl", tout << "inconsistency: argument length doesn't exist or is negative" << std::endl;);
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(arg0), mk_int(0)), m);
+                return false;
+            }
+
+            expr_ref len_subexpr(u.str.mk_index(arg0, arg1, m_autil.mk_int(0)), m);
+            rational len_subexpr_assignment;
+            arith_value v(m);
+            v.init(&get_context());
+            bool len_subexpr_exists = v.get_value(len_subexpr, len_subexpr_assignment);
+            if (!len_subexpr_exists) {
+                TRACE("str_fl", tout << "sending seq.idx.left length subexpression back to the arithmetic solver to get assignment" << std::endl;);
+                cex = fixed_length_cex_arith_val_must_exist(len_subexpr);
+                return false;
+            }
+            TRACE("str_fl", tout << "arithmetic solver assigns " << len_subexpr_assignment << " to length subexpression " << mk_pp(len_subexpr, m) << std::endl;);
+
+            if (len_subexpr_assignment.is_neg()) {
+                // empty string
+                eqc_chars.reset();
+                return true;
+            }
+
+            for (unsigned i = 0; i < len_subexpr_assignment.get_unsigned() && i < base_chars.size(); ++i) {
+                eqc_chars.push_back(base_chars.get(i));
+            }
+
+            fixed_length_used_integer_terms.insert(len_subexpr, len_subexpr_assignment);
+
+            // consistency check
+            if (rational(eqc_chars.size()) != termLen) {
+                TRACE("str_fl", tout << "length information inconsistent: arithmetic solver assigns length = " << termLen << ", but reduced to " << eqc_chars.size() << " characters" << std::endl;);
+                expr_ref premise(m.mk_and(
+                    ctx.mk_eq_atom(mk_strlen(arg0), mk_int(arg0_len)),
+                    ctx.mk_eq_atom(len_subexpr, mk_int(len_subexpr_assignment))), m);
+                expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), mk_int(rational(eqc_chars.size()))), m);
+                cex = expr_ref(rewrite_implication(premise, conclusion), m);
+                eqc_chars.reset();
+                return false;
+            }
+            return true;
+        } else if (m_seq_skolem.is_indexof_right(term, arg0, arg1)) {
+            // offset = m_autil.mk_add(u.str.mk_length(arg1), u.str.mk_index(arg0, arg1, m_autil.mk_int(0)) 
+            // result = m_util.str.mk_substr(x, offset, m_util.str.mk_length(x));
+            TRACE("str_fl", tout << "reduce seq.idx.right: " << mk_pp(arg0, m) << " " << mk_pp(arg1, m) << std::endl;);
+
+            ptr_vector<expr> base_chars;
+            if (!fixed_length_reduce_string_term(subsolver, arg0, base_chars, cex)) {
+                return false;
+            }
+
+            rational termLen;
+            bool termLen_exists = fixed_length_get_len_value(term, termLen);
+            if (!termLen_exists || termLen.is_neg()) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(term), mk_int(0)), m);
+                return false;
+            }
+
+            expr_ref pos_subexpr(u.str.mk_index(arg0, arg1, m_autil.mk_int(0)), m);
+            rational pos_subexpr_assignment;
+            arith_value v(m);
+            v.init(&get_context());
+            bool pos_subexpr_exists = v.get_value(pos_subexpr, pos_subexpr_assignment);
+            if (!pos_subexpr_exists) {
+                TRACE("str_fl", tout << "sending seq.idx.right position subexpression back to the arithmetic solver to get assignment" << std::endl;);
+                cex = fixed_length_cex_arith_val_must_exist(pos_subexpr);
+                return false;
+            }
+            TRACE("str_fl", tout << "arithmetic solver assigns " << pos_subexpr_assignment << " to position subexpression " << mk_pp(pos_subexpr, m) << std::endl;);
+
+            rational arg0_len;
+            bool arg0_len_exists = fixed_length_get_len_value(arg0, arg0_len);
+            if (!arg0_len_exists || arg0_len.is_neg()) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(arg0), mk_int(0)), m);
+                return false;
+            }
+
+            rational arg1_len;
+            bool arg1_len_exists = fixed_length_get_len_value(arg1, arg1_len);
+            if (!arg1_len_exists || arg1_len.is_neg()) {
+                cex = expr_ref(m_autil.mk_ge(mk_strlen(arg1), mk_int(0)), m);
+                return false;
+            }
+
+            rational pos = arg1_len + pos_subexpr_assignment;
+
+            if (pos.is_neg()) {
+                // empty string
+                eqc_chars.reset();
+                return true;
+            }
+
+            SASSERT(pos.is_unsigned());
+            for (unsigned i = pos.get_unsigned(); i < base_chars.size(); ++i) {
+                eqc_chars.push_back(base_chars.get(i));
+            }
+
+            fixed_length_used_len_terms.insert(arg1, arg1_len);
+            fixed_length_used_integer_terms.insert(pos_subexpr, pos_subexpr_assignment);
+
+            // consistency check
+            if (rational(eqc_chars.size()) != termLen) {
+                TRACE("str_fl", tout << "length information inconsistent: arithmetic solver assigns length = " << termLen << ", but reduced to " << eqc_chars.size() << " characters" << std::endl;);
+                expr_ref premise(m.mk_and(
+                    ctx.mk_eq_atom(mk_strlen(arg0), mk_int(arg0_len)), 
+                    ctx.mk_eq_atom(pos_subexpr, mk_int(pos_subexpr_assignment)), 
+                    ctx.mk_eq_atom(mk_strlen(arg1), mk_int(arg1_len))), m);
+                expr_ref conclusion(ctx.mk_eq_atom(mk_strlen(term), mk_int(rational(eqc_chars.size()))), m);
+                cex = expr_ref(rewrite_implication(premise, conclusion), m);
+                eqc_chars.reset();
+                return false;
+            }
+            return true;
+            */
         } else {
             TRACE("str_fl", tout << "string term " << mk_pp(term, m) << " handled as uninterpreted function" << std::endl;);
             if (!uninterpreted_to_char_subterm_map.contains(term)) {
@@ -1081,6 +1221,10 @@ namespace smt {
         if (lhsLen != rhsLen) {
             TRACE("str", tout << "skip disequality: len(lhs) = " << lhsLen << ", len(rhs) = " << rhsLen << std::endl;);
             return true;
+        }
+
+        if (lhs_chars.size() != rhs_chars.size()) {
+            TRACE("str", tout << "error: lhs/rhs lengths inconsistent. lhsLen = " << lhsLen << ", rhsLen = " << rhsLen << ", |lhs_chars| = " << lhs_chars.size() << ", |rhs_chars| = " << rhs_chars.size() << std::endl;);
         }
 
         SASSERT(lhs_chars.size() == rhs_chars.size());

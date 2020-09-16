@@ -291,6 +291,7 @@ namespace smt {
 
     void theory_str::add_axiom_literals(literal l1, literal l2, literal l3, literal l4, literal l5) {
         context& ctx = get_context();
+        ast_manager& m = get_manager();
         literal_vector lits;
         if (l1 == true_literal || l2 == true_literal || l3 == true_literal || l4 == true_literal || l5 == true_literal) return;
         if (l1 != null_literal && l1 != false_literal) { ctx.mark_as_relevant(l1); lits.push_back(l1); }
@@ -300,7 +301,15 @@ namespace smt {
         if (l5 != null_literal && l5 != false_literal) { ctx.mark_as_relevant(l5); lits.push_back(l5); }
         TRACE("str", ctx.display_literals_verbose(tout << "assert:", lits) << "\n";);
 
-        ctx.mk_th_axiom(get_id(), lits.size(), lits.c_ptr());
+        //ctx.mk_th_axiom(get_id(), lits.size(), lits.c_ptr());
+        expr_ref_vector exprs(m);
+        for (auto l : lits) {
+            exprs.push_back(ctx.literal2expr(l));
+        }
+        expr_ref ax(mk_or(exprs), m);
+        assert_axiom_rw(ax);
+        m_trail.push_back(ax);
+        m_delayed_axiom_setup_terms.push_back(ax);
     }
 
     literal theory_str::mk_eq_empty(expr* _e, bool phase) {
@@ -959,9 +968,7 @@ namespace smt {
                     } else if (u.str.is_contains(a)) {
                         instantiate_axiom_Contains(e);
                     } else if (u.str.is_index(a)) {
-                        //instantiate_axiom_Indexof(e);
-                        TRACE("str", tout << "new str.indexof axioms not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        instantiate_axiom_Indexof(e);
                     } else if (u.str.is_extract(a)) {
                         instantiate_axiom_Substr(e);
                     } else if (u.str.is_replace(a)) {
@@ -1192,6 +1199,16 @@ namespace smt {
             expr_ref z(m_autil.mk_sub(u.str.mk_length(x), y1), m);
             expr_ref length_axiom = generate_substr_length_facts(a_str, x, y1, z);
             assert_axiom_rw(length_axiom);
+        /*} else if (m_seq_skolem.is_indexof_left(a_str, arg0, arg1)) {
+            // result = m_util.str.mk_substr(x, m_autil.mk_int(0), m_util.str.mk_index(x, y, m_autil.mk_int(0)));
+            expr_ref length_axiom = generate_substr_length_facts(a_str, arg0, m_autil.mk_int(0), u.str.mk_index(arg0, arg1, m_autil.mk_int(0)));
+            assert_axiom_rw(length_axiom);
+        } else if (m_seq_skolem.is_indexof_right(a_str, arg0, arg1)) {
+            expr_ref offset(m_autil.mk_add(u.str.mk_length(arg1), u.str.mk_index(arg0, arg1, m_autil.mk_int(0))), m);
+            // result = m_util.str.mk_substr(x, offset, m_util.str.mk_length(x));
+            expr_ref length_axiom = generate_substr_length_facts(a_str, arg0, offset, mk_strlen(arg0));
+            TRACE("str", tout << "seq.idx.right length axiom before rw: " << mk_pp(length_axiom, m) << std::endl;);
+            assert_axiom_rw(length_axiom);*/
         } else {
             // build axiom 1: Length(a_str) >= 0
             {
@@ -1389,79 +1406,9 @@ namespace smt {
             }
         }
 
-        expr * exHaystack = nullptr;
-        expr * exNeedle = nullptr;
-        expr * exIndex = nullptr;
-        u.str.is_index(ex, exHaystack, exNeedle, exIndex);
-
-        // if the third argument is exactly the integer 0, we can use this "simple" indexof;
-        // otherwise, we call the "extended" version
-        rational startingInteger;
-        if (!m_autil.is_numeral(exIndex, startingInteger) || !startingInteger.is_zero()) {
-            // "extended" indexof term with prefix
-            instantiate_axiom_Indexof_extended(e);
-            return;
-        }
         axiomatized_terms.insert(ex);
-
         TRACE("str", tout << "instantiate str.indexof axiom for " << mk_pp(ex, m) << std::endl;);
-
-        expr_ref x1(mk_str_var("x1"), m);
-        expr_ref x2(mk_str_var("x2"), m);
-
-        expr_ref condAst1(mk_contains(exHaystack, exNeedle), m);
-        expr_ref condAst2(m.mk_not(ctx.mk_eq_atom(exNeedle, mk_string(""))), m);
-        expr_ref condAst(m.mk_and(condAst1, condAst2), m);
-        SASSERT(condAst);
-
-        // -----------------------
-        // true branch
-        expr_ref_vector thenItems(m);
-        //  args[0] = x1 . args[1] . x2
-        thenItems.push_back(ctx.mk_eq_atom(exHaystack, mk_concat(x1, mk_concat(exNeedle, x2))));
-        //  indexAst = |x1|
-        thenItems.push_back(ctx.mk_eq_atom(ex, mk_strlen(x1)));
-        //     args[0]  = x3 . x4
-        //  /\ |x3| = |x1| + |args[1]| - 1
-        //  /\ ! contains(x3, args[1])
-        expr_ref x3(mk_str_var("x3"), m);
-        expr_ref x4(mk_str_var("x4"), m);
-        expr_ref tmpLen(m_autil.mk_add(ex, mk_strlen(ex->get_arg(1)), mk_int(-1)), m);
-        SASSERT(tmpLen);
-        thenItems.push_back(ctx.mk_eq_atom(exHaystack, mk_concat(x3, x4)));
-        thenItems.push_back(ctx.mk_eq_atom(mk_strlen(x3), tmpLen));
-        thenItems.push_back(mk_not(m, mk_contains(x3, exNeedle)));
-        expr_ref thenBranch(mk_and(thenItems), m);
-        SASSERT(thenBranch);
-
-        // -----------------------
-        // false branch
-        expr_ref elseBranch(m.mk_ite(
-                ctx.mk_eq_atom(exNeedle, mk_string("")),
-                ctx.mk_eq_atom(ex, mk_int(0)),
-                ctx.mk_eq_atom(ex, mk_int(-1))
-                ), m);
-        SASSERT(elseBranch);
-
-        expr_ref breakdownAssert(m.mk_ite(condAst, thenBranch, elseBranch), m);
-        rw(breakdownAssert);
-        assert_axiom(breakdownAssert);
-
-        {
-            // heuristic: integrate with str.contains information
-            // (but don't introduce it if it isn't already in the instance)
-            expr_ref haystack(ex->get_arg(0), m), needle(ex->get_arg(1), m), startIdx(ex->get_arg(2), m);
-            expr_ref zeroAst(mk_int(0), m);
-            // (H contains N) <==> (H indexof N, 0) >= 0
-            expr_ref premise(u.str.mk_contains(haystack, needle), m);
-            ctx.internalize(premise, false);
-            expr_ref conclusion(m_autil.mk_ge(ex, zeroAst), m);
-            expr_ref containsAxiom(ctx.mk_eq_atom(premise, conclusion), m);
-            SASSERT(containsAxiom);
-
-            // we can't assert this during init_search as it breaks an invariant if the instance becomes inconsistent
-            //m_delayed_axiom_setup_terms.push_back(containsAxiom);
-        }
+        m_seq_axioms.add_indexof_axiom(ex);
     }
 
     void theory_str::instantiate_axiom_Indexof_extended(enode * _e) {

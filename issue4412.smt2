@@ -1,0 +1,5 @@
+(set-logic QF_S)
+(declare-fun a () String)
+(assert (str.in_re a (re.range "a" "z")))
+(assert (str.in_re (str.++ a "b") (re.comp (re.range "a" "z"))))
+(check-sat)

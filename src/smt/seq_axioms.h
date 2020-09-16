@@ -40,7 +40,11 @@ namespace smt {
         context& ctx() { return th.get_context(); }
         literal mk_eq(expr* a, expr* b);
         literal mk_literal(expr* e);
-        literal mk_seq_eq(expr* a, expr* b) { SASSERT(seq.is_seq(a) && seq.is_seq(b)); return mk_literal(m_sk.mk_eq(a, b)); }
+        literal mk_seq_eq(expr* a, expr* b) { 
+            SASSERT(seq.is_seq(a) && seq.is_seq(b)); 
+            //return mk_literal(m_sk.mk_eq(a, b)); 
+            return mk_eq(a, b);
+        }
 
         expr_ref mk_len(expr* s);
         expr_ref mk_sub(expr* x, expr* y);
