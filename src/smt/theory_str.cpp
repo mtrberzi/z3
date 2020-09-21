@@ -952,13 +952,9 @@ namespace smt {
                 for (auto const& e : axioms_tmp) {
                     app * a = e->get_owner();
                     if (u.str.is_stoi(a)) {
-                        //instantiate_axiom_str_to_int(e);
-                        TRACE("str", tout << "new str.to_int axioms not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        instantiate_axiom_str_to_int(e);
                     } else if (u.str.is_itos(a)) {
-                        //instantiate_axiom_int_to_str(e);
-                        TRACE("str", tout << "new str.from_int axioms not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        instantiate_axiom_int_to_str(e);
                     } else if (u.str.is_at(a)) {
                         instantiate_axiom_CharAt(e);
                     } else if (u.str.is_prefix(a)) {
@@ -972,11 +968,13 @@ namespace smt {
                     } else if (u.str.is_extract(a)) {
                         instantiate_axiom_Substr(e);
                     } else if (u.str.is_replace(a)) {
-                        //instantiate_axiom_Replace(e);
-                        TRACE("str", tout << "new str.replace axioms not implemented yet!" << std::endl;);
-                        NOT_IMPLEMENTED_YET();
+                        instantiate_axiom_Replace(e);
                     } else if (u.str.is_in_re(a)) {
                         instantiate_axiom_RegexIn(e);
+                    } else if (u.str.is_le(a)) {
+                        instantiate_axiom_strcmp_le(e);
+                    } else if (u.str.is_lt(a)) {
+                        instantiate_axiom_strcmp_lt(e);
                     } else {
                         TRACE("str", tout << "BUG: unhandled library-aware term " << mk_pp(e->get_owner(), get_manager()) << std::endl;);
                         NOT_IMPLEMENTED_YET();
@@ -1738,54 +1736,7 @@ namespace smt {
         axiomatized_terms.insert(ex);
 
         TRACE("str", tout << "instantiate Replace axiom for " << mk_pp(ex, m) << std::endl;);
-
-        expr_ref x1(mk_str_var("x1"), m);
-        expr_ref x2(mk_str_var("x2"), m);
-        expr_ref i1(mk_int_var("i1"), m);
-        expr_ref result(mk_str_var("result"), m);
-
-        expr * replaceS = nullptr;
-        expr * replaceT = nullptr;
-        expr * replaceTPrime = nullptr;
-        VERIFY(u.str.is_replace(ex, replaceS, replaceT, replaceTPrime));
-
-        // t empty => result = (str.++ t' s)
-        expr_ref emptySrcAst(ctx.mk_eq_atom(replaceT, mk_string("")), m);
-        expr_ref prependTPrimeToS(ctx.mk_eq_atom(result, mk_concat(replaceTPrime, replaceS)), m);
-
-        // condAst = Contains(args[0], args[1])
-        expr_ref condAst(mk_contains(ex->get_arg(0), ex->get_arg(1)), m);
-        // -----------------------
-        // true branch
-        expr_ref_vector thenItems(m);
-        //  args[0] = x1 . args[1] . x2
-        thenItems.push_back(ctx.mk_eq_atom(ex->get_arg(0), mk_concat(x1, mk_concat(ex->get_arg(1), x2))));
-        //  i1 = |x1|
-        thenItems.push_back(ctx.mk_eq_atom(i1, mk_strlen(x1)));
-        //  args[0]  = x3 . x4 /\ |x3| = |x1| + |args[1]| - 1 /\ ! contains(x3, args[1])
-        expr_ref x3(mk_str_var("x3"), m);
-        expr_ref x4(mk_str_var("x4"), m);
-        expr_ref tmpLen(m_autil.mk_add(i1, mk_strlen(ex->get_arg(1)), mk_int(-1)), m);
-        thenItems.push_back(ctx.mk_eq_atom(ex->get_arg(0), mk_concat(x3, x4)));
-        thenItems.push_back(ctx.mk_eq_atom(mk_strlen(x3), tmpLen));
-        thenItems.push_back(mk_not(m, mk_contains(x3, ex->get_arg(1))));
-        thenItems.push_back(ctx.mk_eq_atom(result, mk_concat(x1, mk_concat(ex->get_arg(2), x2))));
-        // -----------------------
-        // false branch
-        expr_ref elseBranch(ctx.mk_eq_atom(result, ex->get_arg(0)), m);
-
-        th_rewriter rw(m);
-
-        expr_ref breakdownAssert(m.mk_ite(emptySrcAst, prependTPrimeToS,
-                m.mk_ite(condAst, mk_and(thenItems), elseBranch)), m);
-        expr_ref breakdownAssert_rw(breakdownAssert, m);
-        rw(breakdownAssert_rw);
-        assert_axiom(breakdownAssert_rw);
-
-        expr_ref reduceToResult(ctx.mk_eq_atom(ex, result), m);
-        expr_ref reduceToResult_rw(reduceToResult, m);
-        rw(reduceToResult_rw);
-        assert_axiom(reduceToResult_rw);
+        m_seq_axioms.add_replace_axiom(ex);
     }
 
     void theory_str::instantiate_axiom_str_to_int(enode * e) {
@@ -1799,43 +1750,7 @@ namespace smt {
         axiomatized_terms.insert(ex);
 
         TRACE("str", tout << "instantiate str.to-int axiom for " << mk_pp(ex, m) << std::endl;);
-
-        // let expr = (str.to-int S)
-        // axiom 1: expr >= -1
-        // axiom 2: expr = 0 <==> S in "0+"
-        // axiom 3: expr >= 1 ==> S in "0*[1-9][0-9]*"
-
-        // expr * S = ex->get_arg(0);
-        {
-            expr_ref axiom1(m_autil.mk_ge(ex, m_autil.mk_numeral(rational::minus_one(), true)), m);
-            SASSERT(axiom1);
-            assert_axiom_rw(axiom1);
-        }
-# if 0
-        {
-            expr_ref lhs(ctx.mk_eq_atom(ex, m_autil.mk_numeral(rational::zero(), true)), m);
-            expr_ref re_zeroes(u.re.mk_plus(u.re.mk_to_re(mk_string("0"))), m);
-            expr_ref rhs(mk_RegexIn(S, re_zeroes), m);
-            expr_ref axiom2(ctx.mk_eq_atom(lhs, rhs), m);
-            SASSERT(axiom2);
-            assert_axiom_rw(axiom2);
-        }
-
-        {
-            expr_ref premise(m_autil.mk_ge(ex, m_autil.mk_numeral(rational::one(), true)), m);
-            //expr_ref re_positiveInteger(u.re.mk_concat(
-            //        u.re.mk_range(mk_string("1"), mk_string("9")),
-            //        u.re.mk_star(u.re.mk_range(mk_string("0"), mk_string("9")))), m);
-            expr_ref re_subterm(u.re.mk_concat(u.re.mk_range(mk_string("1"), mk_string("9")),
-                u.re.mk_star(u.re.mk_range(mk_string("0"), mk_string("9")))), m);
-            expr_ref re_integer(u.re.mk_concat(u.re.mk_star(mk_string("0")), re_subterm), m);
-            expr_ref conclusion(mk_RegexIn(S, re_integer), m);
-            SASSERT(premise);
-            SASSERT(conclusion);
-            //assert_implication(premise, conclusion);
-            assert_axiom_rw(rewrite_implication(premise, conclusion));
-        }
-#endif
+        m_seq_axioms.add_stoi_axiom(ex);
     }
 
     void theory_str::instantiate_axiom_int_to_str(enode * e) {
@@ -1849,28 +1764,35 @@ namespace smt {
         axiomatized_terms.insert(ex);
 
         TRACE("str", tout << "instantiate str.from-int axiom for " << mk_pp(ex, m) << std::endl;);
+        m_seq_axioms.add_itos_axiom(ex);
+    }
 
-        // axiom 1: N < 0 <==> (str.from-int N) = ""
-        expr * N = ex->get_arg(0);
-        {
-            expr_ref axiom1_lhs(mk_not(m, m_autil.mk_ge(N, m_autil.mk_numeral(rational::zero(), true))), m);
-            expr_ref axiom1_rhs(ctx.mk_eq_atom(ex, mk_string("")), m);
-            expr_ref axiom1(ctx.mk_eq_atom(axiom1_lhs, axiom1_rhs), m);
-            SASSERT(axiom1);
-            assert_axiom(axiom1);
-        }
+    void theory_str::instantiate_axiom_strcmp_lt(enode* e) {
+        ast_manager& m = get_manager();
 
-        // axiom 2: The only (str.from-int N) that starts with a "0" is "0".
-        {
-            expr_ref zero(mk_string("0"), m);
-            // let (the result starts with a "0") be p
-            expr_ref starts_with_zero(u.str.mk_prefix(zero, ex), m);
-            // let (the result is "0") be q  
-            expr_ref is_zero(ctx.mk_eq_atom(ex, zero), m);
-            // encoding: the result does NOT start with a "0" (~p) xor the result is "0" (q)
-            // ~p xor q == (~p or q) and (p or ~q)
-            assert_axiom(m.mk_and(m.mk_or(m.mk_not(starts_with_zero), is_zero), m.mk_or(starts_with_zero, m.mk_not(is_zero))));
+        app* ex = e->get_owner();
+        if (axiomatized_terms.contains(ex)) {
+            TRACE("str", tout << "already set up str.< axiom for " << mk_pp(ex, m) << std::endl;);
+            return;
         }
+        axiomatized_terms.insert(ex);
+
+        TRACE("str", tout << "instantiate str.< axiom for " << mk_pp(ex, m) << std::endl;);
+        m_seq_axioms.add_lt_axiom(ex);
+    }
+
+    void theory_str::instantiate_axiom_strcmp_le(enode* e) {
+        ast_manager& m = get_manager();
+
+        app* ex = e->get_owner();
+        if (axiomatized_terms.contains(ex)) {
+            TRACE("str", tout << "already set up str.<= axiom for " << mk_pp(ex, m) << std::endl;);
+            return;
+        }
+        axiomatized_terms.insert(ex);
+
+        TRACE("str", tout << "instantiate str.<= axiom for " << mk_pp(ex, m) << std::endl;);
+        m_seq_axioms.add_le_axiom(ex);
     }
 
     expr * theory_str::mk_RegexIn(expr * str, expr * regexp) {
