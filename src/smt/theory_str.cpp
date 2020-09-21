@@ -1693,8 +1693,8 @@ namespace smt {
         // but the SMT-LIB standard enforces pos in the interval [0, len(base) - 1].
         // what's correct?
 
-        expr_ref length_axioms = generate_substr_length_facts(expr, substrBase, substrPos, substrLen);
-        assert_axiom_rw(length_axioms);
+        //expr_ref length_axioms = generate_substr_length_facts(expr, substrBase, substrPos, substrLen);
+        //assert_axiom_rw(length_axioms);
 
         // Auxiliary axioms
         {
