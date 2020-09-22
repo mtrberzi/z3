@@ -1027,6 +1027,7 @@ namespace smt {
         SASSERT(u.str.is_concat(a_cat));
 
         ast_manager & m = get_manager();
+        bv_util bv(m);
 
         TRACE("str", tout << "attempting to flatten " << mk_pp(a_cat, m) << std::endl;);
 
@@ -1048,11 +1049,24 @@ namespace smt {
             if (u.str.is_string(evalArg, nextStr)) {
                 flattenedString = flattenedString + nextStr;
             } else if (u.str.is_concat(evalArg)) {
-                app * arg0 = to_app(evalArg->get_arg(0));
-                app * arg1 = to_app(evalArg->get_arg(1));
+                app* arg0 = to_app(evalArg->get_arg(0));
+                app* arg1 = to_app(evalArg->get_arg(1));
 
                 worklist.push(arg1);
                 worklist.push(arg0);
+            } else if (u.str.is_unit(evalArg)) {
+                expr* subterm;
+                u.str.is_unit(evalArg, subterm);
+                rational unit_val;
+                if (bv.is_numeral(subterm, unit_val)) {
+                    SASSERT(unit_val.is_nonneg() && unit_val.get_unsigned() <= 255);
+                    zstring unitStr(unit_val.get_unsigned());
+                    flattenedString = flattenedString + unitStr;
+                } else {
+                    TRACE("str", tout << "non-constant term in seq.unit -- giving up." << std::endl;);
+                    constOK = false;
+                    break;
+                }
             } else {
                 TRACE("str", tout << "non-constant term in concat -- giving up." << std::endl;);
                 constOK = false;
