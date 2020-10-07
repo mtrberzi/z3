@@ -3285,6 +3285,9 @@ br_status seq_rewriter::mk_str_in_regexp(expr* a, expr* b, expr_ref& result) {
             return BR_REWRITE_FULL;
     }
 
+    // don't use any rewrites that leverage derivatives
+    return BR_FAILED;
+
     expr_ref hd(m()), tl(m());
     if (get_head_tail(a, hd, tl)) {
         result = re().mk_in_re(tl, re().mk_derivative(hd, b));
