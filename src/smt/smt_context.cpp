@@ -3634,7 +3634,12 @@ namespace smt {
     }
 
     bool context::restart(lbool& status, unsigned curr_lvl) {
-        SASSERT(status != l_true || !inconsistent());
+        // SASSERT(status != l_true || !inconsistent());
+        if (!(status != l_true || !inconsistent())) {
+  	    // give up
+  	    status = l_undef;
+	    return false;
+        }
 
         reset_model();
 
