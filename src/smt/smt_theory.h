@@ -16,9 +16,9 @@ Author:
 Revision History:
 
 --*/
-#ifndef SMT_THEORY_H_
-#define SMT_THEORY_H_
+#pragma once
 
+#include "ast/ast_pp.h"
 #include "smt/smt_enode.h"
 #include "smt/smt_quantifier.h"
 #include "util/obj_hashtable.h"
@@ -36,6 +36,8 @@ namespace smt {
         ast_manager &   m;
         enode_vector    m_var2enode;
         unsigned_vector m_var2enode_lim;
+        unsigned        m_lazy_scopes;
+        bool            m_lazy;
 
         friend class context;
         friend class arith_value;
@@ -73,6 +75,9 @@ namespace smt {
             return n->get_th_var(get_id());
         }
 
+        bool lazy_push();
+        bool lazy_pop(unsigned& num_scopes);
+        void force_push();
         
     public:
         /**
@@ -115,6 +120,23 @@ namespace smt {
 
             scoped_trace_stream(theory& th, literal_vector const& lits): m(th.get_manager()) {
                 if (m.has_trace_stream()) {
+                    th.log_axiom_instantiation(lits);
+                }
+            }
+
+            scoped_trace_stream(theory& th, literal lit): m(th.get_manager()) {
+                if (m.has_trace_stream()) {
+                    literal_vector lits;
+                    lits.push_back(lit);
+                    th.log_axiom_instantiation(lits);
+                }
+            }
+
+            scoped_trace_stream(theory& th, literal lit1, literal lit2): m(th.get_manager()) {
+                if (m.has_trace_stream()) {
+                    literal_vector lits;
+                    lits.push_back(lit1);
+                    lits.push_back(lit2);
                     th.log_axiom_instantiation(lits);
                 }
             }
@@ -503,14 +525,21 @@ namespace smt {
            behavior conflicts with a convention used by the theory/family.
         */
         virtual app * mk_eq_atom(expr * lhs, expr * rhs) {
+            ast_manager& m = get_manager();
             if (lhs->get_id() > rhs->get_id())
                 std::swap(lhs, rhs);
+            if (m.are_distinct(lhs, rhs))                
+                return m.mk_false();
+            if (m.are_equal(lhs, rhs))
+                return m.mk_true();
             return get_manager().mk_eq(lhs, rhs);
         }
 
         literal mk_eq(expr * a, expr * b, bool gate_ctx);
 
         literal mk_preferred_eq(expr* a, expr* b);
+
+        literal mk_literal(expr* e);
 
         enode* ensure_enode(expr* e);
 
@@ -584,5 +613,4 @@ namespace smt {
     
 };
 
-#endif /* SMT_THEORY_H_ */
 

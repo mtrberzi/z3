@@ -27,6 +27,7 @@ Revision History:
 #include <cstring>
 #include "math/lp/lp_utils.h"
 #include "util/stopwatch.h"
+#include "util/statistics.h"
 #include "math/lp/lp_types.h"
 
 namespace lp {
@@ -38,6 +39,16 @@ enum class column_type  {
     boxed = 3,
     fixed = 4
 };
+
+inline std::ostream& operator<<(std::ostream& out, column_type const& t) {
+    switch (t) {
+    case column_type::free_column: return out << "free";
+    case column_type::lower_bound: return out << "lower";
+    case column_type::upper_bound: return out << "upper";
+    case column_type::boxed: return out << "boxed";
+    case column_type::fixed: return out << "fixed";
+    }
+}
 
 enum class simplex_strategy_enum {
     undecided = 3,
@@ -116,6 +127,26 @@ struct statistics {
     unsigned m_cheap_eqs;
     statistics() { reset(); }
     void reset() { memset(this, 0, sizeof(*this)); }
+    void collect_statistics(::statistics& st) const {
+        st.update("arith-factorizations", m_num_factorizations);
+        st.update("arith-make-feasible", m_make_feasible);
+        st.update("arith-max-columns", m_max_cols);
+        st.update("arith-max-rows", m_max_rows);
+        st.update("arith-gcd-calls", m_gcd_calls);
+        st.update("arith-gcd-conflict", m_gcd_conflicts);
+        st.update("arith-cube-calls", m_cube_calls);
+        st.update("arith-cube-success", m_cube_success);
+        st.update("arith-patches", m_patches);
+        st.update("arith-patches-success", m_patches_success);
+        st.update("arith-hnf-calls", m_hnf_cutter_calls);
+        st.update("arith-horner-calls", m_horner_calls);
+        st.update("arith-horner-conflicts", m_horner_conflicts);
+        st.update("arith-horner-cross-nested-forms", m_cross_nested_forms);
+        st.update("arith-grobner-calls", m_grobner_calls);
+        st.update("arith-grobner-conflicts", m_grobner_conflicts);
+        st.update("arith-cheap-eqs", m_cheap_eqs);
+
+    }
 };
 
 struct lp_settings {
@@ -206,12 +237,12 @@ public:
 private:
     bool             m_enable_hnf;
     bool             m_print_external_var_name;
-    unsigned         m_cheap_eqs;
+    bool             m_cheap_eqs;
 public:
     bool print_external_var_name() const { return m_print_external_var_name; }
     bool& print_external_var_name() { return m_print_external_var_name; }
-    unsigned cheap_eqs() const { return m_cheap_eqs;}
-    unsigned& cheap_eqs() { return m_cheap_eqs;}
+    bool cheap_eqs() const { return m_cheap_eqs;}
+    bool& cheap_eqs() { return m_cheap_eqs;}
     unsigned hnf_cut_period() const { return m_hnf_cut_period; }
     void set_hnf_cut_period(unsigned period) { m_hnf_cut_period = period;  }
     unsigned random_next() { return m_rand(); }

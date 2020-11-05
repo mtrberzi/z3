@@ -30,7 +30,6 @@ Notes:
 #include "ast/seq_decl_plugin.h"
 #include "ast/pb_decl_plugin.h"
 #include "ast/fpa_decl_plugin.h"
-#include "ast/csp_decl_plugin.h"
 #include "ast/special_relations_decl_plugin.h"
 #include "ast/ast_pp.h"
 #include "ast/rewriter/var_subst.h"
@@ -286,7 +285,8 @@ bool cmd_context::contains_func_decl(symbol const& s, unsigned n, sort* const* d
 }
 
 bool cmd_context::contains_macro(symbol const& s) const {
-    return m_macros.contains(s);
+    macro_decls decls;
+    return m_macros.find(s, decls) && !decls.empty();
 }
 
 bool cmd_context::contains_macro(symbol const& s, func_decl* f) const {
@@ -307,6 +307,7 @@ void cmd_context::insert_macro(symbol const& s, unsigned arity, sort*const* doma
     else {
         VERIFY(decls.insert(m(), arity, domain, t));
     }
+    model_add(s, arity, domain, t);
 }
 
 void cmd_context::erase_macro(symbol const& s) {
@@ -315,7 +316,7 @@ void cmd_context::erase_macro(symbol const& s) {
     decls.erase_last(m());
 }
 
-bool cmd_context::macros_find(symbol const& s, unsigned n, expr*const* args, expr*& t) const {
+bool cmd_context::macros_find(symbol const& s, unsigned n, expr*const* args, expr_ref_vector& coerced_args, expr*& t) const {
     macro_decls decls;
     if (!m_macros.find(s, decls)) {
         return false;
@@ -323,8 +324,19 @@ bool cmd_context::macros_find(symbol const& s, unsigned n, expr*const* args, exp
     for (macro_decl const& d : decls) {
         if (d.m_domain.size() != n) continue;
         bool eq = true;
+        coerced_args.reset();
         for (unsigned i = 0; eq && i < n; ++i) {
-            eq = d.m_domain[i] == m().get_sort(args[i]);
+            if (d.m_domain[i] == m().get_sort(args[i])) {
+                coerced_args.push_back(args[i]);
+                continue;
+            }
+            
+            arith_util au(m());
+            if (au.is_real(d.m_domain[i]) && au.is_int(args[i])) {
+                coerced_args.push_back(au.mk_to_real(args[i]));
+                continue;
+            }
+            eq = false;
         }
         if (eq) {
             t = d.m_body;
@@ -687,7 +699,6 @@ void cmd_context::init_manager_core(bool new_manager) {
         register_plugin(symbol("pb"),       alloc(pb_decl_plugin), logic_has_pb());
         register_plugin(symbol("fpa"),      alloc(fpa_decl_plugin), logic_has_fpa());
         register_plugin(symbol("datalog_relation"), alloc(datalog::dl_decl_plugin), !has_logic());
-        register_plugin(symbol("csp"),      alloc(csp_decl_plugin), smt_logics::logic_is_csp(m_logic));
         register_plugin(symbol("specrels"), alloc(special_relations_decl_plugin), !has_logic());
     }
     else {
@@ -704,7 +715,6 @@ void cmd_context::init_manager_core(bool new_manager) {
         load_plugin(symbol("seq"),      logic_has_seq(), fids);
         load_plugin(symbol("fpa"),      logic_has_fpa(), fids);
         load_plugin(symbol("pb"),       logic_has_pb(), fids);
-        load_plugin(symbol("csp"),      smt_logics::logic_is_csp(m_logic), fids);
 
         for (family_id fid : fids) {
             decl_plugin * p = m_manager->get_plugin(fid);
@@ -794,6 +804,8 @@ void cmd_context::insert(symbol const & s, func_decl * f) {
 #endif
     func_decls & fs = m_func_decls.insert_if_not_there(s, func_decls());
     if (!fs.insert(m(), f)) {
+        if (m_allow_duplicate_declarations)
+            return;
         std::string msg = "invalid declaration, ";
         msg += f->get_arity() == 0 ? "constant" : "function";
         msg += " '";
@@ -840,6 +852,7 @@ void cmd_context::insert(symbol const & s, unsigned arity, sort *const* domain, 
     insert_macro(s, arity, domain, t);
     if (!m_global_decls) {
         m_macros_stack.push_back(s);
+        
     }
 }
 
@@ -879,6 +892,8 @@ void cmd_context::model_add(symbol const & s, unsigned arity, sort *const* domai
     fs.insert(m(), fn);
     VERIFY(fn->get_range() == m().get_sort(t));
     m_mc0->add(fn, t);
+    if (!m_global_decls)
+        m_func_decls_stack.push_back(sf_pair(s, fn));
 }
 
 void cmd_context::model_del(func_decl* f) {
@@ -923,7 +938,7 @@ func_decl * cmd_context::find_func_decl(symbol const & s) const {
     func_decls fs;
     if (m_func_decls.find(s, fs)) {
         if (fs.more_than_one())
-            throw cmd_exception("ambiguous function declaration reference, provide full signature to disumbiguate (<symbol> (<sort>*) <sort>) ", s);
+            throw cmd_exception("ambiguous function declaration reference, provide full signature to disambiguate (<symbol> (<sort>*) <sort>) ", s);
         return fs.first();
     }
     builtin_decl d;
@@ -1034,17 +1049,19 @@ void cmd_context::mk_const(symbol const & s, expr_ref & result) const {
     mk_app(s, 0, nullptr, 0, nullptr, nullptr, result);
 }
 
-void cmd_context::mk_app(symbol const & s, unsigned num_args, expr * const * args, unsigned num_indices, parameter const * indices, sort * range,
+void cmd_context::mk_app(symbol const & s, unsigned num_args, expr * const * args, 
+                         unsigned num_indices, parameter const * indices, sort * range,
                          expr_ref & result) const {
     expr* _t;
-    if (macros_find(s, num_args, args, _t)) {
+    expr_ref_vector coerced_args(m());
+    if (macros_find(s, num_args, args, coerced_args, _t)) {
         TRACE("macro_bug", tout << "well_sorted_check_enabled(): " << well_sorted_check_enabled() << "\n";
               tout << "s: " << s << "\n";
               tout << "body:\n" << mk_ismt2_pp(_t, m()) << "\n";
               tout << "args:\n"; for (unsigned i = 0; i < num_args; i++) tout << mk_ismt2_pp(args[i], m()) << "\n" << mk_pp(m().get_sort(args[i]), m()) << "\n";);
         var_subst subst(m());
         scoped_rlimit no_limit(m().limit(), 0);
-        result = subst(_t, num_args, args);        
+        result = subst(_t, coerced_args);
         if (well_sorted_check_enabled() && !is_well_sorted(m(), result))
             throw cmd_exception("invalid macro application, sort mismatch ", s);
         return;
@@ -1346,7 +1363,8 @@ void cmd_context::push() {
     s.m_macros_stack_lim       = m_macros_stack.size();
     s.m_aux_pdecls_lim         = m_aux_pdecls.size();
     s.m_assertions_lim         = m_assertions.size();
-    pm().push();
+    if (!m_global_decls)
+        pm().push();
     unsigned timeout = m_params.m_timeout;
     m().limit().push(m_params.rlimit());
     cancel_eh<reslimit> eh(m().limit());
@@ -1410,10 +1428,8 @@ void cmd_context::restore_macros(unsigned old_sz) {
     SASSERT(old_sz <= m_macros_stack.size());
     svector<symbol>::iterator it  = m_macros_stack.begin() + old_sz;
     svector<symbol>::iterator end = m_macros_stack.end();
-    for (; it != end; ++it) {
-        symbol const & s = *it;
-        erase_macro(s);
-    }
+    for (; it != end; ++it) 
+        erase_macro(*it);    
     m_macros_stack.shrink(old_sz);
 }
 
@@ -1475,7 +1491,8 @@ void cmd_context::pop(unsigned n) {
     restore_assertions(s.m_assertions_lim);
     restore_psort_inst(s.m_psort_inst_stack_lim);
     m_scopes.shrink(new_lvl);
-    pm().pop(n);
+    if (!m_global_decls)
+        pm().pop(n);
     while (n--) {
         m().limit().pop();
     }
@@ -1494,6 +1511,7 @@ void cmd_context::check_sat(unsigned num_assumptions, expr * const * assumptions
     lbool r;
 
     if (m_opt && !m_opt->empty()) {
+        bool is_clear = m_check_sat_result == nullptr;
         m_check_sat_result = get_opt();
         cancel_eh<reslimit> eh(m().limit());
         scoped_ctrl_c ctrlc(eh);
@@ -1501,7 +1519,7 @@ void cmd_context::check_sat(unsigned num_assumptions, expr * const * assumptions
         scoped_rlimit _rlimit(m().limit(), rlimit);
         expr_ref_vector asms(m());
         asms.append(num_assumptions, assumptions);
-        if (!get_opt()->is_pareto()) {
+        if (!get_opt()->is_pareto() || is_clear) {
             expr_ref_vector assertions(m());
             unsigned sz = m_assertions.size();
             for (unsigned i = 0; i < sz; ++i) {
@@ -1640,9 +1658,9 @@ void cmd_context::display_model(model_ref& mdl) {
         if (p.v1() || p.v2()) {
             std::ostringstream buffer;
             model_v2_pp(buffer, *mdl, false);
-            regular_stream() << "\"" << escaped(buffer.str().c_str(), true) << "\"" << std::endl;
+            regular_stream() << '"' << escaped(buffer.str(), true) << '"' << std::endl;
         } else {
-            regular_stream() << "(model " << std::endl;
+            regular_stream() << "(" << std::endl;
             model_smt2_pp(regular_stream(), *this, *mdl, 2);
             regular_stream() << ")" << std::endl;
         }
@@ -1656,7 +1674,7 @@ void cmd_context::add_declared_functions(model& mdl) {
             expr* val = mdl.get_some_value(f->get_range());
             if (f->get_arity() == 0) {
                 mdl.register_decl(f, val);
-                }
+            }
             else {
                 func_interp* fi = alloc(func_interp, m(), f->get_arity());
                 fi->set_else(val);

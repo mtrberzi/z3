@@ -18,7 +18,7 @@ Revision History:
 --*/
 #include "smt/params/theory_arith_params.h"
 #include "smt/params/smt_params_helper.hpp"
-#include "ast/rewriter/arith_rewriter_params.hpp"
+#include "params/arith_rewriter_params.hpp"
 
 void theory_arith_params::updt_params(params_ref const & _p) {
     smt_params_helper p(_p);
@@ -50,11 +50,11 @@ void theory_arith_params::updt_params(params_ref const & _p) {
 void theory_arith_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_arith_eq2ineq);
     DISPLAY_PARAM(m_arith_process_all_eqs);
-    DISPLAY_PARAM(m_arith_mode);
+    DISPLAY_PARAM((unsigned)m_arith_mode);
     DISPLAY_PARAM(m_arith_auto_config_simplex); //!< force simplex solver in auto_config
     DISPLAY_PARAM(m_arith_blands_rule_threshold);
     DISPLAY_PARAM(m_arith_propagate_eqs);
-    DISPLAY_PARAM(m_arith_bound_prop);
+    DISPLAY_PARAM((unsigned)m_arith_bound_prop);
     DISPLAY_PARAM(m_arith_stronger_lemmas);
     DISPLAY_PARAM(m_arith_skip_rows_with_big_coeffs);
     DISPLAY_PARAM(m_arith_max_lemma_size);
@@ -81,7 +81,7 @@ void theory_arith_params::display(std::ostream & out) const {
     DISPLAY_PARAM(m_arith_pivot_strategy);
     DISPLAY_PARAM(m_arith_bounded_expansion);
     DISPLAY_PARAM(m_arith_add_binary_bounds);
-    DISPLAY_PARAM(m_arith_propagation_strategy);
+    DISPLAY_PARAM((unsigned)m_arith_propagation_strategy);
     DISPLAY_PARAM(m_arith_eq_bounds);
     DISPLAY_PARAM(m_arith_lazy_adapter);
     DISPLAY_PARAM(m_arith_fixnum);

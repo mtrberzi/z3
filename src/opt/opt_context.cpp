@@ -387,6 +387,7 @@ namespace opt {
 
     void context::get_model_core(model_ref& mdl) {
         mdl = m_model;
+        CTRACE("opt", mdl, tout << *mdl;);
         fix_model(mdl);
         if (mdl) mdl->set_model_completion(true);
         CTRACE("opt", mdl, tout << *mdl;);
@@ -665,9 +666,8 @@ namespace opt {
         opt_params p(m_params);        
         if (p.optsmt_engine() == symbol("symba") ||
             p.optsmt_engine() == symbol("farkas")) {
-            std::stringstream strm;
-            strm << AS_OPTINF;
-            gparams::set("smt.arith.solver", strm.str().c_str());
+            auto str = std::to_string((unsigned)(arith_solver_id::AS_OPTINF));
+            gparams::set("smt.arith.solver", str.c_str());
         }
     }
 
@@ -693,7 +693,7 @@ namespace opt {
         expr_ref_vector fmls(m);
         get_solver().get_assertions(fmls);
         m_sat_solver->assert_expr(fmls);
-        m_solver = m_sat_solver.get();        
+        m_solver = m_sat_solver.get();
     }
 
     void context::enable_sls(bool force) {
@@ -950,8 +950,8 @@ namespace opt {
                   tout << "offset: " << offset << "\n";
                   );
             std::ostringstream out;
-            out << orig_term << ":" << index;
-            id = symbol(out.str().c_str());
+            out << orig_term << ':' << index;
+            id = symbol(out.str());
             return true;
         }
         if (is_max && get_pb_sum(term, terms, weights, offset)) {
@@ -973,8 +973,8 @@ namespace opt {
             }
             neg = true;
             std::ostringstream out;
-            out << orig_term << ":" << index;
-            id = symbol(out.str().c_str());
+            out << orig_term << ':' << index;
+            id = symbol(out.str());
             return true;
         }
         if ((is_max || is_min) && m_bv.is_bv(term)) {
@@ -992,9 +992,9 @@ namespace opt {
             }
             neg = is_max;
             std::ostringstream out;
-            out << orig_term << ":" << index;
-            id = symbol(out.str().c_str());
-            return true;            
+            out << orig_term << ':' << index;
+            id = symbol(out.str());
+            return true;
         }
         return false;
     }
@@ -1473,6 +1473,7 @@ namespace opt {
 
     void context::clear_state() {
         m_pareto = nullptr;
+        m_pareto1 = false;
         m_box_index = UINT_MAX;
         m_box_models.reset();
         m_model.reset();

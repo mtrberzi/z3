@@ -16,8 +16,8 @@ Author:
 Notes:
 
 --*/
+#include "params/rewriter_params.hpp"
 #include "ast/rewriter/th_rewriter.h"
-#include "ast/rewriter/rewriter_params.hpp"
 #include "ast/rewriter/bool_rewriter.h"
 #include "ast/rewriter/arith_rewriter.h"
 #include "ast/rewriter/bv_rewriter.h"
@@ -788,8 +788,6 @@ struct th_rewriter_cfg : public default_rewriter_cfg {
 
 };
 }
-
-template class rewriter_tpl<th_rewriter_cfg>;
 
 struct th_rewriter::imp : public rewriter_tpl<th_rewriter_cfg> {
     th_rewriter_cfg m_cfg;

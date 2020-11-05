@@ -21,8 +21,7 @@ Author:
 Revision History:
 
 --*/
-#ifndef PROBE_H_
-#define PROBE_H_
+#pragma once
 
 #include "tactic/goal.h"
 
@@ -127,4 +126,3 @@ probe * mk_contains_string_probe();
   ADD_PROBE("is-qfaufbv", "true if the goal is in QF_AUFBV.", "mk_is_qfaufbv_probe()")
 */
 
-#endif

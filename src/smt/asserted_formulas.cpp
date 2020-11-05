@@ -58,7 +58,8 @@ asserted_formulas::asserted_formulas(ast_manager & m, smt_params & sp, params_re
     m_propagate_values(*this),
     m_nnf_cnf(*this),
     m_apply_quasi_macros(*this),
-    m_flatten_clauses(*this) {
+    m_flatten_clauses(*this),
+    m_lazy_scopes(0) {
 
     m_macro_finder = alloc(macro_finder, m, m_macro_manager);
 
@@ -146,6 +147,7 @@ void asserted_formulas::set_eliminate_and(bool flag) {
 
 
 void asserted_formulas::assert_expr(expr * e, proof * _in_pr) {
+    force_push();
     proof_ref  in_pr(_in_pr, m), pr(_in_pr, m);
     expr_ref   r(e, m);
 
@@ -180,6 +182,10 @@ void asserted_formulas::get_assertions(ptr_vector<expr> & result) const {
 }
 
 void asserted_formulas::push_scope() {
+    ++m_lazy_scopes;
+}
+
+void asserted_formulas::push_scope_core() {
     reduce();
     commit();
     SASSERT(inconsistent() || m_qhead == m_formulas.size() || m.limit().is_canceled());
@@ -198,7 +204,19 @@ void asserted_formulas::push_scope() {
     TRACE("asserted_formulas_scopes", tout << "after push: " << m_scopes.size() << "\n";);
 }
 
+void asserted_formulas::force_push() {
+    for (; m_lazy_scopes > 0; --m_lazy_scopes)
+        push_scope_core();
+}
+
 void asserted_formulas::pop_scope(unsigned num_scopes) {
+    if (m_lazy_scopes > 0) {
+        unsigned n = std::min(num_scopes, m_lazy_scopes);
+        m_lazy_scopes -= n;
+        num_scopes -= n;
+        if (num_scopes == 0)
+            return;
+    }
     TRACE("asserted_formulas_scopes", tout << "before pop " << num_scopes << " of " << m_scopes.size() << "\n";);
     m_bv_sharing.pop_scope(num_scopes);
     m_macro_manager.pop_scope(num_scopes);
@@ -260,6 +278,8 @@ void asserted_formulas::reduce() {
     if (!invoke(m_reduce_asserted_formulas)) return;
     if (!invoke(m_pull_nested_quantifiers)) return;
     if (!invoke(m_lift_ite)) return;
+    m_lift_ite.m_functor.set_conservative(m_smt_params.m_lift_ite == LI_CONSERVATIVE);
+    m_ng_lift_ite.m_functor.set_conservative(m_smt_params.m_ng_lift_ite == LI_CONSERVATIVE);
     if (!invoke(m_ng_lift_ite)) return;
     if (!invoke(m_elim_term_ite)) return;
     if (!invoke(m_refine_inj_axiom)) return;

@@ -55,7 +55,7 @@ public:
         append(other);
     }
 
-    ref_vector_core(ref_vector_core &&) = default;
+    ref_vector_core(ref_vector_core &&) noexcept = default;
     
     ~ref_vector_core() {
         dec_range_ref(m_nodes.begin(), m_nodes.end());
@@ -241,7 +241,7 @@ public:
         this->append(other);
     }
 
-    ref_vector(ref_vector &&) = default;
+    ref_vector(ref_vector &&) noexcept = default;
 
     ref_vector(TManager & m, unsigned sz, T * const * data):
         super(ref_manager_wrapper<T, TManager>(m)) {
@@ -315,6 +315,8 @@ public:
 
     void set(unsigned idx, T * n) { super::set(idx, n); }
 
+    void setx(unsigned idx, T* n) { super::reserve(idx + 1); super::set(idx, n); }
+
     // enable abuse:
     ref_vector & set(ref_vector const& other) {
         if (this != &other) {
@@ -324,9 +326,6 @@ public:
         return *this;
     }
     
-    // prevent abuse:
-    ref_vector & operator=(ref_vector const & other) = delete;
-
     ref_vector & operator=(ref_vector && other) = default;
 
     bool operator==(ref_vector const& other) const {

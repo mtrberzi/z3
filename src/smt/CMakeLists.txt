@@ -6,7 +6,6 @@ z3_add_component(smt
     cached_var_subst.cpp
     cost_evaluator.cpp
     dyn_ack.cpp
-    elim_term_ite.cpp
     expr_context_simplifier.cpp
     fingerprints.cpp
     mam.cpp
@@ -68,7 +67,6 @@ z3_add_component(smt
     theory_dl.cpp
     theory_dummy.cpp
     theory_fpa.cpp
-    theory_jobscheduler.cpp
     theory_lra.cpp
     theory_opt.cpp
     theory_pb.cpp
@@ -80,6 +78,7 @@ z3_add_component(smt
     theory_str_regex.cpp
     theory_utvpi.cpp
     theory_wmaxsat.cpp
+    user_propagator.cpp
     uses_theory.cpp
     watch_list.cpp
   COMPONENT_DEPENDENCIES

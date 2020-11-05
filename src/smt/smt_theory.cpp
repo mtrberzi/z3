@@ -39,6 +39,26 @@ namespace smt {
         m_var2enode_lim.shrink(new_lvl);
     }
 
+    bool theory::lazy_push() {
+        if (m_lazy)
+            ++m_lazy_scopes;
+        return m_lazy;
+    }
+
+    bool theory::lazy_pop(unsigned& num_scopes) {
+        unsigned n = std::min(num_scopes, m_lazy_scopes);
+        num_scopes -= n;
+        m_lazy_scopes -= n;
+        return num_scopes == 0;
+    }
+
+    void theory::force_push() {
+        flet<bool> _lazy(m_lazy, false);
+        for (; m_lazy_scopes > 0; --m_lazy_scopes) {
+            push_scope_eh();
+        }
+    }
+
     void theory::display_var2enode(std::ostream & out) const {
         unsigned sz = m_var2enode.size();
         for (unsigned v = 0; v < sz; v++) {
@@ -112,6 +132,8 @@ namespace smt {
         if (a == b) {
             return true_literal;
         }
+        if (m.are_distinct(a, b))
+            return false_literal;
         app_ref eq(ctx.mk_eq_atom(a, b), get_manager());
         TRACE("mk_var_bug", tout << "mk_eq: " << eq->get_id() << " " << a->get_id() << " " << b->get_id() << "\n";
               tout << mk_ll_pp(a, get_manager()) << "\n" << mk_ll_pp(b, get_manager()););		
@@ -123,6 +145,18 @@ namespace smt {
         ctx.assume_eq(ensure_enode(a), ensure_enode(b));
         literal lit = mk_eq(a, b, false);
         ctx.force_phase(lit);
+        return lit;
+    }
+
+    literal theory::mk_literal(expr* _e) {
+        expr_ref e(_e, m);
+        bool is_not = m.is_not(_e, _e);
+        if (!ctx.e_internalized(_e)) {
+            ctx.internalize(_e, is_quantifier(_e));
+        }
+        literal lit = ctx.get_literal(_e);
+        ctx.mark_as_relevant(lit);
+        if (is_not) lit.neg();
         return lit;
     }
 
@@ -138,7 +172,9 @@ namespace smt {
     theory::theory(context& ctx, family_id fid):
         m_id(fid),
         ctx(ctx),
-        m(ctx.get_manager()) {
+        m(ctx.get_manager()),
+        m_lazy_scopes(0),
+        m_lazy(true) {
     }
 
     theory::~theory() {

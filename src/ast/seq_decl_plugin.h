@@ -20,11 +20,12 @@ Revision History:
     Add SMTLIB 2.6 support 2020-5-17
 
 --*/
-#ifndef SEQ_DECL_PLUGIN_H_
-#define SEQ_DECL_PLUGIN_H_
+#pragma once
 
 #include "ast/ast.h"
 #include "ast/bv_decl_plugin.h"
+#include <string>
+#include "util/lbool.h"
 
 #define Z3_USE_UNICODE 0
 
@@ -110,6 +111,7 @@ enum seq_op_kind {
     _OP_REGEXP_EMPTY,
     _OP_REGEXP_FULL_CHAR,
     _OP_RE_IS_NULLABLE,
+    _OP_RE_ANTIMOROV_UNION, // Lifted union for antimorov-style derivatives
     _OP_SEQ_SKOLEM,
     LAST_SEQ_OP
 };
@@ -123,11 +125,10 @@ public:
     static unsigned max_char() { return 196607; }
     zstring() {}
     zstring(char const* s);
+    zstring(const std::string &str) : zstring(str.c_str()) {}
     zstring(unsigned sz, unsigned const* s) { m_buffer.append(sz, s); SASSERT(well_formed()); }
-    zstring(zstring const& other): m_buffer(other.m_buffer) {}
     zstring(unsigned num_bits, bool const* ch);
     zstring(unsigned ch);
-    zstring& operator=(zstring const& other);
     zstring replace(zstring const& src, zstring const& dst) const;
     zstring reverse() const;
     std::string encode() const;
@@ -240,9 +241,10 @@ class seq_util {
     mutable scoped_ptr<bv_util> m_bv;
     bv_util& bv() const;
 
+public:
+
     unsigned max_plus(unsigned x, unsigned y) const;
     unsigned max_mul(unsigned x, unsigned y) const;
-public:
 
     ast_manager& get_manager() const { return m; }
 
@@ -412,12 +414,100 @@ public:
         unsigned max_length(expr* s) const;
     };
 
-    class re {
+    class rex {
+    public:
+        struct info {
+            /* Value is either undefined (known=l_undef) or defined and known (l_true) or defined but unknown (l_false)*/
+            lbool known { l_undef };
+            /* No complement, no intersection, no difference, and no if-then-else is used. Reverse is allowed. */
+            bool classical { false };
+            /* Boolean-reverse combination of classical regexes (using reverse, union, complement, intersection or difference). */
+            bool standard { false };
+            /* There are no uninterpreted symbols. */
+            bool interpreted { false };
+            /* No if-then-else is used. */
+            bool nonbranching { false };
+            /* Concatenations are right associative and if a loop body is nullable then the lower bound is zero. */
+            bool normalized { false };
+            /* All bounded loops have a body that is a singleton. */
+            bool monadic { false };
+            /* Positive Boolean combination of ranges or predicates or singleton sequences. */
+            bool singleton { false };
+            /* If l_true then empty word is accepted, if l_false then empty word is not accepted. */
+            lbool nullable { l_undef };
+            /* Lower bound  on the length of all accepted words. */
+            unsigned min_length { 0 };
+            /* Maximum nesting depth of Kleene stars. */
+            unsigned star_height { 0 };
+
+            /*
+              Default constructor of invalid info.
+            */
+            info() {}
+
+            /*
+              Used for constructing either an invalid info that is only used to indicate uninitialzed entry, or valid but unknown info value.
+            */
+            info(lbool is_known) : known(is_known) {}
+
+            /*
+              General info constructor.
+            */
+            info(bool is_classical,
+                bool is_standard,
+                bool is_interpreted,
+                bool is_nonbranching,
+                bool is_normalized,
+                bool is_monadic,
+                bool is_singleton,
+                lbool is_nullable,
+                unsigned min_l,
+                unsigned star_h) :
+                known(l_true), classical(is_classical), standard(is_standard), interpreted(is_interpreted), nonbranching(is_nonbranching),
+                normalized(is_normalized), monadic(is_monadic), singleton(is_singleton), nullable(is_nullable),
+                min_length(min_l), star_height(star_h) {}
+
+            /*
+              Appends a string representation of the info into the stream.
+            */
+            std::ostream& display(std::ostream&) const;
+
+            /*
+              Returns a string representation of the info.
+            */
+            std::string str() const;
+
+            bool is_valid() const { return known != l_undef; }
+
+            bool is_known() const { return known == l_true; }
+
+            info star() const;
+            info plus() const;
+            info opt() const;
+            info complement() const;
+            info concat(info const& rhs, bool lhs_is_concat) const;
+            info disj(info const& rhs) const;
+            info conj(info const& rhs) const; 
+            info diff(info const& rhs) const;
+            info orelse(info const& rhs) const;
+            info loop(unsigned lower, unsigned upper) const;
+        };
+    private:
         seq_util&    u;
         ast_manager& m;
         family_id    m_fid;
+        vector<info> mutable m_infos;
+        expr_ref_vector mutable m_info_pinned;
+        info invalid_info { info(l_undef) };
+        info unknown_info { info(l_false) };
+
+        bool has_valid_info(expr* r) const;
+        info get_info_rec(expr* r) const;
+        info mk_info_rec(app* r) const;
+        info get_cached_info(expr* e) const;
+
     public:
-        re(seq_util& u): u(u), m(u.m), m_fid(u.m_fid) {}
+        rex(seq_util& u): u(u), m(u.m), m_fid(u.m_fid), m_info_pinned(u.m) {}
 
         sort* mk_re(sort* seq) { parameter param(seq); return m.mk_sort(m_fid, RE_SORT, 1, &param); }
         sort* to_seq(sort* re);
@@ -443,6 +533,7 @@ public:
         app* mk_of_pred(expr* p);
         app* mk_reverse(expr* r) { return m.mk_app(m_fid, OP_RE_REVERSE, r); }
         app* mk_derivative(expr* ele, expr* r) { return m.mk_app(m_fid, OP_RE_DERIVATIVE, ele, r); }
+        app* mk_antimorov_union(expr* r1, expr* r2) { return m.mk_app(m_fid, _OP_RE_ANTIMOROV_UNION, r1, r2); }
 
         bool is_to_re(expr const* n)    const { return is_app_of(n, m_fid, OP_SEQ_TO_RE); }
         bool is_concat(expr const* n)    const { return is_app_of(n, m_fid, OP_RE_CONCAT); }
@@ -461,6 +552,7 @@ public:
         bool is_of_pred(expr const* n) const { return is_app_of(n, m_fid, OP_RE_OF_PRED); }
         bool is_reverse(expr const* n) const { return is_app_of(n, m_fid, OP_RE_REVERSE); }
         bool is_derivative(expr const* n) const { return is_app_of(n, m_fid, OP_RE_DERIVATIVE); }
+        bool is_antimorov_union(expr const* n) const { return is_app_of(n, m_fid, _OP_RE_ANTIMOROV_UNION); }
         MATCH_UNARY(is_to_re);
         MATCH_BINARY(is_concat);
         MATCH_BINARY(is_union);
@@ -474,15 +566,34 @@ public:
         MATCH_UNARY(is_of_pred);
         MATCH_UNARY(is_reverse);
         MATCH_BINARY(is_derivative);
+        MATCH_BINARY(is_antimorov_union);
         bool is_loop(expr const* n, expr*& body, unsigned& lo, unsigned& hi) const;
         bool is_loop(expr const* n, expr*& body, unsigned& lo) const;
         bool is_loop(expr const* n, expr*& body, expr*& lo, expr*& hi) const;
         bool is_loop(expr const* n, expr*& body, expr*& lo) const;
         unsigned min_length(expr* r) const;
         unsigned max_length(expr* r) const;
+        bool is_epsilon(expr* r) const;
+        app* mk_epsilon(sort* seq_sort);
+        info get_info(expr* r) const;
+        std::string to_str(expr* r) const;
+
+        class pp {
+            seq_util::rex& re;
+            expr* e;
+            bool html_encode;
+            bool can_skip_parenth(expr* r) const;
+            std::ostream& seq_unit(std::ostream& out, expr* s) const;
+            std::ostream& compact_helper_seq(std::ostream& out, expr* s) const;
+            std::ostream& compact_helper_range(std::ostream& out, expr* s1, expr* s2) const;
+
+        public:
+            pp(seq_util::rex& r, expr* e, bool html = false) : re(r), e(e), html_encode(html) {}
+            std::ostream& display(std::ostream&) const;
+        };
     };
     str str;
-    re  re;
+    rex  re;
 
     seq_util(ast_manager& m):
         m(m),
@@ -495,8 +606,9 @@ public:
     ~seq_util() {}
 
     family_id get_family_id() const { return m_fid; }
-
 };
 
-#endif /* SEQ_DECL_PLUGIN_H_ */
+inline std::ostream& operator<<(std::ostream& out, seq_util::rex::pp const & p) { return p.display(out); }
+
+inline std::ostream& operator<<(std::ostream& out, seq_util::rex::info const& p) { return p.display(out); }
 

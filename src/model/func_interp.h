@@ -27,8 +27,7 @@ Author:
 Revision History:
 
 --*/
-#ifndef FUNC_INTERP_H_
-#define FUNC_INTERP_H_
+#pragma once
 
 #include "ast/ast.h"
 #include "ast/ast_translation.h"
@@ -110,6 +109,7 @@ public:
     ptr_vector<func_entry>::const_iterator end() const { return m_entries.end(); }
     func_entry const * const * get_entries() const { return m_entries.c_ptr(); }
     func_entry const * get_entry(unsigned idx) const { return m_entries[idx]; }
+    void del_entry(unsigned idx);
 
     expr * get_max_occ_result() const;
     void compress();
@@ -125,4 +125,3 @@ private:
     bool is_identity() const;
 };
 
-#endif

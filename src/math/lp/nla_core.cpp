@@ -1048,6 +1048,7 @@ new_lemma& new_lemma::operator|=(ineq const& ineq) {
 new_lemma::~new_lemma() {
     static int i = 0;
     (void)i;
+    (void)name;
     // code for checking lemma can be added here
     TRACE("nla_solver", tout << name << " " << (++i) << "\n" << *this; );
 }
@@ -1466,7 +1467,7 @@ lbool core::check(vector<lemma>& l_vec) {
     init_to_refine();
     patch_monomials();
     set_use_nra_model(false);    
-    if (m_to_refine.is_empty()) { return l_true; }   
+    if (m_to_refine.empty()) { return l_true; }   
     init_search();
 
     lbool ret = l_undef;
@@ -1499,7 +1500,7 @@ lbool core::check(vector<lemma>& l_vec) {
 
     if (l_vec.empty() && !done() && m_nla_settings.run_nra()) {
         ret = m_nra.check();
-        m_stats.m_nra_calls ++;
+        m_stats.m_nra_calls++;
     }
     
     if (ret == l_undef && !l_vec.empty() && m_reslim.inc()) 
@@ -1861,6 +1862,7 @@ unsigned core::get_var_weight(lpvar j) const {
     case lp::column_type::lower_bound:
     case lp::column_type::upper_bound:
         k = 4;
+        break;
     case lp::column_type::free_column:
         k = 6;
         break;

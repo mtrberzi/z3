@@ -451,7 +451,7 @@ namespace {
             if (p->is_ground()) {
                 enode * e = get_enode(*m_context, p);
                 SASSERT(e->has_lbl_hash());
-                out << "#" << e->get_owner_id() << ":" << e->get_lbl_hash() << " ";
+                out << "#" << e->get_expr_id() << ":" << e->get_lbl_hash() << " ";
             }
             else {
                 out << p->get_decl()->get_name() << ":" << m_lbl_hasher(p->get_decl()) << " ";
@@ -1893,7 +1893,7 @@ namespace {
         void update_max_generation(enode * n, enode * prev) {
             m_max_generation = std::max(m_max_generation, n->get_generation());
 
-            if (m.has_trace_stream())
+            if (m.has_trace_stream() || is_trace_enabled("causality"))
                 m_used_enodes.push_back(std::make_tuple(prev, n));
         }
 
@@ -2240,7 +2240,7 @@ namespace {
             out << "nil\n";
         }
         else {
-            out << "#" << n->get_owner_id() << ", root: " << n->get_root()->get_owner_id();
+            out << "#" << n->get_expr_id() << ", root: " << n->get_root()->get_expr_id();
             if (m_use_filters)
                 out << ", lbls: " << n->get_root()->get_lbls() << " ";
             out << "\n";
@@ -2309,7 +2309,7 @@ namespace {
         m_pattern_instances.push_back(n);
         m_max_generation = n->get_generation();
 
-        if (m.has_trace_stream()) {
+        if (m.has_trace_stream() || is_trace_enabled("causality")) {
             m_used_enodes.reset();
             m_used_enodes.push_back(std::make_tuple(nullptr, n)); // null indicates that n was matched against the trigger at the top-level
         }
@@ -2408,7 +2408,7 @@ namespace {
                 goto backtrack;
             
             // We will use the common root when instantiating the quantifier => log the necessary equalities
-            if (m.has_trace_stream()) {
+            if (m.has_trace_stream() || is_trace_enabled("causality")) {
                 m_used_enodes.push_back(std::make_tuple(m_n1, m_n1->get_root()));
                 m_used_enodes.push_back(std::make_tuple(m_n2, m_n2->get_root()));
             }
@@ -2425,7 +2425,7 @@ namespace {
                 goto backtrack;
 
             // we used the equality m_n1 = m_n2 for the match and need to make sure it ends up in the log
-            if (m.has_trace_stream()) {
+            if (m.has_trace_stream() || is_trace_enabled("causality")) {
                 m_used_enodes.push_back(std::make_tuple(m_n1, m_n2));
             }
 
@@ -2611,7 +2611,7 @@ namespace {
             if (m_n1 == 0 || !m_context.is_relevant(m_n1))                                                                                                              \
                 goto backtrack;                                                                                                                                         \
             update_max_generation(m_n1, nullptr);                                                                                                                       \
-            if (m.has_trace_stream()) {                                                                                                                     \
+            if (m.has_trace_stream() || is_trace_enabled("causality")) {                                                                                                                     \
                 for (unsigned i = 0; i < static_cast<const get_cgr *>(m_pc)->m_num_args; ++i) {                                                                         \
                     m_used_enodes.push_back(std::make_tuple(m_n1->get_arg(i), m_n1->get_arg(i)->get_root()));                                                           \
                 }                                                                                                                                                       \
@@ -2707,7 +2707,7 @@ namespace {
         backtrack_point & bp = m_backtrack_stack[m_top - 1];
         m_max_generation     = bp.m_old_max_generation;
 
-        if (m.has_trace_stream())
+        if (m.has_trace_stream() || is_trace_enabled("causality"))
             m_used_enodes.shrink(bp.m_old_used_enodes_size);
 
         TRACE("mam_int", tout << "backtrack top: " << bp.m_instr << " " << *(bp.m_instr) << "\n";);
@@ -3940,7 +3940,7 @@ namespace {
                     TRACE("missing_instance",
                           tout << "qa:\n" << mk_ll_pp(qa, m) << "\npat:\n" << mk_ll_pp(pat, m);
                           for (unsigned i = 0; i < num_bindings; i++)
-                              tout << "#" << bindings[i]->get_owner_id() << "\n" << mk_ll_pp(bindings[i]->get_owner(), m) << "\n";
+                              tout << "#" << bindings[i]->get_expr_id() << "\n" << mk_ll_pp(bindings[i]->get_owner(), m) << "\n";
                           );
                     UNREACHABLE();
                 }

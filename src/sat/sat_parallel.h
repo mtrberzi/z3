@@ -16,8 +16,7 @@ Author:
 Revision History:
 
 --*/
-#ifndef SAT_PARALLEL_H_
-#define SAT_PARALLEL_H_
+#pragma once
 
 #include "sat/sat_types.h"
 #include "util/hashtable.h"
@@ -33,8 +32,8 @@ namespace sat {
         // shared pool of learned clauses.
         class vector_pool {
             unsigned_vector m_vectors;
-            unsigned        m_size;
-            unsigned        m_tail;
+            unsigned        m_size{ 0 };
+            unsigned        m_tail{ 0 };
             unsigned_vector m_heads;
             bool_vector   m_at_end;
             void next(unsigned& index);
@@ -114,4 +113,3 @@ namespace sat {
 
 };
 
-#endif
