@@ -549,7 +549,7 @@ namespace smt {
                 SASSERT(u.str.is_in_re(str_in_re_term));
                 u.str.is_in_re(str_in_re_term, _unused, re);
 
-                TRACE("str", tout << "consider intersecting regex " << mk_pp(*term_it, m) << std::endl;);
+                TRACE("str", tout << "consider intersecting regex " << mk_pp(re, m) << std::endl;);
 
                 rational exact_len;
                 bool has_exact_len = get_len_value(str, exact_len);

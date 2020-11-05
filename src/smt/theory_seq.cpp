@@ -328,7 +328,7 @@ final_check_status theory_seq::final_check_eh() {
 
     auto m_params = ctx.get_fparams();
     
-    if (m_params.m_giveup_point == 7 && (m_stats.m_num_reductions > 50000 || m_stats.m_propagate_automata > 100)) {
+    if (m_params.m_giveup_point == 7 && m_stats.m_num_reductions > 50000) {
         TRACE("str_fl", tout << "sequence solver made too many reductions---giving up!" << std::endl;);
         return FC_GIVEUP;
     }
