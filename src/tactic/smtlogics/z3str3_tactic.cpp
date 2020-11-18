@@ -24,6 +24,7 @@ Notes:
 #include "tactic/tactical.h"
 #include "tactic/core/simplify_tactic.h"
 #include "tactic/str/ext_str_tactic.h"
+#include "tactic/str/str_ml_tactic.h"
 #include "smt/tactic/smt_tactic.h"
 #include "smt/params/smt_params.h"
 #include "ast/ast_pp.h"
@@ -164,9 +165,16 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         // use LAS followed by Z3str3
         tactic * st = using_params(and_then(and_then(mk_simplify_tactic(m, p), mk_ext_str_tactic(m, p)), or_else(z3str3_1, z3str3_2)), p);
         return st;
+    } else if (m_smt_params.m_StrTactic == symbol("ml")) {
+        // machine-learning arm selection
+        z3seq = using_params(mk_smt_tactic(m), seq_p);
+        tactic * ml = mk_str_ml_tactic(m, p, z3str3_1, z3str3_2, z3seq);
+        tactic * st = using_params(and_then(and_then(mk_simplify_tactic(m, p), mk_ext_str_tactic(m, p)), ml), p);
+        return st;
     } else {
         // unknown tactic
         NOT_IMPLEMENTED_YET();
+        return nullptr;
     }
 
 }
