@@ -73,6 +73,7 @@ public:
         ptr_vector<expr> stack;
 
         unsigned size = g->size();
+        feature_assert = size;
         for (unsigned idx = 0; idx < size; ++idx) {
             expr * curr = g->form(idx);
             stack.push_back(curr);
@@ -105,6 +106,24 @@ public:
                 feature_int_to_str++;
             } else if (u.str.is_stoi(curr)) {
                 feature_str_to_int++;
+            } else if (u.re.is_to_re(curr)) {
+                feature_str_to_re++;
+            } else if (u.re.is_concat(curr)) {
+                feature_re_concat++;
+            } else if (u.re.is_union(curr)) {
+                feature_re_union++;
+            } else if (u.re.is_intersection(curr)) {
+                feature_re_inter++;
+            } else if (u.re.is_star(curr)) {
+                feature_re_star++;
+            } else if (u.re.is_plus(curr)) {
+                feature_re_plus++;
+            } else if (u.re.is_empty(curr)) {
+                feature_re_none++;
+            } else if (u.re.is_full_char(curr)) {
+                feature_re_allchar++;
+            } else if (u.re.is_full_seq(curr)) {
+                feature_re_all++;
             }
             // recursively check arguments
             unsigned n_args = to_app(curr)->get_num_args();
@@ -115,6 +134,7 @@ public:
         }
         TRACE("str_ml_tactic", tout
             << "Feature count:" << std::endl
+            << "assertions: " << feature_assert << std::endl
             << "concat: " << feature_concat << std::endl
             << "substr: " << feature_substr << std::endl
             << "str.at: " << feature_str_at << std::endl
@@ -127,61 +147,22 @@ public:
             << "suffixof: " << feature_suffixof << std::endl
             << "str.to_int: " << feature_str_to_int << std::endl
             << "str.from_int: " << feature_int_to_str << std::endl
+            << "str.to_re: " << feature_str_to_re << std::endl
+            << "re.++: " << feature_re_concat << std::endl
+            << "re.union: " << feature_re_union << std::endl
+            << "re.inter: " << feature_re_inter << std::endl
+            << "re.*: " << feature_re_star << std::endl
+            << "re.+: " << feature_re_plus << std::endl
+            << "re.none: " << feature_re_none << std::endl
+            << "re.allchar: " << feature_re_allchar << std::endl
+            << "re.all: " << feature_re_all << std::endl
             ;);
-        // feature indices:
-        // 0 declare-const
-        // 1 assert
-        // 2 str.++
-        // 3 str.len
-        // 4 str.to_re
-        // 5 str.in_re
-        // 6 re.none
-        // 7 re.all
-        // 8 re.allchar
-        // 9 re.++
-        // 10 re.union
-        // 11 re.inter
-        // 12 re.*
-        // 13 re.+
-        // 14 str.at
-        // 15 str.substr
-        // 16 str.prefixof
-        // 17 str.suffixof
-        // 18 str.contains
-        // 19 str.indexof
-        // 20 str.replace
-        // 21 str.to_int
-        // 22 str.from_int
 
-        // TODO declare-const, assert
-        // TODO regex features
+        // TODO declare-const
 
-        double las_prediction = -4.00287151 * feature_declare_const + -1.23729158 * feature_assert + 1.83261321 * feature_concat + 2.28576847 * feature_strlen
-            + 0.0 * feature_str_to_re + 0.0 * feature_regex_membership + 0.0 * feature_re_none + 0.0 * feature_re_all 
-            + -1.32614556 * feature_re_allchar + -0.85299815 * feature_re_concat + -0.27100462 * feature_re_union
-            + -0.03332024 * feature_re_inter + 0.59754297 * feature_re_star + 0.6752902 * feature_re_plus
-            + -6.2131141 * feature_str_at + 7.9279958 * feature_substr
-            + -16.1714232 * feature_prefixof + -1.6526839 * feature_suffixof + -1.83483456 * feature_contains
-            + 5.3467879 * feature_indexof + 9.7983719 * feature_replace + 0.0 * feature_str_to_int + 0.0 * feature_int_to_str
-            + -9.946056;
-
-        double arr_prediction = -6.137588 * feature_declare_const + -6.293082 * feature_assert + 3.85848381 * feature_concat + 2.8211137 * feature_strlen
-            + 0.0 * feature_str_to_re + 0.0 * feature_regex_membership + 0.0 * feature_re_none + 0.0 * feature_re_all 
-            + -2.7789080 * feature_re_allchar + -0.8641049 * feature_re_concat + 0.5842149 * feature_re_union
-            + -0.0177708 * feature_re_inter + 1.4505411 * feature_re_star + 1.099568 * feature_re_plus
-            + -7.217164 * feature_str_at + 7.6036788 * feature_substr
-            + -7.032792 * feature_prefixof + -1.0062713 * feature_suffixof + -7.012800 * feature_contains
-            + 1.4816400 * feature_indexof + 6.233106 * feature_replace + 0.0 * feature_str_to_int + 0.0 * feature_int_to_str
-            + -5.816511;
-
-        double seq_prediction = -2.0436414 * feature_declare_const + -1.58826478 * feature_assert + 0.648634 * feature_concat + 5.3001395 * feature_strlen
-            + 0.0 * feature_str_to_re + 0.0 * feature_regex_membership + 0.0 * feature_re_none + 0.0 * feature_re_all 
-            + 0.037763 * feature_re_allchar + -0.69972504 * feature_re_concat + 0.2510125 * feature_re_union
-            + -0.0333202 * feature_re_inter + 0.6397486 * feature_re_star + 1.1173387 * feature_re_plus
-            + -51.0510506 * feature_str_at + 0.8085711 * feature_substr
-            + -6.377494 * feature_prefixof + -0.72638123 * feature_suffixof + -18.4483063 * feature_contains
-            + 1.208414 * feature_indexof + 10.9645803 * feature_replace + 0.0 * feature_str_to_int + 0.0 * feature_int_to_str
-            + -9.18353;
+        double las_prediction = -12.183755502422986 + -3.1254385225360104 * feature_declare_const + 0.05331238417912233 * feature_assert + 1.328366905811407 * feature_concat + -0.7174958370853266 * feature_strlen + -0.4087282787110762 * feature_str_to_re + -2.390171890723547 * feature_regex_membership + 0.0 * feature_re_none + 0.0 * feature_re_all + -1.9392379745374149 * feature_re_allchar + 0.8907610856695246 * feature_re_concat + -1.6082569227549446 * feature_re_union + -0.05109103483890132 * feature_re_inter + 0.8685475922613429 * feature_re_star + 0.1044034190185983 * feature_re_plus + -1.7370951845224845 * feature_str_at + 1.2306275348152365 * feature_substr + -16.05147033677781 * feature_prefixof + -0.9462948191900853 * feature_suffixof + 0.3754080385988988 * feature_contains + 2.1458234632341577 * feature_indexof + 3.5363881505884454 * feature_replace + 0.0 * feature_str_to_int + 0.0 * feature_int_to_str;
+        double arr_prediction = -6.9593011001349465 + -3.30981051782431 * feature_declare_const + -1.9170244811295871 * feature_assert + 2.1391594152113678 * feature_concat + 8.01240707234446 * feature_strlen + -1.28171856965401 * feature_str_to_re + -2.401278637427879 * feature_regex_membership + 0.0 * feature_re_none + 0.0 * feature_re_all + -3.1232171731954117 * feature_re_allchar + 0.7263812344487794 * feature_re_concat + -0.970729661939115 * feature_re_union + -0.042205637475614004 * feature_re_inter + 1.228406185474505 * feature_re_star + 0.3731866892580719 * feature_re_plus + -1.479418660987267 * feature_str_at + 11.517696332160934 * feature_substr + -7.006135820951969 * feature_prefixof + -0.7974644133550233 * feature_suffixof + -3.7629657833519623 * feature_contains + 1.586043429347055 * feature_indexof + 0.8707689416021043 * feature_replace + 0.0 * feature_str_to_int + 0.0 * feature_int_to_str;
+        double seq_prediction = -8.24059060924262 + -0.2732259689210663 * feature_declare_const + -0.031098890771779873 * feature_assert + 0.23102033144547796 * feature_concat + 3.3609015526634014 * feature_strlen + -0.35541589453142247 * feature_str_to_re + -11.593222209746793 * feature_regex_membership + 0.0 * feature_re_none + 0.0 * feature_re_all + 2.116945921803152 * feature_re_allchar + 0.9462948191900786 * feature_re_concat + -0.6508553568607838 * feature_re_union + 0.0 * feature_re_inter + 0.07552587758792148 * feature_re_star + 0.37985073728052765 * feature_re_plus + -51.49976311761577 * feature_str_at + -3.4675263210228686 * feature_substr + -6.641834529057203 * feature_prefixof + -0.5109103483890111 * feature_suffixof + -17.113275321691553 * feature_contains + 4.3649514547146975 * feature_indexof + 3.0876755837423873 * feature_replace + 0.0 * feature_str_to_int + 0.0 * feature_int_to_str;
 
         TRACE("str_ml_tactic", tout
             << "LAS prediction: " << las_prediction << std::endl
