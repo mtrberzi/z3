@@ -1197,6 +1197,44 @@ br_status seq_rewriter::mk_seq_contains(expr* a, expr* b, expr_ref& result) {
     str().get_concat_units(b, bs);
     
     TRACE("seq", tout << mk_pp(a, m()) << " contains " << mk_pp(b, m()) << "\n";);
+
+    std::function<bool(expr*)> is_unit = [&](expr *e) { return str().is_unit(e); };
+
+    if (str().is_replace(a, x, y, z)) {
+        if (bs.size() == 1 && bs.forall(is_unit)) {
+            // TODO generalize to non-string sequences
+            zstring b_str;
+            str().is_string(b, b_str);
+            // (str.replace x y z) contains? "B" for some unit sequence B.
+            // If y doesn't contain "B", then this is true iff either of these are true:
+            // - x contains "B"
+            // - x contains y, and z contains "B"
+
+            // For now, we check this statically; we might be able to do better.
+            bool y_contains_b = false;
+            expr_ref_vector ys(m());
+            str().get_concat_units(y, ys);
+            for (expr * y_unit : ys) {
+                unsigned ch;
+                if (m_util.is_const_char(y_unit, ch)) {
+                    zstring y_str(ch);
+                    if (y_str == b_str) {
+                        y_contains_b = true;
+                        break;
+                    }
+                }
+            }
+            if (!y_contains_b) {
+                TRACE("seq_verbose", tout << "applying contains-over-replace character substitution to discharge str.replace" << std::endl;);
+                expr_ref_vector ors(m());
+                ors.push_back(str().mk_contains(x, b));
+                ors.push_back(m().mk_and(str().mk_contains(x, y), str().mk_contains(z, b)));
+
+                result = ::mk_or(ors);
+                return BR_REWRITE_FULL;
+            }
+        }
+    }
    
     if (bs.empty()) {
         result = m().mk_true();
@@ -1247,8 +1285,6 @@ br_status seq_rewriter::mk_seq_contains(expr* a, expr* b, expr_ref& result) {
         result = str().mk_contains(str().mk_concat(sz-offs, as.c_ptr()+offs, m().get_sort(a)), b);
         return BR_REWRITE2;
     }    
-
-    std::function<bool(expr*)> is_unit = [&](expr *e) { return str().is_unit(e); };
 
     if (bs.forall(is_unit) && as.forall(is_unit)) {
         expr_ref_vector ors(m());
