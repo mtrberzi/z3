@@ -115,18 +115,21 @@ struct goal2sat::imp : public sat::sat_internalizer {
         return sat::status::th(m_is_redundant, m.get_basic_family_id());
     }
 
+    bool relevancy_enabled() {
+        return m_euf && ensure_euf()->relevancy_enabled();
+    }
 
     bool top_level_relevant() {
-        return m_top_level && m_euf && ensure_euf()->relevancy_enabled();
+        return m_top_level && relevancy_enabled();
     }
 
     void add_dual_def(unsigned n, sat::literal const* lits) {
-        if (top_level_relevant())
+        if (relevancy_enabled())
             ensure_euf()->add_aux(n, lits);        
     }
 
     void add_dual_root(unsigned n, sat::literal const* lits) {
-        if (top_level_relevant())
+        if (relevancy_enabled())
             ensure_euf()->add_root(n, lits);
     }
     
@@ -278,12 +281,12 @@ struct goal2sat::imp : public sat::sat_internalizer {
                 l = sign ? mk_true() : ~mk_true();
             }
             else {                
+                if (m_euf) {
+                    convert_euf(t, root, sign);  
+                    return;
+                }
                 if (!is_uninterp_const(t)) {
-                    if (m_euf) {
-                        convert_euf(t, root, sign);  
-                        return;
-                    }
-                    else if (!is_app(t)) {
+                    if (!is_app(t)) {
                         std::ostringstream strm;
                         strm << mk_ismt2_pp(t, m);
                         throw_op_not_handled(strm.str());

@@ -22,6 +22,7 @@ Revision History:
 #include "util/scoped_timer.h"
 #include "util/mutex.h"
 #include "util/util.h"
+#include <atomic>
 #include <chrono>
 #include <climits>
 #include <condition_variable>
@@ -34,7 +35,7 @@ struct scoped_timer_state {
     std::timed_mutex m_mutex;
     event_handler * eh;
     unsigned ms;
-    int work;
+    std::atomic<int> work;
     std::condition_variable_any cv;
 };
 
@@ -102,6 +103,8 @@ public:
 
     ~imp() {
         s->m_mutex.unlock();
+        while (s->work == 1)
+            std::this_thread::yield();
     }
 };
 

@@ -79,18 +79,19 @@ namespace euf {
             return reinterpret_cast<size_t>(UNTAG(size_t*, p));
         }
 
-        ast_manager& m;
+        std::function<::solver*(void)>   m_mk_solver;
+        ast_manager&                     m;
         sat::sat_internalizer& si;
-        smt_params            m_config;
-        euf::egraph           m_egraph;
-        euf_trail_stack       m_trail;
-        stats                 m_stats;
-        th_rewriter           m_rewriter;
-        func_decl_ref_vector  m_unhandled_functions;
-        sat::lookahead*       m_lookahead{ nullptr };
+        smt_params             m_config;
+        euf::egraph            m_egraph;
+        euf_trail_stack        m_trail;
+        stats                  m_stats;
+        th_rewriter            m_rewriter;
+        func_decl_ref_vector   m_unhandled_functions;
+        sat::lookahead*        m_lookahead{ nullptr };
         ast_manager*           m_to_m;
         sat::sat_internalizer* m_to_si;
-        scoped_ptr<euf::ackerman>   m_ackerman;
+        scoped_ptr<euf::ackerman>    m_ackerman;
         scoped_ptr<sat::dual_solver> m_dual_solver;
         user::solver*          m_user_propagator{ nullptr };
         th_solver*             m_qsolver { nullptr };
@@ -102,7 +103,6 @@ namespace euf {
         svector<scope>                                  m_scopes;
         scoped_ptr_vector<th_solver>                    m_solvers;
         ptr_vector<th_solver>                           m_id2solver;
-        std::function<::solver*(void)>                  m_mk_solver;
 
         constraint* m_conflict{ nullptr };
         constraint* m_eq{ nullptr };
@@ -144,6 +144,7 @@ namespace euf {
         void dependencies2values(deps_t& deps, model_ref& mdl);
         void collect_dependencies(deps_t& deps);
         void values2model(deps_t const& deps, model_ref& mdl);
+        void validate_model(model& mdl);
 
         // solving
         void propagate_literals();

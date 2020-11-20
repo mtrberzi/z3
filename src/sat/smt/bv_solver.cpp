@@ -44,7 +44,6 @@ namespace bv {
         bit_occs_trail(solver& s, atom& a): a(a), m_occs(a.m_occs) {}
         
         virtual void undo(euf::solver& euf) {
-            IF_VERBOSE(1, verbose_stream() << "add back occurrences " << & a << "\n");
             a.m_occs = m_occs;
         }
     };
@@ -75,7 +74,6 @@ namespace bv {
             is_bv(v2) &&
             m_bits[v2].size() == sz &&
             get_fixed_value(v2, val2) && val1 == val2;
-
         if (!is_current)
             m_fixed_var_table.insert(key, v1);
         else if (n1->get_root() != var2enode(v2)->get_root()) {
@@ -381,11 +379,12 @@ namespace bv {
     }
 
     void solver::asserted(literal l) {
+        
         atom* a = get_bv2a(l.var());
         TRACE("bv", tout << "asserted: " << l << "\n";);
         if (a) {
             force_push();
-            m_prop_queue.push_back(propagation_item(a));
+            m_prop_queue.push_back(propagation_item(a));            
             for (auto p : a->m_bit2occ) {
                 del_eq_occurs(p.first, p.second);
             }
@@ -400,20 +399,10 @@ namespace bv {
         for (; m_prop_queue_head < m_prop_queue.size() && !s().inconsistent(); ++m_prop_queue_head) {
             auto const p = m_prop_queue[m_prop_queue_head];
             if (p.m_atom) {
-                unsigned num_atoms = 0, num_eqs = 0, num_assigned = 0, num_eq_assigned = 0, num_lit_assigned = 0;
-                for (auto vp : *p.m_atom) {
-                    if (propagate_bits(vp))
-                        ++num_assigned;
-                    ++num_atoms;
-                }
-                for (auto const& eq : p.m_atom->eqs()) {
-                    ++num_eqs;
-                    if (s().value(eq.m_literal) != l_undef)
-                        ++num_lit_assigned;
-                    if (propagate_eq_occurs(eq)) {
-                        ++num_eq_assigned;
-                    }
-                }
+                for (auto vp : *p.m_atom)
+                    propagate_bits(vp);
+                for (auto const& eq : p.m_atom->eqs()) 
+                    propagate_eq_occurs(eq);                
             }
             else 
                 propagate_bits(p.m_vp);            
@@ -541,6 +530,7 @@ namespace bv {
     }
 
     bool solver::set_root(literal l, literal r) {
+        return false;
         atom* a = get_bv2a(l.var());
         if (!a)
             return true;
@@ -635,6 +625,16 @@ namespace bv {
         return out;
     }
 
+    std::ostream& solver::display(std::ostream& out, atom const& a) const {
+        out << a.m_bv << "\n";
+        for (auto vp : a) 
+            out << vp.first << "[" << vp.second << "]\n";
+        for (auto e : a.eqs())
+            out << e.m_bv1 << " " << e.m_bv2 << "\n";
+        return out;
+    }
+
+
     void solver::collect_statistics(statistics& st) const {
         st.update("bv conflicts", m_stats.m_num_conflicts);
         st.update("bv diseqs", m_stats.m_num_diseq_static);
@@ -669,8 +669,8 @@ namespace bv {
             if (!a)
                 continue;
 
-            atom* new_a = new (result->get_region()) atom();
-            m_bool_var2atom.setx(i, new_a, nullptr);
+            atom* new_a = new (result->get_region()) atom(i);
+            result->m_bool_var2atom.setx(i, new_a, nullptr);
             for (auto vp : *a)
                 new_a->m_occs = new (result->get_region()) var_pos_occ(vp.first, vp.second, new_a->m_occs);
             for (auto const& occ : a->eqs()) {
@@ -681,7 +681,7 @@ namespace bv {
             }
             new_a->m_def = a->m_def;
             new_a->m_var = a->m_var;
-            validate_atoms();
+            // validate_atoms();
         }
         return result;
     }
@@ -691,6 +691,7 @@ namespace bv {
     void solver::init_use_list(sat::ext_use_list& ul) {}
     bool solver::is_blocked(literal l, sat::ext_constraint_idx) { return false; }
     bool solver::check_model(sat::model const& m) const { return true; }
+    void solver::finalize_model(model& mdl) {}
     unsigned solver::max_var(unsigned w) const { return w; }
 
     void solver::add_value(euf::enode* n, model& mdl, expr_ref_vector& values) {
@@ -800,6 +801,7 @@ namespace bv {
                 find_wpos(v2);
             bool_var cv = consequent.var();
             atom* a = get_bv2a(cv);
+            force_push();
             if (a)
                 for (auto curr : *a)
                     if (propagate_eqc || find(curr.first) != find(v2) || curr.second != idx) 
