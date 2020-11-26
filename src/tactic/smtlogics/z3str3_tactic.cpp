@@ -143,6 +143,18 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         z3seq       = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
         tactic * st = using_params(and_then(mk_simplify_tactic(m, p), cond(mk_is_cf_probe(), or_else(z3str3_1, z3str3_2, z3seq), or_else(z3seq, z3str3_2, z3str3_1))), p);
         return st;
+    } else if (m_smt_params.m_StrTactic == symbol("alwayscf")) {
+        // test the case where the CF probe always returns "true"
+        seq_p.set_uint("seq.giveup_point", 0);
+        z3seq = using_params(mk_smt_tactic(m), seq_p);
+        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), or_else(z3str3_1, z3str3_2, z3seq)), p);
+        return st;
+    } else if (m_smt_params.m_StrTactic == symbol("nevercf")) {
+        // test the case where the CF probe always returns "false"
+        seq_p.set_uint("seq.giveup_point", 7);
+        z3seq       = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
+        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), or_else(z3seq, z3str3_2, z3str3_1)), p);
+        return st;
     } else if (m_smt_params.m_StrTactic == symbol("las")) {
         // fixed-length solver only
         TRACE("str", tout << "z3str3 tactic bypassed: performing length abstraction / fixed-length solving" << std::endl;);
