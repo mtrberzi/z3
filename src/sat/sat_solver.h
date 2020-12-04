@@ -375,7 +375,7 @@ namespace sat {
             }
         }
         void update_assign(literal l, justification j) {
-            if (lvl(l) > j.level())
+            if (j.level() == 0) 
                 m_justification[l.var()] = j;
         }
         void assign_unit(literal l) { assign(l, justification(0)); }
@@ -669,6 +669,7 @@ namespace sat {
         void set_should_simplify() { m_next_simplify = m_conflicts_since_init; }
         bool_var_vector const& get_vars_to_reinit() const { return m_vars_to_reinit;  }
         bool is_probing() const { return m_is_probing; }
+        bool is_free(bool_var v) const { return m_free_vars.contains(v); }
 
     public:
         void user_push() override;

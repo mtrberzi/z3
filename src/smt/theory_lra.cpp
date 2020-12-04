@@ -384,7 +384,7 @@ class theory_lra::imp {
                 vars.push_back(v);
                 ++index;
             }
-            else if(a.is_power(n, n1, n2) && is_app(n1) && a.is_extended_numeral(n2, r) && r.is_unsigned() && r <= 10) {
+            else if (a.is_power(n, n1, n2) && is_app(n1) && a.is_extended_numeral(n2, r) && r.is_unsigned() && r <= 10) {
                 theory_var v = internalize_power(to_app(n), to_app(n1), r.get_unsigned());
                 coeffs[vars.size()] = coeffs[index];
                 vars.push_back(v);
@@ -510,6 +510,7 @@ class theory_lra::imp {
         theory_var v = mk_var(t);
         if (_has_var)
             return v;
+        VERIFY(internalize_term(n));
         theory_var w = mk_var(n);
         svector<lpvar> vars;
         for (unsigned i = 0; i < p; ++i) 
@@ -1552,11 +1553,9 @@ public:
         IF_VERBOSE(12, verbose_stream() << "final-check " << lp().get_status() << "\n");
         lbool is_sat = l_true;
         SASSERT(lp().ax_is_correct());
-        if (lp().get_status() != lp::lp_status::OPTIMAL) { // || lp().has_changed_columns()) {
+        if (lp().get_status() != lp::lp_status::OPTIMAL || lp().has_changed_columns()) {
             is_sat = make_feasible();
         }
-        else
-            SASSERT(!lp().has_changed_columns());
         final_check_status st = FC_DONE;
 
         switch (is_sat) {
@@ -1926,7 +1925,6 @@ public:
             // SAT core assigns a value to
             lia_check = l_false;
             ++m_stats.m_branch;
-            add_variable_bound(t, offset);
             break;
         }
         case lp::lia_move::cut: {
@@ -2089,6 +2087,7 @@ public:
     }
 
     void propagate() {
+        m_model_is_initialized = false;
         flush_bound_axioms();
         if (!can_propagate()) {
             return;
@@ -3223,6 +3222,14 @@ public:
         init_variable_values();
         m_factory = alloc(arith_factory, m);
         mg.register_factory(m_factory);
+        if (m_model_is_initialized) {
+            expr_ref val(m);
+            unsigned nv = th.get_num_vars();
+            for (unsigned v = 0; v < nv; ++v) 
+                if (get_value(get_enode(v), val))
+                    m_factory->register_value(val);
+
+        }
         TRACE("arith", display(tout););
     }
 
@@ -3733,86 +3740,9 @@ public:
     obj_map<expr, expr*>      m_predicate2term;
     obj_map<expr, bound_info> m_term2bound_info;
 
-    bool use_bounded_expansion() const { 
-        return ctx().get_fparams().m_arith_bounded_expansion; 
-    }
-
     unsigned init_range() const { return 5; }
     unsigned max_range() const { return 20; }
     
-    void add_theory_assumptions(expr_ref_vector& assumptions) {
-        if (!use_bounded_expansion())
-            return;
-        ctx().push_trail(value_trail<context, literal>(m_bounded_range_lit));
-        if (!m_bound_predicate || !m_term2bound_info.empty())
-            m_bound_predicate = m.mk_fresh_const("arith.bound", m.mk_bool_sort());
-        m_bounded_range_lit = mk_literal(m_bound_predicate);
-        // add max-unfolding literal
-        // add variable bounds
-        assumptions.push_back(m_bound_predicate);
-        for (auto const& kv : m_term2bound_info) {
-            bound_info const& bi = kv.m_value;
-            expr* t = kv.m_key;
-            expr_ref hi(a.mk_le(t, a.mk_int(bi.m_offset + bi.m_range)), m);
-            expr_ref lo(a.mk_ge(t, a.mk_int(bi.m_offset - bi.m_range)), m);            
-            assumptions.push_back(lo);
-            assumptions.push_back(hi);
-            m_predicate2term.insert(lo, t);
-            m_predicate2term.insert(hi, t);
-            IF_VERBOSE(10, verbose_stream() << lo << "\n" << hi << "\n");
-        }
-    }
-
-    bool should_research(expr_ref_vector& unsat_core) {
-        if (!use_bounded_expansion())
-            return false;
-        bool found = false;
-        expr* t = nullptr;        
-        for (auto & e : unsat_core) {
-            if (e == m_bound_predicate) {
-                found = true;
-                for (auto & kv : m_term2bound_info) 
-                    if (kv.m_value.m_range == init_range())
-                        kv.m_value.m_range *= 2;
-            }
-            else if (m_predicate2term.find(e, t)) {
-                found = true;
-                bound_info bi;
-                if (!m_term2bound_info.find(t, bi)) {
-                    TRACE("arith", tout << "bound information for term " << mk_pp(t, m) << " not found\n";);
-                }
-                else if (bi.m_range >= max_range()) {
-                    m_term2bound_info.erase(t);
-                }
-                else {
-                    bi.m_range *= 2;
-                    m_term2bound_info.insert(t, bi);
-                }
-            }
-        }
-        return found;
-    }
-
-    void add_variable_bound(expr* t, rational const& offset) {
-        if (!use_bounded_expansion())
-            return;
-        if (m_bounded_range_lit == null_literal)
-            return;
-        // if term is not already bounded, add a range and assert max_bound => range
-        bound_info bi(offset, init_range());
-        if (m_term2bound_info.find(t, bi))
-            return;
-        expr_ref hi(a.mk_le(t, a.mk_int(offset + bi.m_range)), m);
-        expr_ref lo(a.mk_ge(t, a.mk_int(offset - bi.m_range)), m);
-        mk_axiom(~m_bounded_range_lit, mk_literal(hi));
-        mk_axiom(~m_bounded_range_lit, mk_literal(lo));
-        m_bound_terms.push_back(lo);
-        m_bound_terms.push_back(hi);
-        m_bound_terms.push_back(t);
-        m_predicate2term.insert(lo, t);
-        m_predicate2term.insert(hi, t);
-        m_term2bound_info.insert(t, bi);
-    }
 
     void setup() {
         m_bounded_range_lit = null_literal;
@@ -3945,12 +3875,7 @@ theory_var theory_lra::add_objective(app* term) {
 expr_ref theory_lra::mk_ge(generic_model_converter& fm, theory_var v, inf_rational const& val) {
     return m_imp->mk_ge(fm, v, val);
 }
-void theory_lra::add_theory_assumptions(expr_ref_vector& assumptions) {
-    m_imp->add_theory_assumptions(assumptions);
-}
-bool theory_lra::should_research(expr_ref_vector& unsat_core) {
-    return m_imp->should_research(unsat_core);
-}
+
 void theory_lra::setup() {
     m_imp->setup();
 }

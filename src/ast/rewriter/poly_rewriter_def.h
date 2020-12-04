@@ -85,19 +85,17 @@ expr * poly_rewriter<Config>::mk_mul_app(unsigned num_args, expr * const * args)
         return args[0];
     default: 
         if (use_power()) {
+            sort* s = m().get_sort(args[0]);
             rational k_prev;
             expr * prev = get_power_body(args[0], k_prev);
             rational k;
             ptr_buffer<expr> new_args;
-#define PUSH_POWER() {                                                                          \
-                if (k_prev.is_one()) {                                                          \
-                    new_args.push_back(prev);                                                   \
-                }                                                                               \
-                else {                                                                          \
-                    expr * pargs[2] = { prev, mk_numeral(k_prev) };                             \
-                    new_args.push_back(m().mk_app(get_fid(), power_decl_kind(), 2, pargs));     \
-                }                                                                               \
-            }
+            auto push_power = [&]() { 
+                if (k_prev.is_one())                                                           
+                    new_args.push_back(this->coerce(prev, s));
+                else  
+                    new_args.push_back(this->mk_power(prev, k_prev, s));
+            };
  
             for (unsigned i = 1; i < num_args; i++) {
                 expr * arg = get_power_body(args[i], k);
@@ -105,12 +103,12 @@ expr * poly_rewriter<Config>::mk_mul_app(unsigned num_args, expr * const * args)
                     k_prev += k;
                 }
                 else {
-                    PUSH_POWER();
+                    push_power();
                     prev   = arg;
                     k_prev = k;
                 }
             }
-            PUSH_POWER();
+            push_power();
             SASSERT(new_args.size() > 0);
             if (new_args.size() == 1) {
                 return new_args[0];
@@ -445,12 +443,48 @@ inline expr * poly_rewriter<Config>::get_power_product(expr * t, numeral & a) {
 }
 
 template<typename Config>
-bool poly_rewriter<Config>::is_mul(expr * t, numeral & c, expr * & pp) {
+bool poly_rewriter<Config>::is_mul(expr * t, numeral & c, expr * & pp) const {
     if (!is_mul(t) || to_app(t)->get_num_args() != 2)
         return false;
     if (!is_numeral(to_app(t)->get_arg(0), c))
         return false;
     pp = to_app(t)->get_arg(1);
+    return true;
+}
+
+template<typename Config>
+bool poly_rewriter<Config>::gcd_test(expr* lhs, expr* rhs) const {
+    numeral g(0), offset(0), c;
+    expr* t = nullptr;
+    unsigned sz = 0; 
+    expr* const* args = get_monomials(lhs, sz);
+    auto test = [&](bool side, expr* e) {
+        if (is_numeral(e, c)) {
+            if (!c.is_int())
+                return false;
+            if (side)                
+                offset += c;
+            else
+                offset -= c;
+            return true;
+        }
+        else if (is_mul(e, c, t)) {
+            if (!c.is_int() || c.is_zero())
+                return false;
+            g = gcd(abs(c), g);
+            return !g.is_one();
+        }
+        return false;
+    };
+    for (unsigned i = 0; i < sz; ++i) 
+        if (!test(true, args[i]))
+            return true;        
+    args = get_monomials(rhs, sz);
+    for (unsigned i = 0; i < sz; ++i) 
+        if (!test(false, args[i]))
+            return true;
+    if (!offset.is_zero() && !g.is_zero() && !divides(g, offset))
+        return false;
     return true;
 }
 

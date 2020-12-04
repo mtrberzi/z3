@@ -49,7 +49,6 @@ namespace smt {
         unsigned bv_size      = get_bv_size(n);
         bool is_relevant      = ctx.is_relevant(n);
         literal_vector & bits = m_bits[v];
-        TRACE("bv", tout << "v" << v << "\n";);
         bits.reset();
         m_bits_expr.reset();
 
@@ -65,6 +64,12 @@ namespace smt {
                 ctx.mark_as_relevant(b);
             }
         }
+
+        TRACE("bv", tout << "v" << v << " #" << owner->get_id() << "\n";
+              for (unsigned i = 0; i < bv_size; i++) 
+                  tout << mk_bounded_pp(m_bits_expr[i], m) << "\n";
+              );
+
     }
 
     class mk_atom_trail : public trail<theory_bv> {
@@ -217,12 +222,17 @@ namespace smt {
         }
     };
 
+    void theory_bv::add_new_diseq_axiom(theory_var v1, theory_var v2, unsigned idx) {
+        if (!params().m_bv_eq_axioms)
+            return;
+        m_prop_diseqs.push_back(bv_diseq(v1, v2, idx));
+        ctx.push_trail(push_back_vector<context, svector<bv_diseq>>(m_prop_diseqs));
+    }
+
     /**
        \brief v1[idx] = ~v2[idx], then v1 /= v2 is a theory axiom.
     */
-    void theory_bv::mk_new_diseq_axiom(theory_var v1, theory_var v2, unsigned idx) {
-        if (!params().m_bv_eq_axioms)
-            return;
+    void theory_bv::assert_new_diseq_axiom(theory_var v1, theory_var v2, unsigned idx) {
         SASSERT(m_bits[v1][idx] == ~m_bits[v2][idx]);
         TRACE("bv_diseq_axiom", tout << "found new diseq axiom\n"; display_var(tout, v1); display_var(tout, v2););
         // found new disequality
@@ -260,7 +270,7 @@ namespace smt {
             theory_var v2   = occs->m_var;
             unsigned   idx2 = occs->m_idx;
             if (idx == idx2 && m_bits[v2][idx2] == l && get_bv_size(v2) == get_bv_size(v)) 
-                mk_new_diseq_axiom(v, v2, idx);
+                add_new_diseq_axiom(v, v2, idx);
             occs = occs->m_next;
         }
     }
@@ -277,6 +287,7 @@ namespace smt {
         }
         else {
             theory_id th_id       = ctx.get_var_theory(l.var());
+            TRACE("init_bits", tout << l << " " << th_id << "\n";);
             if (th_id == get_id()) {
                 atom * a     = get_bv2a(l.var());
                 SASSERT(a && a->is_bit());
@@ -318,7 +329,7 @@ namespace smt {
         for (unsigned i = 0; i < sz; i++) {
             expr * bit          = bits.get(i);
             literal l           = ctx.get_literal(bit);
-            TRACE("init_bits", tout << "bit " << i << " of #" << n->get_owner_id() << "\n" << mk_ll_pp(bit, m) << "\n";);
+            TRACE("init_bits", tout << "bit " << i << " of #" << n->get_owner_id() << "\n" << mk_bounded_pp(bit, m) << "\n";);
             add_bit(v, l);
         }
         find_wpos(v);
@@ -1159,7 +1170,6 @@ namespace smt {
                 m_diseq_watch[watch_var].push_back(std::make_pair(v1, v2));
                 m_diseq_watch_trail.push_back(watch_var);
                 return;
-                //m_replay_diseq.push_back(std::make_pair(v1, v2));            
             }
         }
 
@@ -1242,8 +1252,11 @@ namespace smt {
                 TRACE("bv_bit_prop", tout << "propagating #" << get_enode(v2)->get_owner_id() << "[" << idx << "] = " << val2 << "\n";);
                 TRACE("bv", tout << bit << " -> " << bit2 << " " << val << " -> " << val2 << " " << ctx.get_scope_level() << "\n";);
 
-                SASSERT(bit != ~bit2);
-                
+                if (bit == ~bit2) {
+                    add_new_diseq_axiom(v, v2, idx);
+                    return;
+                }
+
                 if (val != val2) {
                     literal consequent = bit2;
                     if (val == l_false) {
@@ -1328,7 +1341,7 @@ namespace smt {
     }
 
     void theory_bv::relevant_eh(app * n) {
-        TRACE("bv", tout << "relevant: " << ctx.e_internalized(n) << ": " << mk_pp(n, m) << "\n";);
+        TRACE("bv", tout << "relevant: #" << n->get_id() << " " << ctx.e_internalized(n) << ": " << mk_pp(n, m) << "\n";);
         if (m.is_bool(n)) {
             bool_var v = ctx.get_bool_var(n);
             atom * a   = get_bv2a(v);
@@ -1354,6 +1367,8 @@ namespace smt {
             theory_var v = e->get_th_var(get_id());
             if (v != null_theory_var) {
                 literal_vector & bits        = m_bits[v];
+                TRACE("bv", tout << "mark bits relevant: " << bits.size() << ": " << bits << "\n";);
+                SASSERT(!is_bv(v) || bits.size() == get_bv_size(v));
                 for (literal lit : bits) {
                     ctx.mark_as_relevant(lit);
                 }
@@ -1471,12 +1486,18 @@ namespace smt {
             for (unsigned idx = 0; idx < sz; idx++) {
                 literal bit1  = m_bits[v1][idx];
                 literal bit2  = m_bits[v2][idx];
-                CTRACE("bv_bug", bit1 == ~bit2, display_var(tout, v1); display_var(tout, v2); tout << "idx: " << idx << "\n";);
-                SASSERT(bit1 != ~bit2);
+                if (bit1 == ~bit2) {
+                    add_new_diseq_axiom(v1, v2, idx);
+                    return;
+                }
                 lbool val1    = ctx.get_assignment(bit1);
                 lbool val2    = ctx.get_assignment(bit2);
                 TRACE("bv", tout << "merge v" << v1 << " " << bit1 << ":= " << val1 << " " << bit2 << ":= " << val2 << "\n";);
-                if (val1 == val2)
+                if (val1 == l_undef && !ctx.is_relevant(bit1))
+                    ctx.mark_as_relevant(bit1);
+                if (val2 == l_undef && !ctx.is_relevant(bit2))
+                    ctx.mark_as_relevant(bit2);
+                if (val1 == val2) 
                     continue;
                 changed = true;
                 if (val1 != l_undef && val2 != l_undef) {
@@ -1538,7 +1559,7 @@ namespace smt {
                 // conflict was detected ... v1 and v2 have complementary bits
                 SASSERT(m_bits[v1][zo.m_idx] == ~(m_bits[v2][zo.m_idx]));
                 SASSERT(m_bits[v1].size() == m_bits[v2].size());
-                mk_new_diseq_axiom(v1, v2, zo.m_idx);
+                add_new_diseq_axiom(v1, v2, zo.m_idx);
                 reset_merge_aux();
                 return false;
             }
@@ -1554,13 +1575,12 @@ namespace smt {
     }
 
     void theory_bv::propagate() {
-        unsigned sz = m_replay_diseq.size();
-        if (sz > 0) {
-            for (unsigned i = 0; i < sz; ++i) {
-                auto const& p = m_replay_diseq[i];
-                expand_diseq(p.first, p.second);
-            }
-            m_replay_diseq.reset();
+        if (!can_propagate())
+            return;
+        ctx.push_trail(value_trail<context, unsigned>(m_prop_diseqs_qhead));
+        for (; m_prop_diseqs_qhead < m_prop_diseqs.size() && !ctx.inconsistent(); ++m_prop_diseqs_qhead) {
+            auto p = m_prop_diseqs[m_prop_diseqs_qhead];
+            assert_new_diseq_axiom(p.v1, p.v2, p.idx);
         }
     }
 
