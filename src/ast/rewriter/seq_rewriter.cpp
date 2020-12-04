@@ -3896,6 +3896,7 @@ br_status seq_rewriter::mk_re_power(func_decl* f, expr* a, expr_ref& result) {
 */
 br_status seq_rewriter::mk_re_star(expr* a, expr_ref& result) {
     expr* b, *c, *b1, *c1;
+    zstring zb;
     if (re().is_star(a) || re().is_full_seq(a)) {
         result = a;
         return BR_DONE;
@@ -3909,6 +3910,14 @@ br_status seq_rewriter::mk_re_star(expr* a, expr_ref& result) {
         VERIFY(m_util.is_re(a, seq_sort));
         result = re().mk_to_re(str().mk_empty(seq_sort));
         return BR_DONE;
+    }
+    if (re().is_to_re(a, b) && str().is_string(b, zb)) {
+        if (zb.length() == 0) {
+            sort* seq_sort = nullptr;
+            VERIFY(m_util.is_re(a, seq_sort));
+            result = re().mk_to_re(str().mk_empty(seq_sort));
+            return BR_REWRITE_FULL;
+        }
     }
     if (re().is_plus(a, b)) {
         result = re().mk_star(b);
