@@ -1157,6 +1157,23 @@ namespace smt {
                                 assert_axiom(stoi_cex);
                                 add_persisted_axiom(stoi_cex);
 
+                                // TESTING:
+                                // If len(S) := slen, (str.to_int S) < 10^slen
+                                // (This may not be useful if slen is very large.)
+                                if (slen.is_unsigned() && slen <= rational(10)) {
+                                    unsigned slen_u = slen.get_unsigned();
+                                    rational ten_to_slen = rational(10).expt(slen_u);
+                                    TRACE("str_fl", tout << "asserting str.to_int upper bound: len=" << slen_u << " -> str.to_int < " << ten_to_slen << std::endl;);
+                                    expr_ref stoi_upper_bound = expr_ref(rewrite_implication(
+                                        m.mk_eq(mk_strlen(arg), mk_int(slen)),
+                                        m_autil.mk_lt(e, mk_int(ten_to_slen))
+                                    ), m);
+                                    th_rewriter rw(m);
+                                    rw(stoi_upper_bound);
+                                    assert_axiom(stoi_upper_bound);
+                                    add_persisted_axiom(stoi_upper_bound);
+                                }
+
                                 return l_undef;
                             }
 

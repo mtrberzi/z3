@@ -1855,7 +1855,7 @@ namespace smt {
 
         {
             expr_ref lhs(m_autil.mk_ge(ex, mk_int(0)), m);
-            expr_ref rhs(mk_RegexIn(S, u.re.mk_plus(u.re.mk_range(mk_string("0"), mk_string("9")))), m);
+            expr_ref rhs(mk_RegexIn(S, u.re.mk_concat(u.re.mk_range(mk_string("0"), mk_string("9")), u.re.mk_star(u.re.mk_range(mk_string("0"), mk_string("9"))))), m);
             assert_axiom_rw(rewrite_implication(lhs, rhs));
         }
 # if 0
