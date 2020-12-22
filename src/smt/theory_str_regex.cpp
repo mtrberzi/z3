@@ -1630,10 +1630,28 @@ namespace smt {
         }
     }
 
-    // Returns true if the set could be computed exactly, or false otherwise.
     bool theory_str::get_regex_prefixes_of_length_one(expr * re, std::set<zstring> &prefixes) {
-        // TODO caching
+        std::set<zstring> found_prefixes;
+        if (regex_prefixes_of_length_one.find(re, found_prefixes)) {
+            for (auto p : found_prefixes) {
+                prefixes.insert(p);
+            }
+            return true;
+        } else {
+            if (get_regex_prefixes_of_length_one_uncached(re, found_prefixes)) {
+                regex_prefixes_of_length_one.insert(re, found_prefixes);
+                for (auto p : found_prefixes) {
+                    prefixes.insert(p);
+                }
+                return true;
+            } else {
+                return false;
+            }
+        }
+    }
 
+    // Returns true if the set could be computed exactly, or false otherwise.
+    bool theory_str::get_regex_prefixes_of_length_one_uncached(expr * re, std::set<zstring> &prefixes) {
         ENSURE(u.is_re(re));
         expr * sub1;
         expr * sub2;
@@ -1688,8 +1706,17 @@ namespace smt {
     }
 
     bool theory_str::regex_could_accept_empty_string(expr * re) {
-        // TODO caching
+        bool accepts_empty;
+        if (regex_could_accept_empty_string_cache.find(re, accepts_empty)) {
+            return accepts_empty;
+        } else {
+            accepts_empty = regex_could_accept_empty_string_uncached(re);
+            regex_could_accept_empty_string_cache.insert(re, accepts_empty);
+            return accepts_empty;
+        }
+    }
 
+    bool theory_str::regex_could_accept_empty_string_uncached(expr * re) {
         ENSURE(u.is_re(re));
         expr * sub1;
         expr * sub2;
