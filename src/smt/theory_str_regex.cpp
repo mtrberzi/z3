@@ -1699,6 +1699,7 @@ namespace smt {
                 zstring z(c);
                 prefixes.insert(z);
             }
+	    return true;
         } else {
             TRACE("str", tout << "WARNING: unknown regex term " << mk_pp(re, get_manager()) << std::endl;);
             return false;
