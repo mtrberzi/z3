@@ -639,6 +639,8 @@ protected:
     expr_ref aut_path_rewrite_constraint(expr * cond, expr * ch_var);
     void regex_inc_counter(obj_map<expr, unsigned> & counter_map, expr * key);
     unsigned regex_get_counter(obj_map<expr, unsigned> & counter_map, expr * key);
+    bool get_regex_prefixes_of_length_one(expr * re, std::set<zstring> &prefixes);
+    bool regex_could_accept_empty_string(expr * re);
 
 
     // @mku

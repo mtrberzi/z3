@@ -603,7 +603,77 @@ namespace smt {
 
             eautomaton * aut_inter = nullptr;
             CTRACE("str", !intersect_constraints.empty(), tout << "check intersection of automata constraints for " << mk_pp(str, m) << std::endl;);
+
+            // prefix heuristic
+            {
+                std::set<zstring> prefixes;
+                for (unsigned c = 0; c <= 255; ++c) {
+                    zstring z(c);
+                    prefixes.insert(z);
+                }
+                bool empty_string_possible = true;
+                expr_ref_vector used_regex_terms(m);
+                for (auto aut : intersect_constraints) {
+                    expr * str_in_re_term(u.re.mk_in_re(str, aut.get_regex_term()));
+                    lbool current_assignment = ctx.get_assignment(str_in_re_term);
+                    if (current_assignment == l_true) {
+                        std::set<zstring> prefixes_retained;
+                        std::set<zstring> prefixes_new;
+                        if (get_regex_prefixes_of_length_one(aut.get_regex_term(), prefixes_new)) {
+                            used_regex_terms.push_back(aut.get_regex_term());
+                            for (auto p : prefixes_new) {
+                                if (prefixes.find(p) != prefixes.end()) {
+                                    prefixes_retained.insert(p);
+                                }
+                            }
+                            empty_string_possible &= regex_could_accept_empty_string(aut.get_regex_term());
+                            prefixes = prefixes_retained;
+                        }
+                    }
+                }
+                TRACE("str", tout << "checked " << used_regex_terms.size() << " regex terms" << std::endl;);
+                TRACE("str", {tout << "Length-1 prefixes:" << std::endl;
+                        for (auto p : prefixes) {
+                            tout << p << std::endl;
+                        }
+                    });
+                if (empty_string_possible) {
+                    TRACE("str", tout << "the empty string is a solution to these intersected constraints" << std::endl;);
+                } else {
+                    TRACE("str", tout << "the empty string is NOT a solution to these intersected constraints" << std::endl;);
+                }
+                
+                if (prefixes.size() == 0) {
+                    if (empty_string_possible) {
+                        TRACE("str", tout << "asserting empty-string solution" << std::endl;);
+                        // No common prefixes except the empty string. 
+                        expr_ref_vector lhs_terms(m);
+                        for (auto re : used_regex_terms) {
+                            expr_ref str_in_re(u.re.mk_in_re(str, re), m);
+                            lhs_terms.push_back(str_in_re);
+                        }
+                        expr_ref lhs(mk_and(lhs_terms), m);
+                        expr_ref rhs(ctx.mk_eq_atom(str, mk_string("")), m);
+                        assert_implication(lhs, rhs);
+                        regex_axiom_add = true;
+                    } else {
+                        TRACE("str", tout << "asserting conflict clause" << std::endl;);
+                        // No common prefixes, and the empty string doesn't work. Conflict!
+                        expr_ref_vector lhs_terms(m);
+                        for (auto re : used_regex_terms) {
+                            expr_ref str_in_re(u.re.mk_in_re(str, re), m);
+                            lhs_terms.push_back(str_in_re);
+                        }
+                        expr_ref lhs(m.mk_not(mk_and(lhs_terms)), m);
+                        assert_axiom(lhs);
+                        add_persisted_axiom(lhs);
+                        regex_axiom_add = true;
+                    }
+                }
+            }
+
             for (auto aut : intersect_constraints) {
+
                 TRACE("str",
                       {
                           unsigned v = regex_get_counter(regex_length_attempt_count, aut.get_regex_term());
@@ -1557,6 +1627,108 @@ namespace smt {
         } else {
             counter_map.insert(key, 0);
             return 0;
+        }
+    }
+
+    // Returns true if the set could be computed exactly, or false otherwise.
+    bool theory_str::get_regex_prefixes_of_length_one(expr * re, std::set<zstring> &prefixes) {
+        // TODO caching
+
+        ENSURE(u.is_re(re));
+        expr * sub1;
+        expr * sub2;
+        unsigned lo, hi;
+        if (u.re.is_to_re(re, sub1)) {
+            if (!u.str.is_string(sub1))
+                throw default_exception("regular expressions must be built from string literals");
+            zstring str;
+            u.str.is_string(sub1, str);
+            prefixes.insert(str.extract(0, 1));
+            return true;
+        } else if (u.re.is_complement(re, sub1)) {
+            return false;
+        } else if (u.re.is_concat(re, sub1, sub2)) {
+            if (!get_regex_prefixes_of_length_one(sub1, prefixes)) {
+                return false;
+            }
+            // If the first subexpression could have been the empty string, take prefixes of the second subexpr as well.
+            if (regex_could_accept_empty_string(sub1)) {
+                return get_regex_prefixes_of_length_one(sub2, prefixes);
+            }
+        } else if (u.re.is_union(re, sub1, sub2)) {
+            return get_regex_prefixes_of_length_one(sub1, prefixes) && get_regex_prefixes_of_length_one(sub2, prefixes);
+        } else if (u.re.is_star(re, sub1) || u.re.is_plus(re, sub1)) {
+            return get_regex_prefixes_of_length_one(sub1, prefixes);
+        } else if (u.re.is_loop(re, sub1, lo, hi) || u.re.is_loop(re, sub1, lo)) {
+            return get_regex_prefixes_of_length_one(sub1, prefixes);
+        } else if (u.re.is_range(re, sub1, sub2)) {
+            SASSERT(u.str.is_string(sub1));
+            SASSERT(u.str.is_string(sub2));
+            zstring str1, str2;
+            u.str.is_string(sub1, str1);
+            u.str.is_string(sub2, str2);
+            if (str1.length() == 1 && str2.length() == 1) {
+                for (unsigned c = str1[0]; c <= str2[0]; ++c) {
+                    zstring z(c);
+                    prefixes.insert(z);
+                }
+                return true;
+            } else {
+                return false;
+            }
+        } else if (u.re.is_full_char(re) || u.re.is_full_seq(re)) {
+            for (unsigned c = 0; c <= 255; ++c) {
+                zstring z(c);
+                prefixes.insert(z);
+            }
+        } else {
+            TRACE("str", tout << "WARNING: unknown regex term " << mk_pp(re, get_manager()) << std::endl;);
+            return false;
+        }
+    }
+
+    bool theory_str::regex_could_accept_empty_string(expr * re) {
+        // TODO caching
+
+        ENSURE(u.is_re(re));
+        expr * sub1;
+        expr * sub2;
+        unsigned lo, hi;
+        if (u.re.is_to_re(re, sub1)) {
+            if (!u.str.is_string(sub1))
+                throw default_exception("regular expressions must be built from string literals");
+            zstring str;
+            u.str.is_string(sub1, str);
+            return str.length() == 0;
+        } else if (u.re.is_complement(re, sub1)) {
+            return !regex_could_accept_empty_string(sub1);
+        } else if (u.re.is_concat(re, sub1, sub2)) {
+            if (regex_could_accept_empty_string(sub1)) {
+                return regex_could_accept_empty_string(sub2);
+            } else {
+                return false;
+            }
+        } else if (u.re.is_union(re, sub1, sub2)) {
+            return regex_could_accept_empty_string(sub1) || regex_could_accept_empty_string(sub2);
+        } else if (u.re.is_star(re, sub1)) {
+            return true;
+        } else if (u.re.is_plus(re, sub1)) {
+            return regex_could_accept_empty_string(sub1);
+        } else if (u.re.is_loop(re, sub1, lo, hi) || u.re.is_loop(re, sub1, lo)) {
+            if (lo == 0) {
+                return true;
+            } else {
+                return regex_could_accept_empty_string(sub1);
+            }
+        } else if (u.re.is_range(re, sub1, sub2)) {
+            return false;
+        } else if (u.re.is_full_char(re)) {
+            return false;
+        } else if (u.re.is_full_seq(re)) {
+            return true;
+        } else {
+            TRACE("str", tout << "WARNING: unknown regex term " << mk_pp(re, get_manager()) << std::endl;);
+            return false;
         }
     }
 
