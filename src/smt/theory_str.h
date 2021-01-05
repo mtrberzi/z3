@@ -496,6 +496,7 @@ protected:
     obj_map<expr, expr*> regex_term_to_length_constraint; // (str.in.re S R) -> (length constraint over S wrt. R)
     obj_map<expr, ptr_vector<expr> > regex_term_to_extra_length_vars; // extra length vars used in regex_term_to_length_constraint entries
     obj_map<expr, std::set<zstring> > regex_prefixes_of_length_one; // Regex term --> all prefixes of length 1
+    obj_map<expr, std::set<zstring> > regex_suffixes_of_length_one; // Regex term --> all suffixes of length 1
     obj_map<expr, bool> regex_could_accept_empty_string_cache;
 
     // keep track of the last lower/upper bound we saw for each string term
@@ -643,6 +644,8 @@ protected:
     unsigned regex_get_counter(obj_map<expr, unsigned> & counter_map, expr * key);
     bool get_regex_prefixes_of_length_one(expr * re, std::set<zstring> &prefixes);
     bool get_regex_prefixes_of_length_one_uncached(expr * re, std::set<zstring> &prefixes);
+    bool get_regex_suffixes_of_length_one(expr * re, std::set<zstring> &suffixes);
+    bool get_regex_suffixes_of_length_one_uncached(expr * re, std::set<zstring> &suffixes);
     bool regex_could_accept_empty_string(expr * re);
     bool regex_could_accept_empty_string_uncached(expr * re);
 
