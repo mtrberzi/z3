@@ -1763,6 +1763,7 @@ namespace smt {
             if (regex_could_accept_empty_string(sub1)) {
                 return get_regex_prefixes_of_length_one(sub2, prefixes);
             }
+            return true;
         } else if (u.re.is_union(re, sub1, sub2)) {
             return get_regex_prefixes_of_length_one(sub1, prefixes) && get_regex_prefixes_of_length_one(sub2, prefixes);
         } else if (u.re.is_star(re, sub1) || u.re.is_plus(re, sub1)) {
@@ -1789,7 +1790,7 @@ namespace smt {
                 zstring z(c);
                 prefixes.insert(z);
             }
-	    return true;
+	        return true;
         } else {
             TRACE("str", tout << "WARNING: unknown regex term " << mk_pp(re, get_manager()) << std::endl;);
             return false;
@@ -1821,6 +1822,7 @@ namespace smt {
             if (regex_could_accept_empty_string(sub2)) {
                 return get_regex_suffixes_of_length_one(sub1, suffixes);
             }
+            return true;
         } else if (u.re.is_union(re, sub1, sub2)) {
             return get_regex_suffixes_of_length_one(sub1, suffixes) && get_regex_suffixes_of_length_one(sub2, suffixes);
         } else if (u.re.is_star(re, sub1) || u.re.is_plus(re, sub1)) {
@@ -1847,7 +1849,7 @@ namespace smt {
                 zstring z(c);
                 suffixes.insert(z);
             }
-	    return true;
+	        return true;
         } else {
             TRACE("str", tout << "WARNING: unknown regex term " << mk_pp(re, get_manager()) << std::endl;);
             return false;
