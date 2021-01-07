@@ -605,7 +605,7 @@ namespace smt {
             CTRACE("str", !intersect_constraints.empty(), tout << "check intersection of automata constraints for " << mk_pp(str, m) << std::endl;);
 
             // prefix heuristic
-            {
+            if (m_params.m_UseRegexPrefixSuffixHeuristic) {
                 std::set<zstring> prefixes;
                 for (unsigned c = 0; c <= 255; ++c) {
                     zstring z(c);
@@ -673,7 +673,7 @@ namespace smt {
             }
 
             // suffix heuristic
-            {
+            if (m_params.m_UseRegexPrefixSuffixHeuristic) {
                 std::set<zstring> suffixes;
                 for (unsigned c = 0; c <= 255; ++c) {
                     zstring z(c);

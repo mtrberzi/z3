@@ -151,6 +151,9 @@ struct theory_str_params {
 
     bool m_FixedLengthPreprocessing;
     unsigned m_FixedLengthIterations;
+
+    // Enables the regex prefix/suffix heuristic, which checks for common prefixes/suffixes of intersected regex constraints.
+    bool m_UseRegexPrefixSuffixHeuristic;
     
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
@@ -176,7 +179,8 @@ struct theory_str_params {
         m_SearchOverlaps(false),
         m_SearchOverlapsMilliseconds(1000),
         m_FixedLengthPreprocessing(false),
-        m_FixedLengthIterations(5)
+        m_FixedLengthIterations(5),
+        m_UseRegexPrefixSuffixHeuristic(true)
     {
         updt_params(p);
     }

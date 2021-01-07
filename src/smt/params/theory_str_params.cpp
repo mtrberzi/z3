@@ -44,6 +44,7 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_SearchOverlapsMilliseconds = p.str_search_overlaps_milliseconds();
     m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
     m_FixedLengthIterations = p.str_fixed_length_iterations();
+    m_UseRegexPrefixSuffixHeuristic = p.str_regex_prefix_heuristic();
 }
 
 #define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;
