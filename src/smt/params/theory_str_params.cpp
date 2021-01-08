@@ -45,6 +45,8 @@ void theory_str_params::updt_params(params_ref const & _p) {
     m_FixedLengthPreprocessing = p.str_fixed_length_preprocessing();
     m_FixedLengthIterations = p.str_fixed_length_iterations();
     m_UseRegexPrefixSuffixHeuristic = p.str_regex_prefix_heuristic();
+    m_RegexAutomata_ConstructLinearLengthConstraints = p.str_regex_automata_construct_linear_length_constraints();
+    m_RegexAutomata_ConstructBounds = p.str_regex_automata_construct_bounds();
 }
 
 #define DISPLAY_PARAM(X) out << #X"=" << X << std::endl;

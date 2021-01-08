@@ -154,6 +154,12 @@ struct theory_str_params {
 
     // Enables the regex prefix/suffix heuristic, which checks for common prefixes/suffixes of intersected regex constraints.
     bool m_UseRegexPrefixSuffixHeuristic;
+
+    // Construct full length constraints for automata when expected to be linear.
+    bool m_RegexAutomata_ConstructLinearLengthConstraints;
+    
+    // Construct lower/upper bounds for regex automata.
+    bool m_RegexAutomata_ConstructBounds;
     
     theory_str_params(params_ref const & p = params_ref()):
         m_StrongArrangements(true),
@@ -180,7 +186,9 @@ struct theory_str_params {
         m_SearchOverlapsMilliseconds(1000),
         m_FixedLengthPreprocessing(false),
         m_FixedLengthIterations(5),
-        m_UseRegexPrefixSuffixHeuristic(true)
+        m_UseRegexPrefixSuffixHeuristic(true),
+        m_RegexAutomata_ConstructLinearLengthConstraints(true),
+        m_RegexAutomata_ConstructBounds(true)
     {
         updt_params(p);
     }

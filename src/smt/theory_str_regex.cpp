@@ -64,7 +64,7 @@ namespace smt {
             }
 
             if (!regex_terms_with_length_constraints.contains(str_in_re)) {
-                if (current_assignment == l_true && check_regex_length_linearity(re)) {
+                if (current_assignment == l_true && check_regex_length_linearity(re) && m_params.m_RegexAutomata_ConstructLinearLengthConstraints) {
                     TRACE("str", tout << "regex length constraints expected to be linear -- generating and asserting them" << std::endl;);
 
                     if (regex_term_to_length_constraint.contains(str_in_re)) {
@@ -237,27 +237,33 @@ namespace smt {
 
             bool new_lower_bound_info = true;
             bool new_upper_bound_info = true;
-            // check last seen lower/upper bound to avoid performing duplicate work
-            if (regex_last_lower_bound.contains(str)) {
-                rational last_lb_value;
-                regex_last_lower_bound.find(str, last_lb_value);
-                if (last_lb_value == lower_bound_value) {
-                    new_lower_bound_info = false;
-                }
-            }
-            if (regex_last_upper_bound.contains(str)) {
-                rational last_ub_value;
-                regex_last_upper_bound.find(str, last_ub_value);
-                if (last_ub_value == upper_bound_value) {
-                    new_upper_bound_info = false;
-                }
-            }
 
-            if (new_lower_bound_info) {
-                regex_last_lower_bound.insert(str, lower_bound_value);
-            }
-            if (new_upper_bound_info) {
-                regex_last_upper_bound.insert(str, upper_bound_value);
+            if (m_params.m_RegexAutomata_ConstructBounds) {
+                // check last seen lower/upper bound to avoid performing duplicate work
+                if (regex_last_lower_bound.contains(str)) {
+                    rational last_lb_value;
+                    regex_last_lower_bound.find(str, last_lb_value);
+                    if (last_lb_value == lower_bound_value) {
+                        new_lower_bound_info = false;
+                    }
+                }
+                if (regex_last_upper_bound.contains(str)) {
+                    rational last_ub_value;
+                    regex_last_upper_bound.find(str, last_ub_value);
+                    if (last_ub_value == upper_bound_value) {
+                        new_upper_bound_info = false;
+                    }
+                }
+
+                if (new_lower_bound_info) {
+                    regex_last_lower_bound.insert(str, lower_bound_value);
+                }
+                if (new_upper_bound_info) {
+                    regex_last_upper_bound.insert(str, upper_bound_value);
+                }
+            } else {
+                new_lower_bound_info = false;
+                new_upper_bound_info = false;
             }
 
             if (upper_bound_exists && new_upper_bound_info) {
