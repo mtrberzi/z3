@@ -612,6 +612,7 @@ namespace smt {
 
             // prefix heuristic
             if (m_params.m_UseRegexPrefixSuffixHeuristic) {
+                TRACE("str", tout << "applying prefix heuristic" << std::endl;);
                 std::set<zstring> prefixes;
                 for (unsigned c = 0; c <= 255; ++c) {
                     zstring z(c);
@@ -619,22 +620,28 @@ namespace smt {
                 }
                 bool empty_string_possible = true;
                 expr_ref_vector used_regex_terms(m);
-                for (auto aut : intersect_constraints) {
-                    expr * str_in_re_term(u.re.mk_in_re(str, aut.get_regex_term()));
+                for (auto str_in_re_term : str_in_re_terms) {
                     lbool current_assignment = ctx.get_assignment(str_in_re_term);
                     if (current_assignment == l_true) {
+                        TRACE("str", tout << "considering prefixes of " << mk_pp(str_in_re_term, m) << std::endl;);
                         std::set<zstring> prefixes_retained;
                         std::set<zstring> prefixes_new;
-                        if (get_regex_prefixes_of_length_one(aut.get_regex_term(), prefixes_new)) {
-                            used_regex_terms.push_back(aut.get_regex_term());
+                        expr * _unused = nullptr;
+                        expr * re = nullptr;
+                        SASSERT(u.str.is_in_re(str_in_re_term));
+                        u.str.is_in_re(str_in_re_term, _unused, re);
+                        if (get_regex_prefixes_of_length_one(re, prefixes_new)) {
+                            used_regex_terms.push_back(re);
                             for (auto p : prefixes_new) {
                                 if (prefixes.find(p) != prefixes.end()) {
                                     prefixes_retained.insert(p);
                                 }
                             }
-                            empty_string_possible &= regex_could_accept_empty_string(aut.get_regex_term());
+                            empty_string_possible &= regex_could_accept_empty_string(re);
                             prefixes = prefixes_retained;
                         }
+                    } else {
+                        TRACE("str", tout << "regex term " << mk_pp(str_in_re_term, m) << " not assigned true, skipping" << std::endl;);
                     }
                 }
                 TRACE("str", tout << "checked " << used_regex_terms.size() << " regex terms" << std::endl;);
@@ -680,6 +687,7 @@ namespace smt {
 
             // suffix heuristic
             if (m_params.m_UseRegexPrefixSuffixHeuristic) {
+                TRACE("str", tout << "applying suffix heuristic" << std::endl;);
                 std::set<zstring> suffixes;
                 for (unsigned c = 0; c <= 255; ++c) {
                     zstring z(c);
@@ -687,22 +695,28 @@ namespace smt {
                 }
                 bool empty_string_possible = true;
                 expr_ref_vector used_regex_terms(m);
-                for (auto aut : intersect_constraints) {
-                    expr * str_in_re_term(u.re.mk_in_re(str, aut.get_regex_term()));
+                for (auto str_in_re_term : str_in_re_terms) {
+                    TRACE("str", tout << "considering suffixes of " << mk_pp(str_in_re_term, m) << std::endl;);
                     lbool current_assignment = ctx.get_assignment(str_in_re_term);
                     if (current_assignment == l_true) {
                         std::set<zstring> suffixes_retained;
                         std::set<zstring> suffixes_new;
-                        if (get_regex_suffixes_of_length_one(aut.get_regex_term(), suffixes_new)) {
-                            used_regex_terms.push_back(aut.get_regex_term());
+                        expr * _unused = nullptr;
+                        expr * re = nullptr;
+                        SASSERT(u.str.is_in_re(str_in_re_term));
+                        u.str.is_in_re(str_in_re_term, _unused, re);
+                        if (get_regex_suffixes_of_length_one(re, suffixes_new)) {
+                            used_regex_terms.push_back(re);
                             for (auto p : suffixes_new) {
                                 if (suffixes.find(p) != suffixes.end()) {
                                     suffixes_retained.insert(p);
                                 }
                             }
-                            empty_string_possible &= regex_could_accept_empty_string(aut.get_regex_term());
+                            empty_string_possible &= regex_could_accept_empty_string(re);
                             suffixes = suffixes_retained;
                         }
+                    } else {
+                        TRACE("str", tout << "regex term " << mk_pp(str_in_re_term, m) << " not assigned true, skipping" << std::endl;);
                     }
                 }
                 TRACE("str", tout << "checked " << used_regex_terms.size() << " regex terms" << std::endl;);
