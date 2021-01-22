@@ -112,7 +112,7 @@ namespace smt {
             } // re not in regex_terms_with_length_constraints
 
             rational exact_length_value;
-            if (fixed_length_get_len_value(str, exact_length_value)) {
+            if (fixed_length_get_len_value(str, exact_length_value) && m_params.m_RegexAutomata_ConstructBounds) {
                 TRACE("str", tout << "exact length of " << mk_pp(str, m) << " is " << exact_length_value << std::endl;);
 
                 if (regex_terms_with_path_constraints.contains(str_in_re)) {
@@ -220,7 +220,9 @@ namespace smt {
                         regex_automaton_assumptions[re].push_back(new_aut);
                         TRACE("str", tout << "add new automaton for " << mk_pp(re, m) << ": no assumptions" << std::endl;);
                         regex_axiom_add = true;
-                        find_automaton_initial_bounds(str_in_re, aut);
+			if (m_params.m_RegexAutomata_ConstructBounds) {
+			    find_automaton_initial_bounds(str_in_re, aut);
+			}
                     } else {
                         regex_inc_counter(regex_fail_count, str_in_re);
                     }
@@ -366,7 +368,9 @@ namespace smt {
                         regex_automaton_assumptions[re].push_back(new_aut);
                         TRACE("str", tout << "add new automaton for " << mk_pp(re, m) << ": no assumptions" << std::endl;);
                         regex_axiom_add = true;
-                        find_automaton_initial_bounds(str_in_re, aut);
+			if (m_params.m_RegexAutomata_ConstructBounds) {
+                            find_automaton_initial_bounds(str_in_re, aut);
+			}
                     } else {
                         // TODO check negation?
                         // TODO construct a partial automaton for R to the given upper bound?
@@ -489,7 +493,9 @@ namespace smt {
                             regex_automaton_assumptions[re].push_back(new_aut);
                             TRACE("str", tout << "add new automaton for " << mk_pp(re, m) << ": no assumptions" << std::endl;);
                             regex_axiom_add = true;
-                            find_automaton_initial_bounds(str_in_re, aut);
+			    if (m_params.m_RegexAutomata_ConstructBounds) {
+                                find_automaton_initial_bounds(str_in_re, aut);
+			    }
                         } else {
                             // TODO check negation?
                             // TODO construct a partial automaton for R to the given lower bound?
@@ -526,7 +532,9 @@ namespace smt {
                             regex_automaton_assumptions[re].push_back(new_aut);
                             TRACE("str", tout << "add new automaton for " << mk_pp(re, m) << ": no assumptions" << std::endl;);
                             regex_axiom_add = true;
-                            find_automaton_initial_bounds(str_in_re, aut);
+			    if (m_params.m_RegexAutomata_ConstructBounds) {
+                                find_automaton_initial_bounds(str_in_re, aut);
+			    }
                         } else {
                             regex_inc_counter(regex_fail_count, str_in_re);
                         }
@@ -558,11 +566,11 @@ namespace smt {
                 TRACE("str", tout << "consider intersecting regex " << mk_pp(re, m) << std::endl;);
 
                 rational exact_len;
-                bool has_exact_len = get_len_value(str, exact_len);
+                bool has_exact_len = get_len_value(str, exact_len) && m_params.m_RegexAutomata_ConstructBounds;
 
                 rational lb, ub;
-                bool has_lower_bound = lower_bound(mk_strlen(str), lb);
-                bool has_upper_bound = upper_bound(mk_strlen(str), ub);
+                bool has_lower_bound = lower_bound(mk_strlen(str), lb) && m_params.m_RegexAutomata_ConstructBounds;
+                bool has_upper_bound = upper_bound(mk_strlen(str), ub) && m_params.m_RegexAutomata_ConstructBounds;
 
                 if (regex_automaton_assumptions.contains(re) &&
                                                 !regex_automaton_assumptions[re].empty()){
