@@ -178,7 +178,7 @@ struct theory_str_params {
         m_FixedLengthRefinement(false),
         m_PreMilliseconds(1000),
         m_MultisetCheck(false),
-		m_RewriterTactic(false),
+		m_RewriterTactic(true),
 		m_StrTactic(symbol("z3str4")),
         m_FixedLengthNaiveCounterexamples(true),
         m_ShareConstraints(true),

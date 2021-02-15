@@ -102,6 +102,35 @@ class ext_str_tactic : public tactic {
                 }
             }
 
+            // Rewrite: (= (str.indexof H N I) -i) --> not(str.contains H N)
+            {
+                expr * haystack = nullptr;
+                expr * needle = nullptr;
+                expr * index = nullptr;
+                bool rewrite_applies = false;
+                rational integer_constant;
+
+                if (u.str.is_index(lhs, haystack, needle, index)) {
+                    if (m_autil.is_numeral(rhs, integer_constant)) {
+                        if (integer_constant.is_neg()) {
+                            rewrite_applies = true;
+                        }
+                    }
+                } else if (u.str.is_index(rhs, haystack, needle, index)) {
+                    if (m_autil.is_numeral(lhs, integer_constant)) {
+                        if (integer_constant.is_neg()) {
+                            rewrite_applies = true;
+                        }
+                    }
+                }
+
+                if (rewrite_applies) {
+                    TRACE("ext_str_tactic", tout << "str.indexof always negative rewrite applies: " << mk_pp(haystack, m) << " does not contain " << mk_pp(needle, m) << std::endl;);
+                    expr_ref h_not_in_n(m.mk_not(u.str.mk_contains(haystack, needle)), m);
+                    sub.insert(eq, h_not_in_n);
+                }
+            }
+
             stack.push_back(lhs);
             stack.push_back(rhs);
         }
