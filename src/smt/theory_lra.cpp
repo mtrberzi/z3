@@ -298,7 +298,7 @@ class theory_lra::imp {
     }
 
     void found_unsupported(expr* n) {
-        ctx().push_trail(value_trail<context, expr*>(m_not_handled));
+        ctx().push_trail(value_trail<expr*>(m_not_handled));
         TRACE("arith", tout << "unsupported " << mk_pp(n, m) << "\n";);
         m_not_handled = n;    
     }
@@ -384,7 +384,7 @@ class theory_lra::imp {
                 vars.push_back(v);
                 ++index;
             }
-            else if (a.is_power(n, n1, n2) && is_app(n1) && a.is_extended_numeral(n2, r) && r.is_unsigned() && r <= 10) {
+            else if (a.is_power(n, n1, n2) && is_app(n1) && a.is_extended_numeral(n2, r) && r.is_unsigned() && r.is_pos() && r <= 10) {
                 theory_var v = internalize_power(to_app(n), to_app(n1), r.get_unsigned());
                 coeffs[vars.size()] = coeffs[index];
                 vars.push_back(v);
@@ -733,7 +733,7 @@ class theory_lra::imp {
 
     void updt_unassigned_bounds(theory_var v, int inc) {
         TRACE("arith", tout << "v" << v << " " << m_unassigned_bounds[v] << " += " << inc << "\n";);
-        ctx().push_trail(vector_value_trail<smt::context, unsigned, false>(m_unassigned_bounds, v));
+        ctx().push_trail(vector_value_trail<unsigned, false>(m_unassigned_bounds, v));
         m_unassigned_bounds[v] += inc;            
     }
        
@@ -884,7 +884,7 @@ public:
         lp().set_track_pivoted_rows(lpar.arith_bprop_on_pivoted_rows());
         lp().settings().report_frequency = lpar.arith_rep_freq();
         lp().settings().print_statistics = lpar.arith_print_stats();
-        lp().settings().cheap_eqs() = lpar.arith_cheap_eqs();
+        lp().settings().cheap_eqs() = lpar.arith_propagate_eqs();
 
         // todo : do not use m_arith_branch_cut_ratio for deciding on cheap cuts
         unsigned branch_cut_ratio = ctx().get_fparams().m_arith_branch_cut_ratio;
@@ -1422,7 +1422,7 @@ public:
     void init_variable_values() {
         m_model_is_initialized = false;
         if (m.inc() && m_solver.get() && th.get_num_vars() > 0) {   
-            ctx().push_trail(value_trail<smt::context, bool>(m_model_is_initialized));
+            ctx().push_trail(value_trail<bool>(m_model_is_initialized));
             m_model_is_initialized = lp().init_model();
             TRACE("arith", display(tout << "update variable values " << m_model_is_initialized << "\n"););            
         }
@@ -1507,7 +1507,7 @@ public:
         }
             
         if (num_candidates > 0) {
-            ctx().push_trail(restore_size_trail<context, std::pair<theory_var, theory_var>, false>(m_assume_eq_candidates, old_sz));
+            ctx().push_trail(restore_size_trail<std::pair<theory_var, theory_var>, false>(m_assume_eq_candidates, old_sz));
         }
 
         return delayed_assume_eqs();
@@ -1517,7 +1517,7 @@ public:
         if (m_assume_eq_head == m_assume_eq_candidates.size())
             return false;
             
-        ctx().push_trail(value_trail<context, unsigned>(m_assume_eq_head));
+        ctx().push_trail(value_trail<unsigned>(m_assume_eq_head));
         while (m_assume_eq_head < m_assume_eq_candidates.size()) {
             std::pair<theory_var, theory_var> const & p = m_assume_eq_candidates[m_assume_eq_head];
             theory_var v1 = p.first;
@@ -1603,7 +1603,7 @@ public:
             get_infeasibility_explanation_and_set_conflict();
             return FC_CONTINUE;
         case l_undef:
-            TRACE("arith", tout << "check feasiable is undef\n";);
+            TRACE("arith", tout << "check feasible is undef\n";);
             return m.inc() ? FC_CONTINUE : FC_GIVEUP;
         default:
             UNREACHABLE();
@@ -2289,8 +2289,15 @@ public:
         theory_var vv = lp().local_to_external(v); // so maybe better to have them already transformed to external form
         enode* n1 = get_enode(uv);
         enode* n2 = get_enode(vv);
-        if (n1->get_root() == n2->get_root() ||
-            m.get_sort(n1->get_owner()) != m.get_sort(n2->get_owner()))
+        if (n1->get_root() == n2->get_root())
+            return;
+        if (!ctx().is_shared(n1) || !ctx().is_shared(n2))
+            return;
+        expr* e1 = n1->get_owner();
+        expr* e2 = n2->get_owner();
+        if (e1->get_sort() != e2->get_sort())
+            return;
+        if (m.is_ite(e1) || m.is_ite(e2))
             return;
         reset_evidence();
         for (auto const& ev : e) 
@@ -2299,7 +2306,7 @@ public:
             ext_theory_eq_propagation_justification(
                 get_id(), ctx().get_region(), m_core.size(), m_core.c_ptr(), m_eqs.size(), m_eqs.c_ptr(), n1, n2));
         
-        std::function<expr*(void)> fn = [&]() { return m.mk_eq(n1->get_owner(), n2->get_owner()); };
+        std::function<expr*(void)> fn = [&]() { return m.mk_eq(e1, e2); };
         scoped_trace_stream _sts(th, fn);
         ctx().assign_eq(n1, n2, eq_justification(js));        
     }
@@ -2953,7 +2960,7 @@ public:
             if (b.first == UINT_MAX || (is_lower? b.second < v : b.second > v)) {
                 TRACE("arith", tout << "tighter bound " << tv.to_string() << "\n";);
                 m_history.push_back(vec[ti]);
-                ctx().push_trail(history_trail<context, constraint_bound>(vec, ti, m_history));
+                ctx().push_trail(history_trail<constraint_bound>(vec, ti, m_history));
                 b.first = ci;
                 b.second = v;
             }
@@ -3289,7 +3296,7 @@ public:
             TRACE("arith", tout << mk_pp(o, m) << " v" << v << " := " << r << "\n";);
             SASSERT("integer variables should have integer values: " && (!a.is_int(o) || r.is_int() || m.limit().is_canceled()));
             if (a.is_int(o) && !r.is_int()) r = floor(r);
-            return alloc(expr_wrapper_proc, m_factory->mk_value(r,  m.get_sort(o)));
+            return alloc(expr_wrapper_proc, m_factory->mk_value(r,  o->get_sort()));
         }
     }
 
@@ -3459,7 +3466,11 @@ public:
             st = lp::lp_status::UNBOUNDED;
         }
         else {
+            if (lp().get_status() != lp::lp_status::OPTIMAL || lp().has_changed_columns()) 
+                make_feasible();
+            
             vi = get_lpvar(v);
+            
             st = lp().maximize_term(vi, term_max);
             if (has_int() && lp().has_inf_int()) {
                 st = lp::lp_status::FEASIBLE;
@@ -3496,18 +3507,18 @@ public:
         expr* obj = get_enode(v)->get_owner();
         rational r = val.x;
         expr_ref e(m);
-        if (a.is_int(m.get_sort(obj))) {
+        if (a.is_int(obj->get_sort())) {
             if (r.is_int()) {
                 r += rational::one();
             }
             else {
                 r = ceil(r);
             }
-            e = a.mk_numeral(r, m.get_sort(obj));
+            e = a.mk_numeral(r, obj->get_sort());
             e = a.mk_ge(obj, e);
         }
         else {
-            e = a.mk_numeral(r, m.get_sort(obj));
+            e = a.mk_numeral(r, obj->get_sort());
             if (val.y.is_neg()) {
                 e = a.mk_ge(obj, e);
             }

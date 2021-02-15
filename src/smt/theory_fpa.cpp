@@ -188,7 +188,7 @@ namespace smt {
             m_conversions.insert(e, res);
             m.inc_ref(e);
             m.inc_ref(res);
-            m_trail_stack.push(insert_ref2_map<theory_fpa, ast_manager, expr, expr>(m, m_conversions, e, res.get()));
+            m_trail_stack.push(insert_ref2_map<ast_manager, expr, expr>(m, m_conversions, e, res.get()));
         }
 
         return res;
@@ -459,7 +459,7 @@ namespace smt {
                 }
                 else {
                     expr_ref wu(m);
-                    wu = m.mk_eq(m_converter.unwrap(wrapped, m.get_sort(n)), n);
+                    wu = m.mk_eq(m_converter.unwrap(wrapped, n->get_sort()), n);
                     TRACE("t_fpa", tout << "w/u eq: " << std::endl << mk_ismt2_pp(wu, m) << std::endl;);
                     assert_cnstr(wu);
                 }
@@ -533,7 +533,7 @@ namespace smt {
 
     model_value_proc * theory_fpa::mk_value(enode * n, model_generator & mg) {
         TRACE("t_fpa", tout << "mk_value for: " << mk_ismt2_pp(n->get_owner(), m) <<
-                            " (sort " << mk_ismt2_pp(m.get_sort(n->get_owner()), m) << ")\n";);
+                            " (sort " << mk_ismt2_pp(n->get_owner()->get_sort(), m) << ")\n";);
 
         app_ref owner(m);
         owner = get_ite_value(n->get_owner());
@@ -564,8 +564,8 @@ namespace smt {
             a0 = to_app(owner->get_arg(0));
             a1 = to_app(owner->get_arg(1));
             a2 = to_app(owner->get_arg(2));
-            unsigned ebits = m_fpa_util.get_ebits(m.get_sort(owner));
-            unsigned sbits = m_fpa_util.get_sbits(m.get_sort(owner));
+            unsigned ebits = m_fpa_util.get_ebits(owner->get_sort());
+            unsigned sbits = m_fpa_util.get_sbits(owner->get_sort());
             fpa_value_proc * vp = alloc(fpa_value_proc, this, ebits, sbits);
             vp->add_dependency(ctx.get_enode(a0));
             vp->add_dependency(ctx.get_enode(a1));
@@ -593,8 +593,8 @@ namespace smt {
                 res = vp;
             }
             else if (m_fpa_util.is_float(owner)) {
-                unsigned ebits = m_fpa_util.get_ebits(m.get_sort(owner));
-                unsigned sbits = m_fpa_util.get_sbits(m.get_sort(owner));
+                unsigned ebits = m_fpa_util.get_ebits(owner->get_sort());
+                unsigned sbits = m_fpa_util.get_sbits(owner->get_sort());
                 fpa_value_proc * vp = alloc(fpa_value_proc, this, ebits, sbits);
                 enode * en = ctx.get_enode(wrapped);
                 vp->add_dependency(en);
@@ -603,8 +603,8 @@ namespace smt {
             }
         }
         else {
-            unsigned ebits = m_fpa_util.get_ebits(m.get_sort(owner));
-            unsigned sbits = m_fpa_util.get_sbits(m.get_sort(owner));
+            unsigned ebits = m_fpa_util.get_ebits(owner->get_sort());
+            unsigned sbits = m_fpa_util.get_sbits(owner->get_sort());
             return alloc(expr_wrapper_proc, m_fpa_util.mk_pzero(ebits, sbits));
         }
 

@@ -196,6 +196,11 @@ namespace api {
             }
             e = m_datalog_util.mk_numeral(n.get_uint64(), s);
         }
+        else if (fid == m_fpa_fid) {
+            scoped_mpf tmp(fpautil().fm());
+            fpautil().fm().set(tmp, fpautil().get_ebits(s), fpautil().get_sbits(s), n.get_double());
+            e = fpautil().mk_value(tmp);
+        }
         else {
             invoke_error_handler(Z3_INVALID_ARG);
         }
@@ -219,7 +224,7 @@ namespace api {
 
 
     void context::save_ast_trail(ast * n) {
-        SASSERT(m().contains(n));
+        // cherry on top? SASSERT(m().contains(n));
         if (m_user_ref_count) {
             // Corner case bug: n may be in m_last_result, and this is the only reference to n.
             // When, we execute reset() it is deleted
@@ -295,7 +300,7 @@ namespace api {
                 if (a->get_num_args() > 1) buffer << "\n";
                 for (unsigned i = 0; i < a->get_num_args(); ++i) {
                     buffer << mk_bounded_pp(a->get_arg(i), m(), 3) << " of sort ";
-                    buffer << mk_pp(m().get_sort(a->get_arg(i)), m()) << "\n";
+                    buffer << mk_pp(a->get_arg(i)->get_sort(), m()) << "\n";
                 }
                 auto str = buffer.str();
                 warning_msg("%s", str.c_str());

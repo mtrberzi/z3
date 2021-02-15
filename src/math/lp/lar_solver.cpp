@@ -783,7 +783,7 @@ namespace lp {
             update_x_and_inf_costs_for_columns_with_changed_bounds();
         m_mpq_lar_core_solver.solve();
         set_status(m_mpq_lar_core_solver.m_r_solver.get_status());
-        lp_assert((((lp_settings::ddd++) % 100) != 0) || m_status != lp_status::OPTIMAL || all_constraints_hold());
+        lp_assert(((m_settings.stats().m_make_feasible% 100) != 0) || m_status != lp_status::OPTIMAL || all_constraints_hold());
     }
 
 
@@ -1454,15 +1454,16 @@ namespace lp {
         vector<unsigned> became_feas;
         clean_popped_elements(A_r().column_count(), m_mpq_lar_core_solver.m_r_solver.inf_set());
         std::unordered_set<unsigned> basic_columns_with_changed_cost;
-        auto inf_index_copy = m_mpq_lar_core_solver.m_r_solver.inf_set();
-        for (auto j : inf_index_copy) {
+        m_inf_index_copy.reset();
+        for (auto j : m_mpq_lar_core_solver.m_r_solver.inf_set())
+            m_inf_index_copy.push_back(j);
+        for (auto j : m_inf_index_copy) {
             if (m_mpq_lar_core_solver.m_r_heading[j] >= 0) {
                 continue;
             }
             // some basic columns might become non-basic - these columns need to be made feasible
             numeric_pair<mpq> delta;
             if (m_mpq_lar_core_solver.m_r_solver.make_column_feasible(j, delta)) {
-
                 change_basic_columns_dependend_on_a_given_nb_column(j, delta);
             }
             became_feas.push_back(j);
@@ -1823,8 +1824,9 @@ namespace lp {
             }
         }
 
-        SASSERT(column_is_fixed(k));
-        if (j != k) {
+        CTRACE("arith", !column_is_fixed(k), print_terms(tout););
+        // SASSERT(column_is_fixed(k));
+        if (j != k && column_is_fixed(k)) {
             SASSERT(column_is_int(j) == column_is_int(k));
             equal_to_j = column_to_reported_index(k);
             TRACE("lar_solver", tout << "found equal column k = " << k <<

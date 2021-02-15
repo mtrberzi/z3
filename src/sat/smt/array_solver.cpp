@@ -176,7 +176,7 @@ namespace array {
             return false;
         force_push();
         bool prop = false;
-        ctx.push(value_trail<euf::solver, unsigned>(m_qhead));
+        ctx.push(value_trail<unsigned>(m_qhead));
         for (; m_qhead < m_axiom_trail.size() && !s().inconsistent(); ++m_qhead)
             if (propagate_axiom(m_qhead))
                 prop = true;
@@ -206,7 +206,7 @@ namespace array {
 
     void solver::add_parent_select(theory_var v_child, euf::enode* select) {
         SASSERT(a.is_select(select->get_expr()));
-        SASSERT(m.get_sort(select->get_arg(0)->get_expr()) == m.get_sort(var2expr(v_child)));
+        SASSERT(select->get_arg(0)->get_expr()->get_sort() == var2expr(v_child)->get_sort());
 
         v_child = find(v_child);
         ctx.push_vec(get_var_data(v_child).m_parent_selects, select);
@@ -269,7 +269,7 @@ namespace array {
         auto& d = get_var_data(find(v));
         if (d.m_prop_upward)
             return;
-        ctx.push(reset_flag_trail<euf::solver>(d.m_prop_upward));
+        ctx.push(reset_flag_trail(d.m_prop_upward));
         d.m_prop_upward = true;
         if (should_prop_upward(d))
             propagate_parent_select_axioms(v);

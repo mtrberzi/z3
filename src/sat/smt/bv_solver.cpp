@@ -24,26 +24,26 @@ Author:
 
 namespace bv {
 
-    class solver::bit_trail : public trail<euf::solver> {
+    class solver::bit_trail : public trail {
         solver& s;
         solver::var_pos vp;
         sat::literal lit;
     public:
         bit_trail(solver& s, var_pos vp) : s(s), vp(vp), lit(s.m_bits[vp.first][vp.second]) {}
 
-        virtual void undo(euf::solver& euf) {
+        void undo() override {
             s.m_bits[vp.first][vp.second] = lit;
         }
     };
 
-    class solver::bit_occs_trail : public trail<euf::solver> {
+    class solver::bit_occs_trail : public trail {
         atom& a;
         var_pos_occ* m_occs;
 
     public:
         bit_occs_trail(solver& s, atom& a): a(a), m_occs(a.m_occs) {}
         
-        virtual void undo(euf::solver& euf) {
+        void undo() override {
             a.m_occs = m_occs;
         }
     };
@@ -345,12 +345,8 @@ namespace bv {
         if (c.m_kind != bv_justification::kind_t::bit2ne) {
             expr* e1 = var2expr(c.m_v1);
             expr* e2 = var2expr(c.m_v2);
-            eq = m.mk_eq(e1, e2);                                           
-            ctx.get_drat().def_begin('e', eq->get_id(), std::string("="));
-            ctx.get_drat().def_add_arg(e1->get_id());
-            ctx.get_drat().def_add_arg(e2->get_id());
-            ctx.get_drat().def_end();
-            ctx.get_drat().bool_def(leq.var(), eq->get_id());
+            eq = m.mk_eq(e1, e2);       
+            ctx.drat_eq_def(leq, eq);
         }
 
         static unsigned s_count = 0;
@@ -417,7 +413,7 @@ namespace bv {
         if (m_prop_queue_head == m_prop_queue.size())
             return false;
         force_push();
-        ctx.push(value_trail<euf::solver, unsigned>(m_prop_queue_head));
+        ctx.push(value_trail<unsigned>(m_prop_queue_head));
         for (; m_prop_queue_head < m_prop_queue.size() && !s().inconsistent(); ++m_prop_queue_head) {
             auto const p = m_prop_queue[m_prop_queue_head];
             if (p.m_atom) {
@@ -563,7 +559,7 @@ namespace bv {
             SASSERT(l2.var() == l.var());
             VERIFY(l2.var() == l.var());
             sat::literal r2 = (l.sign() == l2.sign()) ? r : ~r;
-            ctx.push(vector2_value_trail<euf::solver, bits_vector, sat::literal>(m_bits, vp.first, vp.second));
+            ctx.push(vector2_value_trail<bits_vector, sat::literal>(m_bits, vp.first, vp.second));
             m_bits[vp.first][vp.second] = r2;
             set_bit_eh(vp.first, r2, vp.second);
         }
@@ -714,7 +710,6 @@ namespace bv {
     bool solver::is_blocked(literal l, sat::ext_constraint_idx) { return false; }
     bool solver::check_model(sat::model const& m) const { return true; }
     void solver::finalize_model(model& mdl) {}
-    unsigned solver::max_var(unsigned w) const { return w; }
 
     void solver::add_value(euf::enode* n, model& mdl, expr_ref_vector& values) {
         SASSERT(bv.is_bv(n->get_expr()));

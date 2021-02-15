@@ -8,6 +8,7 @@ z3_add_component(rewriter
     bv_bounds.cpp
     bv_elim.cpp
     bv_rewriter.cpp
+    cached_var_subst.cpp
     datatype_rewriter.cpp
     der.cpp
     distribute_forall.cpp
@@ -32,6 +33,7 @@ z3_add_component(rewriter
     recfun_rewriter.cpp
     rewriter.cpp
     seq_rewriter.cpp
+    seq_skolem.cpp
     th_rewriter.cpp
     value_sweep.cpp
     var_subst.cpp

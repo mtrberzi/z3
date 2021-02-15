@@ -40,7 +40,7 @@ static bool is_cf_helper(ast_manager &m, expr * f, bool sign)
         sign = !sign;
     }
 
-    if (m.is_eq(f) && !sign && m.get_sort(to_app(f)->get_arg(0))->get_family_id() == u.get_family_id())
+    if (m.is_eq(f) && !sign && to_app(f)->get_arg(0)->get_sort()->get_family_id() == u.get_family_id())
     {
         TRACE("str_fl", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
         return false;

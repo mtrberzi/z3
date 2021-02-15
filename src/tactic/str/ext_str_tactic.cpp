@@ -241,7 +241,7 @@ class ext_str_tactic : public tactic {
                     TRACE("ext_str_tactic", tout << "str.prefixof rewrite applies: " << mk_pp(haystack, m) << " in " << string_constant << " .*" << std::endl;);
                     expr_ref string_expr(u.str.mk_string(string_constant), m);
                     expr_ref string_expr_re(u.re.mk_to_re(string_expr), m);
-                    sort* re_str_sort = m.get_sort(string_expr_re);
+                    sort* re_str_sort = string_expr_re->get_sort();
                     expr_ref re_any_string(u.re.mk_full_seq(re_str_sort), m);
                     expr_ref regex(u.re.mk_concat(string_expr_re, re_any_string), m);
                     expr_ref str_in_regex(u.re.mk_in_re(haystack, regex), m);
@@ -267,7 +267,7 @@ class ext_str_tactic : public tactic {
                     TRACE("ext_str_tactic", tout << "str.suffixof rewrite applies: " << mk_pp(haystack, m) << " in .* " << string_constant << std::endl;);
                     expr_ref string_expr(u.str.mk_string(string_constant), m);
                     expr_ref string_expr_re(u.re.mk_to_re(string_expr), m);
-                    sort* re_str_sort = m.get_sort(string_expr_re);
+                    sort* re_str_sort = string_expr_re->get_sort();
                     expr_ref re_any_string(u.re.mk_full_seq(re_str_sort), m);
                     expr_ref regex(u.re.mk_concat(re_any_string, string_expr_re), m);
                     expr_ref str_in_regex(u.re.mk_in_re(haystack, regex), m);

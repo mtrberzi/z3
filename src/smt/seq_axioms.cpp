@@ -106,10 +106,6 @@ void seq_axioms::add_extract_axiom(expr* e) {
         add_extract_prefix_axiom(e, s, l);
         return;
     }
-    if (is_extract_suffix(s, i, l)) {
-        add_extract_suffix_axiom(e, s, i);
-        return;
-    }
     expr_ref x = m_sk.mk_pre(s, i);
     expr_ref ls = mk_len(s);
     expr_ref lx = mk_len(x);
@@ -195,54 +191,27 @@ bool seq_axioms::is_extract_prefix0(expr* s, expr* i, expr* l) {
     return a.is_numeral(i, i1) && i1.is_zero();    
 }
 
-bool seq_axioms::is_extract_suffix(expr* s, expr* i, expr* l) {
-    expr_ref len(a.mk_add(l, i), m);
-    m_rewrite(len);
-    return seq.str.is_length(len, l) && l == s;
-}
 
 /*
-  0 <= l <= len(s) => s = ey & l = len(e)
-  len(s) < l => s = e
-  l < 0 => e = empty
+  s = ey
+  l <= 0 => e = empty
+  0 <= l <= len(s) => len(e) = l
+  len(s) < l => e = s
  */
 void seq_axioms::add_extract_prefix_axiom(expr* e, expr* s, expr* l) {
     TRACE("seq", tout << "prefix " << mk_bounded_pp(e, m, 2) << " " << mk_bounded_pp(s, m, 2) << " " << mk_bounded_pp(l, m, 2) << "\n";);
     expr_ref le = mk_len(e);
     expr_ref ls = mk_len(s);
     expr_ref ls_minus_l(mk_sub(ls, l), m);
-    expr_ref zero(a.mk_int(0), m);
     expr_ref y = m_sk.mk_post(s, l);
     expr_ref ey = mk_concat(e, y);
-    literal l_ge_0 = mk_ge(l, 0);
     literal l_le_s = mk_le(mk_sub(l, ls), 0);
-    add_axiom(~l_ge_0, ~l_le_s, mk_seq_eq(s, ey));
-    add_axiom(~l_ge_0, ~l_le_s, mk_eq(l, le));
-    add_axiom(~l_ge_0, ~l_le_s, mk_eq(ls_minus_l, mk_len(y)));
+    add_axiom(mk_seq_eq(s, ey));
+    add_axiom(~mk_le(l, 0), mk_eq_empty(e));
+    add_axiom(~mk_ge(l, 0), ~l_le_s, mk_eq(le, l));
     add_axiom(l_le_s, mk_eq(e, s));
-    add_axiom(l_ge_0, mk_eq_empty(e));
 }
 
-/*
-  0 <= i <= len(s) => s = xe & i = len(x)    
-  i < 0 => e = empty
-  i > len(s) => e = empty
- */
-void seq_axioms::add_extract_suffix_axiom(expr* e, expr* s, expr* i) {
-    TRACE("seq", tout << "suffix " << mk_bounded_pp(e, m, 2) << " " << mk_bounded_pp(s, m, 2) << "\n";);
-    expr_ref x = m_sk.mk_pre(s, i);
-    expr_ref lx = mk_len(x);
-    expr_ref ls = mk_len(s);
-    expr_ref zero(a.mk_int(0), m);
-    expr_ref xe = mk_concat(x, e);
-    literal le_is_0 = mk_eq_empty(e);
-    literal i_ge_0 = mk_ge(i, 0);
-    literal i_le_s = mk_le(mk_sub(i, ls), 0);
-    add_axiom(~i_ge_0, ~i_le_s, mk_seq_eq(s, xe));
-    add_axiom(~i_ge_0, ~i_le_s, mk_eq(i, lx));
-    add_axiom(i_ge_0, le_is_0);
-    add_axiom(i_le_s, le_is_0);
-}        
 
 /*
   encode that s is not contained in of xs1
@@ -481,7 +450,7 @@ void seq_axioms::add_at_axiom(expr* e) {
     m_rewrite(i);
     expr_ref zero(a.mk_int(0), m);
     expr_ref one(a.mk_int(1), m);
-    expr_ref emp(seq.str.mk_empty(m.get_sort(e)), m);
+    expr_ref emp(seq.str.mk_empty(e->get_sort()), m);
     expr_ref len_s = mk_len(s);
     literal i_ge_0 = mk_ge(i, 0);
     literal i_ge_len_s = mk_ge(mk_sub(i, mk_len(s)), 0);
@@ -497,7 +466,7 @@ void seq_axioms::add_at_axiom(expr* e) {
         }
         nth = es.back();
         es.push_back(m_sk.mk_tail(s, i));
-        add_axiom(~i_ge_0, i_ge_len_s, mk_seq_eq(s, seq.str.mk_concat(es, m.get_sort(e))));
+        add_axiom(~i_ge_0, i_ge_len_s, mk_seq_eq(s, seq.str.mk_concat(es, e->get_sort())));
         add_axiom(~i_ge_0, i_ge_len_s, mk_seq_eq(nth, e));                
     }
     else {
@@ -719,7 +688,7 @@ void seq_axioms::ensure_digit_axiom() {
             expr_ref cnst(seq.mk_char('0'+i), m);
             add_axiom(mk_eq(m_sk.mk_digit2int(cnst), a.mk_int(i)));
         }
-        ctx().push_trail(value_trail<context, bool>(m_digits_initialized));
+        ctx().push_trail(value_trail<bool>(m_digits_initialized));
         m_digits_initialized = true;
     }
 }
@@ -746,7 +715,7 @@ void seq_axioms::add_lt_axiom(expr* n) {
     expr_ref e1(_e1, m), e2(_e2, m);
     m_rewrite(e1);
     m_rewrite(e2);
-    sort* s = m.get_sort(e1);
+    sort* s = e1->get_sort();
     sort* char_sort = nullptr;
     VERIFY(seq.is_seq(s, char_sort));
     literal lt = mk_literal(n);
@@ -804,6 +773,7 @@ void seq_axioms::add_is_digit_axiom(expr* n) {
 
 /**
    len(e) = 1 => 0 <= to_code(e) <= max_code
+   len(e) = 1 => from_code(to_code(e)) = e
    len(e) != 1 => to_code(e) = -1
  */
 void seq_axioms::add_str_to_code_axiom(expr* n) {
@@ -811,7 +781,10 @@ void seq_axioms::add_str_to_code_axiom(expr* n) {
     VERIFY(seq.str.is_to_code(n, e)); 
     literal len_is1 = mk_eq(mk_len(e), a.mk_int(1));
     add_axiom(~len_is1, mk_ge(n, 0)); 
-    add_axiom(~len_is1, mk_le(n, zstring::max_char()));
+    add_axiom(~len_is1, mk_le(n, seq.max_char()));
+    add_axiom(~len_is1, mk_eq(n, seq.mk_char2int(mk_nth(e, 0))));
+    if (!seq.str.is_from_code(e))
+        add_axiom(~len_is1, mk_eq(e, seq.str.mk_from_code(n)));
     add_axiom(len_is1, mk_eq(n, a.mk_int(-1)));
 }
 
@@ -824,10 +797,11 @@ void seq_axioms::add_str_from_code_axiom(expr* n) {
     expr* e = nullptr;
     VERIFY(seq.str.is_from_code(n, e)); 
     literal ge = mk_ge(e, 0);
-    literal le = mk_le(e, zstring::max_char());
+    literal le = mk_le(e, seq.max_char());
     literal emp = mk_literal(seq.str.mk_is_empty(n));
     add_axiom(~ge, ~le, mk_eq(mk_len(n), a.mk_int(1)));
-    add_axiom(~ge, ~le, mk_eq(seq.str.mk_to_code(n), e));
+    if (!seq.str.is_to_code(e))
+        add_axiom(~ge, ~le, mk_eq(seq.str.mk_to_code(n), e));
     add_axiom(ge, emp);
     add_axiom(le, emp);
 }
@@ -870,7 +844,7 @@ void seq_axioms::add_suffix_axiom(expr* e) {
     add_axiom(lit, s_gt_t, ~mk_eq(y, s));    
 #else
     sort* char_sort = nullptr;
-    VERIFY(seq.is_seq(m.get_sort(s), char_sort));
+    VERIFY(seq.is_seq(s->get_sort(), char_sort));
     expr_ref x = m_sk.mk("seq.suffix.x", s, t);
     expr_ref y = m_sk.mk("seq.suffix.y", s, t);
     expr_ref z = m_sk.mk("seq.suffix.z", s, t);
@@ -899,7 +873,7 @@ void seq_axioms::add_prefix_axiom(expr* e) {
 
 #else
     sort* char_sort = nullptr;
-    VERIFY(seq.is_seq(m.get_sort(s), char_sort));
+    VERIFY(seq.is_seq(s->get_sort(), char_sort));
     expr_ref x = m_sk.mk("seq.prefix.x", s, t);
     expr_ref y = m_sk.mk("seq.prefix.y", s, t);
     expr_ref z = m_sk.mk("seq.prefix.z", s, t);

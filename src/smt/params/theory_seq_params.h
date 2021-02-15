@@ -25,13 +25,11 @@ struct theory_seq_params {
     bool m_split_w_len;
     bool m_seq_validate;
     unsigned m_giveup_point;
-    bool m_seq_use_unicode;
    
     theory_seq_params(params_ref const & p = params_ref()):
         m_split_w_len(false),
         m_seq_validate(false),
-        m_giveup_point(0),
-        m_seq_use_unicode(false)
+        m_giveup_point(0)
     {
         updt_params(p);
     }

@@ -50,6 +50,10 @@ import sys
 import io
 import math
 import copy
+if sys.version < '3':
+    pass
+else:
+    from typing import Iterable
 
 Z3_DEBUG = __debug__
 
@@ -1107,6 +1111,10 @@ def _coerce_exprs(a, b, ctx=None):
     if not is_expr(a) and not is_expr(b):
         a = _py2expr(a, ctx)
         b = _py2expr(b, ctx)
+    if isinstance(a, str) and isinstance(b, SeqRef):
+        a = StringVal(a, b.ctx)
+    if isinstance(b, str) and isinstance(a, SeqRef):
+        b = StringVal(b, a.ctx)
     s = None
     s = _coerce_expr_merge(s, a)
     s = _coerce_expr_merge(s, b)
@@ -2934,6 +2942,8 @@ def _py2expr(a, ctx=None):
         return IntVal(a, ctx)
     if isinstance(a, float):
         return RealVal(a, ctx)
+    if isinstance(a, str):
+        return StringVal(a, ctx)
     if is_expr(a):
         return a
     if z3_debug():
@@ -6274,6 +6284,7 @@ class ModelRef(Z3PPObject):
     def __deepcopy__(self, memo={}):
         return self.translate(self.ctx)
 
+
 def Model(ctx = None):
     ctx = _get_ctx(ctx)
     return ModelRef(Z3_mk_model(ctx.ref()), ctx)
@@ -7396,12 +7407,22 @@ class OptimizeObjective:
         return "%s:%s" % (self._value, self._is_max)
 
 
+
+_on_models = {}
+
+def _global_on_model(ctx):
+    (fn, mdl) = _on_models[ctx]
+    fn(mdl)
+    
+_on_model_eh = on_model_eh_type(_global_on_model)
+
 class Optimize(Z3PPObject):
     """Optimize API provides methods for solving using objective functions and weighted soft constraints"""
 
     def __init__(self, ctx=None):
         self.ctx    = _get_ctx(ctx)
         self.optimize = Z3_mk_optimize(self.ctx.ref())
+        self._on_models_id = None
         Z3_optimize_inc_ref(self.ctx.ref(), self.optimize)
 
     def __deepcopy__(self, memo={}):
@@ -7410,6 +7431,8 @@ class Optimize(Z3PPObject):
     def __del__(self):
         if self.optimize is not None and self.ctx.ref() is not None:
             Z3_optimize_dec_ref(self.ctx.ref(), self.optimize)
+        if self._on_models_id is not None:
+            del _on_models[self._on_models_id]
 
     def set(self, *args, **keys):
         """Set a configuration option. The method `help()` return a string containing all available options.
@@ -7490,8 +7513,12 @@ class Optimize(Z3PPObject):
         if id is None:
             id = ""
         id = to_symbol(id, self.ctx)
-        v = Z3_optimize_assert_soft(self.ctx.ref(), self.optimize, arg.as_ast(), weight, id)
-        return OptimizeObjective(self, v, False)
+        def asoft(a):
+            v = Z3_optimize_assert_soft(self.ctx.ref(), self.optimize, a.as_ast(), weight, id)
+            return OptimizeObjective(self, v, False)
+        if sys.version >= '3' and isinstance(arg, Iterable):
+            return [asoft(a) for a in arg]
+        return asoft(arg)
 
     def maximize(self, arg):
         """Add objective function to maximize."""
@@ -7582,7 +7609,17 @@ class Optimize(Z3PPObject):
         """
         return Statistics(Z3_optimize_get_statistics(self.ctx.ref(), self.optimize), self.ctx)
 
-
+    def set_on_model(self, on_model):
+        """Register a callback that is invoked with every incremental improvement to
+        objective values. The callback takes a model as argument.
+        The life-time of the model is limited to the callback so the
+        model has to be (deep) copied if it is to be used after the callback
+        """
+        id  = len(_on_models) + 41
+        mdl = Model(self.ctx)
+        _on_models[id] = (on_model, mdl)
+        self._on_models_id = id
+        Z3_optimize_register_model_eh(self.ctx.ref(), self.optimize, mdl.model, ctypes.c_void_p(id), _on_model_eh)
 
 
 #########################################
@@ -8451,10 +8488,11 @@ def solve(*args, **keywords):
     >>> solve(a > 0, a < 2)
     [a = 1]
     """
+    show = keywords.pop("show", False)
     s = Solver()
     s.set(**keywords)
     s.add(*args)
-    if keywords.get('show', False):
+    if show:
         print(s)
     r = s.check()
     if r == unsat:
@@ -8476,11 +8514,12 @@ def solve_using(s, *args, **keywords):
     It configures solver `s` using the options in `keywords`, adds the constraints
     in `args`, and invokes check.
     """
+    show = keywords.pop("show", False)
     if z3_debug():
         _z3_assert(isinstance(s, Solver), "Solver object expected")
     s.set(**keywords)
     s.add(*args)
-    if keywords.get('show', False):
+    if show:
         print("Problem:")
         print(s)
     r = s.check()
@@ -8493,11 +8532,11 @@ def solve_using(s, *args, **keywords):
         except Z3Exception:
             return
     else:
-        if keywords.get('show', False):
+        if show:
             print("Solution:")
         print(s.model())
 
-def prove(claim, **keywords):
+def prove(claim, show=False, **keywords):
     """Try to prove the given claim.
 
     This is a simple function for creating demonstrations.  It tries to prove
@@ -8512,7 +8551,7 @@ def prove(claim, **keywords):
     s = Solver()
     s.set(**keywords)
     s.add(Not(claim))
-    if keywords.get('show', False):
+    if show:
         print(s)
     r = s.check()
     if r == unsat:
@@ -8526,10 +8565,11 @@ def prove(claim, **keywords):
 
 def _solve_html(*args, **keywords):
     """Version of function `solve` used in RiSE4Fun."""
+    show = keywords.pop("show", False)
     s = Solver()
     s.set(**keywords)
     s.add(*args)
-    if keywords.get('show', False):
+    if show:
         print("<b>Problem:</b>")
         print(s)
     r = s.check()
@@ -8542,17 +8582,18 @@ def _solve_html(*args, **keywords):
         except Z3Exception:
             return
     else:
-        if keywords.get('show', False):
+        if show:
             print("<b>Solution:</b>")
         print(s.model())
 
 def _solve_using_html(s, *args, **keywords):
     """Version of function `solve_using` used in RiSE4Fun."""
+    show = keywords.pop("show", False)
     if z3_debug():
         _z3_assert(isinstance(s, Solver), "Solver object expected")
     s.set(**keywords)
     s.add(*args)
-    if keywords.get('show', False):
+    if show:
         print("<b>Problem:</b>")
         print(s)
     r = s.check()
@@ -8565,18 +8606,18 @@ def _solve_using_html(s, *args, **keywords):
         except Z3Exception:
             return
     else:
-        if keywords.get('show', False):
+        if show:
             print("<b>Solution:</b>")
         print(s.model())
 
-def _prove_html(claim, **keywords):
+def _prove_html(claim, show=False, **keywords):
     """Version of function `prove` used in RiSE4Fun."""
     if z3_debug():
         _z3_assert(is_bool(claim), "Z3 Boolean expression expected")
     s = Solver()
     s.set(**keywords)
     s.add(Not(claim))
-    if keywords.get('show', False):
+    if show:
         print(s)
     r = s.check()
     if r == unsat:
@@ -10124,6 +10165,7 @@ def is_string_value(a):
 
 def StringVal(s, ctx=None):
     """create a string expression"""
+    s = "".join(str(ch) if ord(ch) < 128 else "\\u{%x}" % (ord(ch)) for ch in s)
     ctx = _get_ctx(ctx)
     return SeqRef(Z3_mk_lstring(ctx.ref(), len(s), s), ctx)
 
@@ -10656,7 +10698,7 @@ class UserPropagateBase:
         return Z3_solver_propagate_register(self.ctx_ref(), self.solver.solver, e.ast)
 
     #
-    # Propagation can only be invoked as during a fixed-callback.
+    # Propagation can only be invoked as during a fixed or final callback.
     # 
     def propagate(self, e, ids, eqs = []):
         num_fixed = len(ids)

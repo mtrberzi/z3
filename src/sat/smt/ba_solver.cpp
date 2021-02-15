@@ -1863,16 +1863,6 @@ namespace sat {
         c.set_psm(r);
     }
     
-    unsigned ba_solver::max_var(unsigned w) const {
-        for (constraint* cp : m_constraints) {
-            w = cp->fold_max_var(w);
-        }
-        for (constraint* cp : m_learned) {
-            w = cp->fold_max_var(w);
-        }
-        return w;
-    }
-
     void ba_solver::gc() {
         if (m_learned.size() >= 2 * m_constraints.size() && 
             (s().at_search_lvl() || s().at_base_lvl())) {
@@ -1902,8 +1892,30 @@ namespace sat {
         m_stats.m_num_gc += removed;
         m_learned.shrink(new_sz);
         IF_VERBOSE(2, verbose_stream() << "(sat-gc :strategy " << st_name << " :deleted " << removed << ")\n";);
-
     }
+
+
+    void ba_solver::gc_vars(unsigned num_vars) {
+        gc_vars(num_vars, m_constraints);
+        gc_vars(num_vars, m_learned);
+    }
+
+    void ba_solver::gc_vars(unsigned num_vars, ptr_vector<constraint>& cs) {
+        unsigned j = 0;
+        for (unsigned i = 0; i < cs.size(); ++i) {
+            auto* c = cs[i];
+            unsigned m = c->fold_max_var(0);
+            if (m >= num_vars) {
+                clear_watch(*c);
+                c->nullify_tracking_literal(*this);
+                c->deallocate(m_allocator);
+            }
+            else 
+                cs[j++] = c;
+        }
+        cs.shrink(j);
+    }
+
 
     lbool ba_solver::add_assign(card& c, literal alit) {
         // literal is assigned to false.        
@@ -2052,14 +2064,18 @@ namespace sat {
             for (unsigned sz = m_constraints.size(), i = 0; i < sz; ++i) subsumption(*m_constraints[i]);
             for (unsigned sz = m_learned.size(), i = 0; i < sz; ++i) subsumption(*m_learned[i]);    
             unit_strengthen();
-            extract_xor();
-            merge_xor();
+            if (s().get_config().m_xor_solver) {
+                extract_xor();
+                merge_xor();
+            }
             cleanup_clauses();
             cleanup_constraints();
             update_pure();
             count++;
         }        
         while (count < 10 && (m_simplify_change || trail_sz < s().init_trail_size()));
+
+        gc();
 
         // validate_eliminated();
 

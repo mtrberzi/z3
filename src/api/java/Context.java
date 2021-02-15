@@ -229,7 +229,7 @@ public class Context implements AutoCloseable {
     /**
      * Create a new array sort.
      **/
-    public <R extends Sort> ArraySort<?, R> mkArraySort(Sort[] domains, R range)
+    public <R extends Sort> ArraySort<Sort, R> mkArraySort(Sort[] domains, R range)
     {
         checkContextMatch(domains);
         checkContextMatch(range);
@@ -1725,7 +1725,7 @@ public class Context implements AutoCloseable {
      * @see #mkArraySort
      * @see #mkStore
      **/
-    public <R extends Sort> Expr<R> mkSelect(Expr<ArraySort<?, R>> a, Expr<?>[] args)
+    public <R extends Sort> Expr<R> mkSelect(Expr<ArraySort<Sort, R>> a, Expr<?>[] args)
     {
         checkContextMatch(a);
         checkContextMatch(args);
@@ -1775,7 +1775,7 @@ public class Context implements AutoCloseable {
      * @see #mkSelect
 
      **/
-    public <R extends Sort> ArrayExpr<?, R> mkStore(Expr<ArraySort<?, R>> a, Expr<?>[] args, Expr<R> v)
+    public <R extends Sort> ArrayExpr<Sort, R> mkStore(Expr<ArraySort<Sort, R>> a, Expr<?>[] args, Expr<R> v)
     {
         checkContextMatch(a);
         checkContextMatch(args);
@@ -2018,7 +2018,7 @@ public class Context implements AutoCloseable {
     /**
      * Concatenate sequences.
      */
-    public <R extends Sort> SeqExpr<R> mkConcat(SeqSort<R>... t)
+    public <R extends Sort> SeqExpr<R> mkConcat(Expr<SeqSort<R>>... t)
     {
         checkContextMatch(t);
         return (SeqExpr<R>) Expr.create(this, Native.mkSeqConcat(nCtx(), t.length, AST.arrayToNative(t)));
@@ -2487,7 +2487,7 @@ public class Context implements AutoCloseable {
 
     /**
      * Creates a universal quantifier using a list of constants that will form the set of bound variables. 
-     * @see #mkForall(Sort[],Symbol[],Expr,int,Pattern[],Expr[],Symbol,Symbol)
+     * @see #mkForall(Sort[],Symbol[],Expr<BoolSort>,int,Pattern[],Expr<?>[],Symbol,Symbol)
      **/
     public Quantifier mkForall(Expr<?>[] boundConstants, Expr<BoolSort> body, int weight,
                                Pattern[] patterns, Expr<?>[] noPatterns, Symbol quantifierID,
@@ -2500,7 +2500,7 @@ public class Context implements AutoCloseable {
 
     /**
      * Creates an existential quantifier using de-Bruijn indexed variables.
-     * @see #mkForall(Sort[],Symbol[],Expr,int,Pattern[],Expr[],Symbol,Symbol)
+     * @see #mkForall(Sort[],Symbol[],Expr<BoolSort>,int,Pattern[],Expr<?>[],Symbol,Symbol)
      **/
     public Quantifier mkExists(Sort[] sorts, Symbol[] names, Expr<BoolSort> body,
                                int weight, Pattern[] patterns, Expr<?>[] noPatterns,
@@ -2513,7 +2513,7 @@ public class Context implements AutoCloseable {
 
     /**
      * Creates an existential quantifier using a list of constants that will form the set of bound variables. 
-     * @see #mkForall(Sort[],Symbol[],Expr,int,Pattern[],Expr[],Symbol,Symbol)
+     * @see #mkForall(Sort[],Symbol[],Expr<BoolSort>,int,Pattern[],Expr<?>[],Symbol,Symbol)
      **/
     public Quantifier mkExists(Expr<?>[] boundConstants, Expr<BoolSort> body, int weight,
                                Pattern[] patterns, Expr<?>[] noPatterns, Symbol quantifierID,
@@ -2526,7 +2526,7 @@ public class Context implements AutoCloseable {
 
     /**
      * Create a Quantifier.
-     * @see #mkForall(Sort[],Symbol[],Expr,int,Pattern[],Expr[],Symbol,Symbol)
+     * @see #mkForall(Sort[],Symbol[],Expr<BoolSort>,int,Pattern[],Expr<?>[],Symbol,Symbol)
      **/
     public Quantifier mkQuantifier(boolean universal, Sort[] sorts,
                                    Symbol[] names, Expr<BoolSort> body, int weight, Pattern[] patterns,
@@ -2544,7 +2544,7 @@ public class Context implements AutoCloseable {
 
     /**
      * Create a Quantifier
-     * @see #mkForall(Sort[],Symbol[],Expr,int,Pattern[],Expr[],Symbol,Symbol)
+     * @see #mkForall(Sort[],Symbol[],Expr<BoolSort>,int,Pattern[],Expr<?>[],Symbol,Symbol)
      **/
     public Quantifier mkQuantifier(boolean universal, Expr<?>[] boundConstants,
                                    Expr<BoolSort> body, int weight, Pattern[] patterns, Expr<?>[] noPatterns,

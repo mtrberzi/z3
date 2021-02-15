@@ -28,14 +28,14 @@ namespace array {
         if (m_axioms.contains(idx))
             m_axiom_trail.pop_back();
         else
-            ctx.push(push_back_vector<euf::solver, svector<axiom_record>>(m_axiom_trail));
+            ctx.push(push_back_vector<svector<axiom_record>>(m_axiom_trail));
     }
 
     bool solver::propagate_axiom(unsigned idx) {
         if (m_axioms.contains(idx))
             return false;
         m_axioms.insert(idx);
-        ctx.push(insert_map<euf::solver, axiom_table_t, unsigned>(m_axioms, idx));
+        ctx.push(insert_map<axiom_table_t, unsigned>(m_axioms, idx));
         return assert_axiom(idx);
     }
 
@@ -75,11 +75,11 @@ namespace array {
             return false;                
     }
 
-    struct solver::set_delay_bit : trail<euf::solver> {
+    struct solver::set_delay_bit : trail {
         solver& s;
         unsigned m_idx;
         set_delay_bit(solver& s, unsigned idx) : s(s), m_idx(idx) {}
-        void undo(euf::solver& euf) override {
+        void undo(/*euf::solver& euf*/) override {
             s.m_axiom_trail[m_idx].m_delayed = false;
         }
     };
@@ -214,7 +214,7 @@ namespace array {
     bool solver::assert_extensionality(expr* e1, expr* e2) {
         TRACE("array", tout << "extensionality-axiom: " << mk_bounded_pp(e1, m) << " == " << mk_bounded_pp(e2, m) << "\n";);
         ++m_stats.m_num_extensionality_axiom;
-        func_decl_ref_vector const& funcs = sort2diff(m.get_sort(e1));
+        func_decl_ref_vector const& funcs = sort2diff(e1->get_sort());
         expr_ref_vector args1(m), args2(m);
         args1.push_back(e1);
         args2.push_back(e2);
@@ -359,7 +359,7 @@ namespace array {
 
             for (unsigned i = 1; i + 1 < num_args; ++i) {
                 expr* arg = store->get_arg(i);
-                sort* srt = m.get_sort(arg);
+                sort* srt = arg->get_sort();
                 auto ep = mk_epsilon(srt);
                 eqs.push_back(m.mk_eq(ep.first, arg));
                 args1.push_back(m.mk_app(ep.second, arg));
@@ -385,7 +385,7 @@ namespace array {
         ++m_stats.m_num_select_lambda_axiom;
         SASSERT(is_lambda(lambda));
         SASSERT(a.is_select(select));
-        SASSERT(m.get_sort(lambda) == m.get_sort(select->get_arg(0)));
+        SASSERT(lambda->get_sort() == select->get_arg(0)->get_sort());
         ptr_vector<expr> args(select->get_num_args(), select->get_args());
         args[0] = lambda;
         expr_ref alpha(a.mk_select(args), m);
@@ -400,7 +400,7 @@ namespace array {
     bool solver::assert_congruent_axiom(expr* e1, expr* e2) {
         TRACE("array", tout << "congruence-axiom: " << mk_bounded_pp(e1, m) << " " << mk_bounded_pp(e2, m) << "\n";);
         ++m_stats.m_num_congruence_axiom;
-        sort* srt         = m.get_sort(e1);
+        sort* srt         = e1->get_sort();
         unsigned dimension = get_array_arity(srt);
         expr_ref_vector args1(m), args2(m);
         args1.push_back(e1);
@@ -425,7 +425,7 @@ namespace array {
 
     bool solver::has_unitary_domain(app* array_term) {
         SASSERT(a.is_array(array_term));
-        sort* s = m.get_sort(array_term);
+        sort* s = array_term->get_sort();
         unsigned dim = get_array_arity(s);
         for (unsigned i = 0; i < dim; ++i) {
             sort* d = get_array_domain(s, i);
@@ -437,7 +437,7 @@ namespace array {
 
     bool solver::has_large_domain(expr* array_term) {
         SASSERT(a.is_array(array_term));
-        sort* s = m.get_sort(array_term);
+        sort* s = array_term->get_sort();
         unsigned dim = get_array_arity(s);
         rational sz(1);
         for (unsigned i = 0; i < dim; ++i) {
@@ -458,11 +458,11 @@ namespace array {
         func_decl* diag = nullptr;
         if (!m_sort2epsilon.find(s, eps)) {
             eps = m.mk_fresh_const("epsilon", s);
-            ctx.push(ast2ast_trail<euf::solver, sort, app>(m_sort2epsilon, s, eps));
+            ctx.push(ast2ast_trail<sort, app>(m_sort2epsilon, s, eps));
         }
         if (!m_sort2diag.find(s, diag)) {
             diag = m.mk_fresh_func_decl("diag", 1, &s, s);
-            ctx.push(ast2ast_trail<euf::solver, sort, func_decl>(m_sort2diag, s, diag));
+            ctx.push(ast2ast_trail<sort, func_decl>(m_sort2diag, s, diag));
         }
         return std::make_pair(eps, diag);
     }
@@ -504,7 +504,7 @@ namespace array {
             for (unsigned j = i; j-- > 0; ) {
                 theory_var v2 = roots[j];
                 expr* e2 = var2expr(v2);
-                if (m.get_sort(e1) != m.get_sort(e2))
+                if (e1->get_sort() != e2->get_sort())
                     continue;
                 if (have_different_model_values(v1, v2))
                     continue;

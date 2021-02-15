@@ -33,7 +33,7 @@ class smt_checker {
         m_fresh_exprs.reserve(i + 1);
         expr* r = m_fresh_exprs.get(i);
         if (!r) {
-            r = m.mk_fresh_const("sk", m.get_sort(e));
+            r = m.mk_fresh_const("sk", e->get_sort());
             m_fresh_exprs[i] = r;
         }
         return r;
@@ -150,7 +150,7 @@ public:
             check_assertion_redundant(lits);
         else if (!st.is_sat() && !st.is_deleted()) 
             check_clause(lits);        
-        m_drat.add(lits, st);
+        // m_drat.add(lits, st);
     }    
 
     /**
@@ -175,7 +175,7 @@ public:
         params.reset();
         sorts.reset();
         for (expr* arg : args) 
-            sorts.push_back(m.get_sort(arg));
+            sorts.push_back(arg->get_sort());
         sort_ref rng(m);
         func_decl* f = nullptr;
         switch (sexpr->get_kind()) {
@@ -199,6 +199,19 @@ public:
                         goto bail;
                     datatype_util dtu(m);
                     result = dtu.mk_is(f, args[0]);
+                    return;
+                }
+                if (name == "Real" && sz == 4) {
+                    arith_util au(m);
+                    rational r = sexpr->get_child(2)->get_numeral();
+                    // rational den = sexpr->get_child(3)->get_numeral();
+                    result = au.mk_numeral(r, false);
+                    return;
+                }
+                if (name == "Int" && sz == 4) {
+                    arith_util au(m);
+                    rational num = sexpr->get_child(2)->get_numeral();
+                    result = au.mk_numeral(num, true);
                     return;
                 }
                 for (unsigned i = 2; i < sz; ++i) {

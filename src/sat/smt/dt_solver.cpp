@@ -121,7 +121,7 @@ namespace dt {
         m_stats.m_assert_cnstr++;
         SASSERT(dt.is_constructor(c));
         SASSERT(is_datatype(e));
-        SASSERT(c->get_range() == m.get_sort(e));
+        SASSERT(c->get_range() == e->get_sort());
         m_args.reset();
         ptr_vector<func_decl> const& accessors = *dt.get_constructor_accessors(c);
         SASSERT(c->get_arity() == accessors.size());
@@ -222,8 +222,10 @@ namespace dt {
         else if (is_update_field(n)) {
             assert_update_field_axioms(n);
         }
+        else if (is_recognizer(n))
+            ;
         else {
-            sort* s = m.get_sort(n->get_expr());
+            sort* s = n->get_expr()->get_sort();
             if (dt.get_datatype_num_constructors(s) == 1)
                 assert_is_constructor_axiom(n, dt.get_datatype_constructors(s)->get(0));
             else if (get_config().m_dt_lazy_splits == 0 || (get_config().m_dt_lazy_splits == 1 && !s->is_infinite()))
@@ -242,7 +244,7 @@ namespace dt {
 
         v = m_find.find(v);
         enode* n = var2enode(v);
-        sort* srt = m.get_sort(n->get_expr());
+        sort* srt = n->get_expr()->get_sort();
         func_decl* non_rec_c = dt.get_non_rec_constructor(srt);
         unsigned non_rec_idx = dt.get_constructor_idx(non_rec_c);
         var_data* d = m_var_data[v];
@@ -251,7 +253,9 @@ namespace dt {
 
         TRACE("dt", tout << "non_rec_c: " << non_rec_c->get_name() << " #rec: " << d->m_recognizers.size() << "\n";);
 
+
         enode* recognizer = d->m_recognizers.get(non_rec_idx, nullptr);
+                               
         if (recognizer == nullptr)
             r = dt.get_constructor_is(non_rec_c);
         else if (ctx.value(recognizer) != l_false)
@@ -263,13 +267,15 @@ namespace dt {
             unsigned idx = 0;
             ptr_vector<func_decl> const& constructors = *dt.get_datatype_constructors(srt);
             for (enode* curr : d->m_recognizers) {
+
                 if (curr == nullptr) {
                     // found empty slot...
                     r = dt.get_constructor_is(constructors[idx]);
                     break;
                 }
-                else if (ctx.value(curr) != l_false)
+                else if (ctx.value(curr) != l_false) {
                     return;
+                }
                 ++idx;
             }
             if (r == nullptr)
@@ -342,6 +348,7 @@ namespace dt {
     }
 
     void solver::add_recognizer(theory_var v, enode* recognizer) {
+        TRACE("dt", tout << "add recognizer " << v << " " << mk_pp(recognizer->get_expr(), m) << "\n";);
         SASSERT(is_recognizer(recognizer));
         v = m_find.find(v);
         var_data* d = m_var_data[v];
@@ -372,7 +379,7 @@ namespace dt {
             }
             SASSERT(val == l_undef || (val == l_false && d->m_constructor == nullptr));
             d->m_recognizers[c_idx] = recognizer;
-            ctx.push(set_vector_idx_trail<euf::solver, enode>(d->m_recognizers, c_idx));
+            ctx.push(set_vector_idx_trail<enode>(d->m_recognizers, c_idx));
             if (val == l_false)
                 propagate_recognizer(v, recognizer);
         }
@@ -388,7 +395,7 @@ namespace dt {
         unsigned num_unassigned = 0;
         unsigned unassigned_idx = UINT_MAX;
         enode* n = var2enode(v);
-        sort* srt = m.get_sort(n->get_expr());
+        sort* srt = n->get_expr()->get_sort();
         var_data* d = m_var_data[v];
         if (d->m_recognizers.empty()) {
             theory_var w = recognizer->get_arg(0)->get_th_var(get_id());
@@ -455,7 +462,7 @@ namespace dt {
         auto* con2 = d2->m_constructor;
         if (con2 != nullptr) {
             if (con1 == nullptr) {
-                ctx.push(set_ptr_trail<euf::solver, enode>(con1));
+                ctx.push(set_ptr_trail<enode>(con1));
                 // check whether there is a recognizer in d1 that conflicts with con2;
                 if (!d1->m_recognizers.empty()) {
                     unsigned c_idx = dt.get_constructor_idx(con2->get_decl());
@@ -511,7 +518,7 @@ namespace dt {
         };
         for (enode* arg : euf::enode_args(parentc)) {
             add(arg);
-            sort* s = m.get_sort(arg->get_expr());
+            sort* s = arg->get_expr()->get_sort();
             if (m_autil.is_array(s) && dt.is_datatype(get_array_range(s)))
                 for (enode* aarg : get_array_args(arg))
                     add(aarg);
@@ -565,7 +572,7 @@ namespace dt {
             }
             // explore `arg` (with parent)
             expr* earg = arg->get_expr();
-            sort* s = m.get_sort(earg);
+            sort* s = earg->get_sort();
             if (dt.is_datatype(s)) {
                 m_parent.insert(arg->get_root(), parent);
                 oc_push_stack(arg);
@@ -596,7 +603,7 @@ namespace dt {
        a3 = cons(v3, a1)
     */
     bool solver::occurs_check(enode* n) {
-        TRACE("dt", tout << "occurs check: " << ctx.bpp(n) << "\n";);
+        TRACE("dt_verbose", tout << "occurs check: " << ctx.bpp(n) << "\n";);
         m_stats.m_occurs_check++;
 
         bool res = false;
@@ -611,7 +618,7 @@ namespace dt {
             if (oc_cycle_free(app))
                 continue;
 
-            TRACE("dt", tout << "occurs check loop: " << ctx.bpp(app) << (op == ENTER ? " enter" : " exit") << "\n";);
+            TRACE("dt_verbose", tout << "occurs check loop: " << ctx.bpp(app) << (op == ENTER ? " enter" : " exit") << "\n";);
 
             switch (op) {
             case ENTER:
@@ -627,6 +634,7 @@ namespace dt {
         if (res) {
             clear_mark();
             ctx.set_conflict(euf::th_propagation::mk(*this, m_used_eqs));
+            TRACE("dt", tout << "occurs check conflict: " << ctx.bpp(n) << "\n";);
         }
         return res;
     }
@@ -732,7 +740,7 @@ namespace dt {
         SASSERT(!n->is_attached_to(get_id()));
         if (is_constructor(term) || is_update_field(term)) {
             for (enode* arg : euf::enode_args(n)) {
-                sort* s = m.get_sort(arg->get_expr());
+                sort* s = arg->get_expr()->get_sort();
                 if (dt.is_datatype(s))
                     mk_var(arg);
                 else if (m_autil.is_array(s) && dt.is_datatype(get_array_range(s))) {
@@ -741,17 +749,21 @@ namespace dt {
                 }
             }
             mk_var(n);
+            
         }
         else if (is_recognizer(term)) {
+            mk_var(n);
             enode* arg = n->get_arg(0);
             theory_var v = mk_var(arg);
-            add_recognizer(v, n);           
+            add_recognizer(v, n);   
+            
         }
         else {
             SASSERT(is_accessor(term));
             SASSERT(n->num_args() == 1);
             mk_var(n->get_arg(0));
         }
+       
         return true;
     }
 

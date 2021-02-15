@@ -22,8 +22,8 @@ Revision History:
 #include "ast/seq_decl_plugin.h"
 #include "ast/arith_decl_plugin.h"
 #include "ast/rewriter/th_rewriter.h"
+#include "ast/rewriter/seq_skolem.h"
 #include "smt/smt_theory.h"
-#include "smt/seq_skolem.h"
 
 namespace smt {
 
@@ -57,9 +57,7 @@ namespace smt {
         bool is_drop_last(expr* s, expr* i, expr* l);
         bool is_tail(expr* s, expr* i, expr* l);
         bool is_extract_prefix0(expr* s, expr* i, expr* l);
-        bool is_extract_suffix(expr* s, expr* i, expr* l);
         void add_extract_prefix_axiom(expr* e, expr* s, expr* l);
-        void add_extract_suffix_axiom(expr* e, expr* s, expr* i);
         void tightest_prefix(expr* s, expr* x);
         void ensure_digit_axiom();
     public:

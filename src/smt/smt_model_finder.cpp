@@ -63,9 +63,9 @@ namespace smt {
            \brief Instantiation sets are the S_{k,j} sets in the Complete quantifier instantiation paper.
         */
         class instantiation_set {
-            ast_manager& m;
+            ast_manager&            m;
             obj_map<expr, unsigned> m_elems; // and the associated generation
-            obj_map<expr, expr*>   m_inv;
+            obj_map<expr, expr*>    m_inv;
             expr_mark               m_visited;
         public:
             instantiation_set(ast_manager& m) :m(m) {}
@@ -252,11 +252,9 @@ namespace smt {
                 if (r1->m_eqc_size > r2->m_eqc_size)
                     std::swap(r1, r2);
                 r1->m_find = r2;
-                r2->m_eqc_size += r1->m_eqc_size;
-                if (r1->m_mono_proj)
-                    r2->m_mono_proj = true;
-                if (r1->m_signed_proj)
-                    r2->m_signed_proj = true;
+                r2->m_eqc_size    += r1->m_eqc_size;
+                r2->m_mono_proj   |= r1->m_mono_proj;
+                r2->m_signed_proj |= r1->m_signed_proj;
                 dappend(r2->m_avoid_set, r1->m_avoid_set);
                 dappend(r2->m_exceptions, r1->m_exceptions);
             }
@@ -393,17 +391,17 @@ namespace smt {
             // This auxiliary constant is used as a "witness" that is asserted as different from a
             // finite number of terms.
             // It is only safe to use this constant for infinite sorts.
-            obj_map<sort, app*>      m_sort2k;
+            obj_map<sort, app*>       m_sort2k;
             expr_ref_vector           m_ks; // range of m_sort2k
 
             // Support for evaluating expressions in the current model.
-            proto_model* m_model{ nullptr };
-            obj_map<expr, expr*>     m_eval_cache[2];
+            proto_model*              m_model{ nullptr };
+            obj_map<expr, expr*>      m_eval_cache[2];
             expr_ref_vector           m_eval_cache_range;
 
             ptr_vector<node>          m_root_nodes;
 
-            expr_ref_vector* m_new_constraints{ nullptr };
+            expr_ref_vector*          m_new_constraints{ nullptr };
             random_gen                m_rand;
 
 
@@ -656,7 +654,7 @@ namespace smt {
                Remark: this method uses get_fresh_value, so it may fail.
             */
             expr* get_k_interp(app* k) {
-                sort* s = m.get_sort(k);
+                sort* s = k->get_sort();
                 SASSERT(is_infinite(s));
                 func_decl* k_decl = k->get_decl();
                 expr* r = m_model->get_const_interp(k_decl);
@@ -1560,7 +1558,7 @@ namespace smt {
                     // See Section 4.1 in the paper "Complete Quantifier Instantiation"
                     node* S_q_i = slv.get_uvar(q, m_var_i);
                     for (enode* n : ctx->enodes()) {
-                        if (ctx->is_relevant(n) && get_sort(n->get_owner()) == s) {
+                        if (ctx->is_relevant(n) && n->get_owner()->get_sort() == s) {
                             S_q_i->insert(n->get_owner(), n->get_generation());
                         }
                     }
@@ -1916,7 +1914,7 @@ namespace smt {
                         if (is_var_and_ground(to_app(atom)->get_arg(0), to_app(atom)->get_arg(1), v, tmp, inv)) {
                             if (inv)
                                 le = !le;
-                            sort* s = m.get_sort(tmp);
+                            sort* s = tmp->get_sort();
                             expr_ref one(m);
                             one = mk_one(s);
                             if (le)

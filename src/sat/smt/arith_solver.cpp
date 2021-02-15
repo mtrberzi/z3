@@ -41,7 +41,7 @@ namespace arith {
         lp().set_track_pivoted_rows(lpar.arith_bprop_on_pivoted_rows());
         lp().settings().report_frequency = lpar.arith_rep_freq();
         lp().settings().print_statistics = lpar.arith_print_stats();
-        lp().settings().cheap_eqs() = lpar.arith_cheap_eqs();
+        lp().settings().cheap_eqs() = lpar.arith_propagate_eqs();
         lp().set_cut_strategy(get_config().m_arith_branch_cut_ratio);
         lp().settings().int_run_gcd_test() = get_config().m_arith_gcd_test;
         lp().settings().set_random_seed(get_config().m_random_seed);
@@ -84,6 +84,7 @@ namespace arith {
     }
 
     bool solver::unit_propagate() {
+        m_model_is_initialized = false;
         if (!m_new_eq && m_new_bounds.empty() && m_asserted_qhead == m_asserted.size())
             return false;
 
@@ -306,7 +307,13 @@ namespace arith {
             return;
         enode* n1 = var2enode(uv);
         enode* n2 = var2enode(vv);
-        if (m.get_sort(n1->get_expr()) != m.get_sort(n2->get_expr()))
+        if (!ctx.is_shared(n1) || !ctx.is_shared(n2))
+            return;
+        expr* e1 = n1->get_expr();
+        expr* e2 = n2->get_expr();
+        if (m.is_ite(e1) || m.is_ite(e2))
+            return;
+        if (e1->get_sort() != e2->get_sort())
             return;
         reset_evidence();
         for (auto const& ev : e)
@@ -416,7 +423,7 @@ namespace arith {
             if (b.first == UINT_MAX || (is_lower ? b.second < v : b.second > v)) {
                 TRACE("arith", tout << "tighter bound " << tv.to_string() << "\n";);
                 m_history.push_back(vec[ti]);
-                ctx.push(history_trail<euf::solver, constraint_bound>(vec, ti, m_history));
+                ctx.push(history_trail<constraint_bound>(vec, ti, m_history));
                 b.first = ci;
                 b.second = v;
             }
@@ -572,6 +579,10 @@ namespace arith {
                 value = ~value;
             if (!found_bad && value == get_phase(n->bool_var()))
                 continue;
+            TRACE("arith",
+                tout << eval << " " << value << " " << ctx.bpp(n) << "\n";
+                tout << mdl << "\n";
+                s().display(tout););
             IF_VERBOSE(0, 
                        verbose_stream() << eval << " " << value << " " << ctx.bpp(n) << "\n";
                        verbose_stream() << n->bool_var() << " " << n->value() << " " << get_phase(n->bool_var()) << " " << ctx.bpp(n) << "\n";
@@ -585,22 +596,50 @@ namespace arith {
         theory_var v = n->get_th_var(get_id());
         expr* o = n->get_expr();
         expr_ref value(m);
-        if (use_nra_model() && lp().external_to_local(v) != lp::null_lpvar) {
+        if (m.is_value(n->get_root()->get_expr())) {
+            value = n->get_root()->get_expr();
+        }
+        else if (use_nra_model() && lp().external_to_local(v) != lp::null_lpvar) {
             anum const& an = nl_value(v, *m_a1);
             if (a.is_int(o) && !m_nla->am().is_int(an))
                 value = a.mk_numeral(rational::zero(), a.is_int(o));
             else
                 value = a.mk_numeral(m_nla->am(), nl_value(v, *m_a1), a.is_int(o));
         }
-        else {
+        else if (v != euf::null_theory_var) {
             rational r = get_value(v);
             TRACE("arith", tout << mk_pp(o, m) << " v" << v << " := " << r << "\n";);
             SASSERT("integer variables should have integer values: " && (!a.is_int(o) || r.is_int() || m.limit().is_canceled()));
             if (a.is_int(o) && !r.is_int()) 
                 r = floor(r);
-            value = a.mk_numeral(r, m.get_sort(o));
+            value = a.mk_numeral(r, o->get_sort());
+        }
+        else if (a.is_arith_expr(o)) {
+            expr_ref_vector args(m);
+            for (auto* arg : euf::enode_args(n)) {
+                if (m.is_value(arg->get_expr()))
+                    args.push_back(arg->get_expr());
+                else 
+                    args.push_back(values.get(arg->get_root_id()));
+            }
+            value = m.mk_app(to_app(o)->get_decl(), args.size(), args.c_ptr());
+            ctx.get_rewriter()(value);
+        }
+        else {
+            UNREACHABLE();
         }
         values.set(n->get_root_id(), value);
+    }
+
+    void solver::add_dep(euf::enode* n, top_sort<euf::enode>& dep) {
+        expr* e = n->get_expr();
+        if (a.is_arith_expr(e) && to_app(e)->get_num_args() > 0) {
+            for (auto* arg : euf::enode_args(n))
+                dep.add(n, arg);
+        }
+        else {
+            dep.insert(n, nullptr); 
+        }
     }
 
     void solver::push_core() {
@@ -642,6 +681,7 @@ namespace arith {
         for (unsigned i = m_bounds_trail.size(); i-- > old_size; ) {
             unsigned v = m_bounds_trail[i];
             api_bound* b = m_bounds[v].back();
+            m_bool_var2bound.erase(b->get_lit().var());
             // del_use_lists(b);
             dealloc(b);
             m_bounds[v].pop_back();
@@ -725,7 +765,7 @@ namespace arith {
 
     void solver::updt_unassigned_bounds(theory_var v, int inc) {
         TRACE("arith_verbose", tout << "v" << v << " " << m_unassigned_bounds[v] << " += " << inc << "\n";);
-        ctx.push(vector_value_trail<euf::solver, unsigned, false>(m_unassigned_bounds, v));
+        ctx.push(vector_value_trail<unsigned, false>(m_unassigned_bounds, v));
         m_unassigned_bounds[v] += inc;
     }
 
@@ -752,7 +792,7 @@ namespace arith {
     void solver::init_model() {
         if (m.inc() && m_solver.get() && get_num_vars() > 0) {
             TRACE("arith", display(tout << "update variable values\n"););
-            ctx.push(value_trail<euf::solver, bool>(m_model_is_initialized));
+            ctx.push(value_trail<bool>(m_model_is_initialized));
             m_model_is_initialized = true;
             lp().init_model();
         }
@@ -855,7 +895,7 @@ namespace arith {
         }
 
         if (m_assume_eq_candidates.size() > old_sz)
-            ctx.push(restore_size_trail<euf::solver, std::pair<theory_var, theory_var>, false>(m_assume_eq_candidates, old_sz));
+            ctx.push(restore_size_trail<std::pair<theory_var, theory_var>, false>(m_assume_eq_candidates, old_sz));
 
         return delayed_assume_eqs();
     }
@@ -864,7 +904,7 @@ namespace arith {
         if (m_assume_eq_head == m_assume_eq_candidates.size())
             return false;
 
-        ctx.push(value_trail<euf::solver, unsigned>(m_assume_eq_head));
+        ctx.push(value_trail<unsigned>(m_assume_eq_head));
         while (m_assume_eq_head < m_assume_eq_candidates.size()) {
             std::pair<theory_var, theory_var> const& p = m_assume_eq_candidates[m_assume_eq_head];
             theory_var v1 = p.first;
@@ -1120,20 +1160,25 @@ namespace arith {
     void solver::set_conflict_or_lemma(literal_vector const& core, bool is_conflict) {
         reset_evidence();
         m_core.append(core);
+
         ++m_num_conflicts;
         ++m_stats.m_conflicts;
-        TRACE("arith", display(tout << "is-conflict: " << is_conflict << "\n"););
         for (auto const& ev : m_explanation)
             set_evidence(ev.ci(), m_core, m_eqs);
+        TRACE("arith",
+            tout << "Lemma - " << (is_conflict ? "conflict" : "propagation") << "\n";
+            for (literal c : m_core) tout << literal2expr(c) << "\n";
+            for (auto p : m_eqs) tout << ctx.bpp(p.first) << " == " << ctx.bpp(p.second) << "\n";);
         DEBUG_CODE(
             if (is_conflict) {
-                for (literal c : m_core) VERIFY(s().value(c) == l_false);
+                for (literal c : m_core) VERIFY(s().value(c) == l_true);
                 for (auto p : m_eqs) VERIFY(p.first->get_root() == p.second->get_root());
             });
         for (auto const& eq : m_eqs)
-            m_core.push_back(eq_internalize(eq.first, eq.second));
+            m_core.push_back(ctx.mk_literal(m.mk_eq(eq.first->get_expr(), eq.second->get_expr())));
         for (literal& c : m_core)
             c.neg();
+
         add_clause(m_core);
     }
 
@@ -1322,25 +1367,23 @@ namespace arith {
         for (auto const& ineq : m_lemma.ineqs()) {
             bool is_lower = true, pos = true, is_eq = false;
             switch (ineq.cmp()) {
-            case lp::LE: is_lower = false; pos = false;  break;
-            case lp::LT: is_lower = true;  pos = true; break;
-            case lp::GE: is_lower = true;  pos = false;  break;
-            case lp::GT: is_lower = false; pos = true; break;
-            case lp::EQ: is_eq = true; pos = false; break;
-            case lp::NE: is_eq = true; pos = true; break;
+            case lp::LE: is_lower = false; pos = false; break;
+            case lp::LT: is_lower = true;  pos = true;  break;
+            case lp::GE: is_lower = true;  pos = false; break;
+            case lp::GT: is_lower = false; pos = true;  break;
+            case lp::EQ: is_eq = true;     pos = false; break;
+            case lp::NE: is_eq = true;     pos = true;  break;
             default: UNREACHABLE();
             }
             TRACE("arith", tout << "is_lower: " << is_lower << " pos " << pos << "\n";);
-            app_ref atom(m);
             // TBD utility: lp::lar_term term = mk_term(ineq.m_poly);
             // then term is used instead of ineq.m_term
-            if (is_eq) {
-                core.push_back(~mk_eq(ineq.term(), ineq.rs()));
-            }
-            else {
-                // create term >= 0 (or term <= 0)
-                core.push_back(~ctx.expr2literal(mk_bound(ineq.term(), ineq.rs(), is_lower)));
-            }
+            sat::literal lit;
+            if (is_eq) 
+                lit = mk_eq(ineq.term(), ineq.rs());
+            else 
+                lit = ctx.expr2literal(mk_bound(ineq.term(), ineq.rs(), is_lower));
+            core.push_back(pos ? lit : ~lit);
         }
         set_conflict_or_lemma(core, false);
     }

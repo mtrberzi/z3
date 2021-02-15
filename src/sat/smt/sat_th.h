@@ -152,7 +152,6 @@ namespace euf {
         sat::literal eq_internalize(expr* a, expr* b);
         sat::literal eq_internalize(enode* a, enode* b) { return eq_internalize(a->get_expr(), b->get_expr()); }
 
-        euf::enode* e_internalize(expr* e); 
         euf::enode* mk_enode(expr* e, bool suppress_args = false);
         expr_ref mk_eq(expr* e1, expr* e2);
         expr_ref mk_var_eq(theory_var v1, theory_var v2) { return mk_eq(var2expr(v1), var2expr(v2)); }
@@ -173,12 +172,13 @@ namespace euf {
         virtual ~th_euf_solver() {}
         virtual theory_var mk_var(enode* n);
         unsigned get_num_vars() const { return m_var2enode.size(); }
+        euf::enode* e_internalize(expr* e); 
         enode* expr2enode(expr* e) const;
         enode* var2enode(theory_var v) const { return m_var2enode[v]; }
         expr* var2expr(theory_var v) const { return var2enode(v)->get_expr(); }
         expr* bool_var2expr(sat::bool_var v) const;
+        expr_ref literal2expr(sat::literal lit) const;
         enode* bool_var2enode(sat::bool_var v) const { expr* e = bool_var2expr(v); return e ? expr2enode(e) : nullptr; }
-        expr_ref literal2expr(sat::literal lit) const { expr* e = bool_var2expr(lit.var()); return lit.sign() ? expr_ref(m.mk_not(e), m) : expr_ref(e, m); }
         sat::literal mk_literal(expr* e) const;
         theory_var get_th_var(enode* n) const { return n->get_th_var(get_id()); }
         theory_var get_th_var(expr* e) const;
@@ -187,6 +187,8 @@ namespace euf {
         bool is_root(theory_var v) const { return var2enode(v)->is_root(); }
         void push() override { m_num_scopes++; }
         void pop(unsigned n) override;
+
+        unsigned random();
     };
 
 

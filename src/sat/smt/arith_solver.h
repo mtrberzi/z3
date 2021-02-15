@@ -267,6 +267,7 @@ namespace arith {
         void mk_rem_axiom(expr* dividend, expr* divisor);
         void mk_bound_axioms(api_bound& b);
         void mk_bound_axiom(api_bound& b1, api_bound& b2);
+        void mk_power0_axioms(app* t, app* n);
         void flush_bound_axioms();
 
         // bounds
@@ -317,6 +318,9 @@ namespace arith {
         vector<constraint_bound>        m_upper_terms;
         vector<constraint_bound>        m_history;
 
+        bool can_get_value(theory_var v) const {
+            return is_registered_var(v) && m_model_is_initialized;
+        }
 
         // solving
         void report_equality_of_fixed_vars(unsigned vi1, unsigned vi2);
@@ -425,6 +429,7 @@ namespace arith {
         void init_model() override;
         void finalize_model(model& mdl) override { DEBUG_CODE(dbg_finalize_model(mdl);); }
         void add_value(euf::enode* n, model& mdl, expr_ref_vector& values) override;
+        void add_dep(euf::enode* n, top_sort<euf::enode>& dep) override;
         sat::literal internalize(expr* e, bool sign, bool root, bool learned) override;
         void internalize(expr* e, bool redundant) override;
         void eq_internalized(euf::enode* n) override;
