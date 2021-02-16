@@ -73,6 +73,7 @@ public:
             stack.pop_back();
 
             zstring str;
+            app * a = nullptr;
             if (u.str.is_string(curr, str)) {
                 string_constants.insert(str);
             } else if (is_string_var(curr, g->m())) {
@@ -90,8 +91,20 @@ public:
                         break;
                     }
                 }
+            } else if (is_app(curr)) {
+                a = to_app(curr);
+                if (a->get_num_args() == 0) {
+                    // special case: ignore integer constants
+                    if (!m_autil.is_numeral(a)) {
+                        sort * ex_sort = curr->get_sort();
+                        sort * str_sort = u.str.mk_string_sort();
+                        if (ex_sort != str_sort) {
+                            TRACE("str", tout << "non-string variable " << mk_pp(curr, g->m()) << " encountered -- bailing out of string_cheese tactic" << std::endl;);
+                            throw tactic_exception("string_cheese gave up due to non-string variables in instance");
+                        }
+                    }
+                }
             }
-            // TODO give up if there are non-string variables
 
             // recursively check arguments
             unsigned n_args = to_app(curr)->get_num_args();
