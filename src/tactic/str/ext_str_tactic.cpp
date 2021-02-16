@@ -196,7 +196,7 @@ class ext_str_tactic : public tactic {
                 if (rewrite_applies) {
                     TRACE("ext_str_tactic", tout << "str.indexof <= -1 rewrite applies: " << mk_pp(haystack, m) << " does not contain " << mk_pp(needle, m) << std::endl;);
                     expr_ref h_not_in_n(m.mk_not(u.str.mk_contains(haystack, needle)), m);
-                    sub.insert(eq, h_not_in_n);
+                    sub.insert(le, h_not_in_n);
                 }
             }
 
@@ -245,7 +245,7 @@ class ext_str_tactic : public tactic {
                 if (rewrite_applies) {
                     TRACE("ext_str_tactic", tout << "str.indexof >= 0 rewrite applies: " << mk_pp(haystack, m) << " contains " << mk_pp(needle, m) << std::endl;);
                     expr_ref h_in_n(u.str.mk_contains(haystack, needle), m);
-                    sub.insert(eq, h_in_n);
+                    sub.insert(ge, h_in_n);
                 }
             }
 
@@ -294,7 +294,7 @@ class ext_str_tactic : public tactic {
                 if (rewrite_applies) {
                     TRACE("ext_str_tactic", tout << "str.indexof < negative rewrite applies: " << mk_pp(haystack, m) << " does not contain " << mk_pp(needle, m) << std::endl;);
                     expr_ref h_not_in_n(m.mk_not(u.str.mk_contains(haystack, needle)), m);
-                    sub.insert(eq, h_not_in_n);
+                    sub.insert(lt, h_not_in_n);
                 }
             }
 
@@ -343,7 +343,7 @@ class ext_str_tactic : public tactic {
                 if (rewrite_applies) {
                     TRACE("ext_str_tactic", tout << "str.indexof > -1 rewrite applies: " << mk_pp(haystack, m) << " contains " << mk_pp(needle, m) << std::endl;);
                     expr_ref h_in_n(u.str.mk_contains(haystack, needle), m);
-                    sub.insert(eq, h_in_n);
+                    sub.insert(gt, h_in_n);
                 }
             }
 
