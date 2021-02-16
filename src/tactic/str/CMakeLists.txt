@@ -2,9 +2,11 @@ z3_add_component(str_tactics
   SOURCES
     ext_str_tactic.cpp
     str_ml_tactic.cpp
+    string_cheese_tactic.cpp
   COMPONENT_DEPENDENCIES
     tactic
   TACTIC_HEADERS
     ext_str_tactic.h
     str_ml_tactic.h
+    string_cheese_tactic.h
 )
