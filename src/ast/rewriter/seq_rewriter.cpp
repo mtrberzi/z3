@@ -1521,6 +1521,32 @@ br_status seq_rewriter::mk_seq_index(expr* a, expr* b, expr* c, expr_ref& result
         return BR_DONE;
     }
 
+    // indexof(substr(X, Y, len(X)-Y), B, C) --> indexof(X, B, C+Y)
+    if (str().is_extract(a, x, y, len1) && m_autil.is_numeral(y, r1) && r1.is_nonneg()) {
+        expr * s1 = nullptr, *s2 = nullptr;
+        // Check for an addition, because this term would have been rewritten by now
+        if (m_autil.is_add(len1, s1, s2)) {
+            // Look for an expression of the form (+ (- N) (str.len X))
+            bool rewrite_applies = false;
+            expr * length_subterm = nullptr;
+            if (str().is_length(s1, length_subterm) && m().are_equal(length_subterm, x)) {
+                if (m_autil.is_numeral(s2, r2) && r1 == r2*-1) {
+                    rewrite_applies = true;
+                }
+            } else if (str().is_length(s2, length_subterm) && m().are_equal(length_subterm, x)) {
+                if (m_autil.is_numeral(s1, r2) && r1 == r2*-1) {
+                    rewrite_applies = true;
+                }
+            }
+
+            if (rewrite_applies) {
+                result = str().mk_index(x, b, m_autil.mk_add(c, y));
+                TRACE("str", tout << "rewrite indexof-over-substr: orig (str.indexof " << mk_pp(a, m()) << " " << mk_pp(b, m()) << " " << mk_pp(c, m()) << " rewritten " << mk_pp(result, m()) << std::endl;);
+                return BR_REWRITE_FULL;
+            }
+        }
+    }
+
     expr_ref_vector as(m()), bs(m());
     str().get_concat_units(a, as);
     unsigned i = 0;
