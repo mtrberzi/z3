@@ -102,7 +102,7 @@ class ext_str_tactic : public tactic {
                 }
             }
 
-            // Rewrite: (= (str.indexof H N I) -1) --> not(str.contains H N)
+            // Rewrite: (= (str.indexof H N 0) -1) --> not(str.contains H N)
             {
                 expr * haystack = nullptr;
                 expr * needle = nullptr;
@@ -110,13 +110,13 @@ class ext_str_tactic : public tactic {
                 bool rewrite_applies = false;
                 rational integer_constant;
 
-                if (u.str.is_index(lhs, haystack, needle, index)) {
+                if (u.str.is_index(lhs, haystack, needle, index) && m_autil.is_numeral(index, integer_constant) && integer_constant.is_zero()) {
                     if (m_autil.is_numeral(rhs, integer_constant)) {
                         if (integer_constant.is_minus_one()) {
                             rewrite_applies = true;
                         }
                     }
-                } else if (u.str.is_index(rhs, haystack, needle, index)) {
+                } else if (u.str.is_index(rhs, haystack, needle, index) && m_autil.is_numeral(index, integer_constant) && integer_constant.is_zero()) {
                     if (m_autil.is_numeral(lhs, integer_constant)) {
                         if (integer_constant.is_minus_one()) {
                             rewrite_applies = true;
@@ -177,7 +177,7 @@ class ext_str_tactic : public tactic {
                 }
             }
 
-            // Rewrite: (str.indexof H N I) <= -1 --> not(str.contains H N)
+            // Rewrite: (str.indexof H N 0) <= -1 --> not(str.contains H N)
             {
                 expr * haystack = nullptr;
                 expr * needle = nullptr;
@@ -185,7 +185,7 @@ class ext_str_tactic : public tactic {
                 bool rewrite_applies = false;
                 rational integer_constant;
 
-                if (u.str.is_index(lhs, haystack, needle, index)) {
+                if (u.str.is_index(lhs, haystack, needle, index) && m_autil.is_numeral(index, integer_constant) && integer_constant.is_zero()) {
                     if (m_autil.is_numeral(rhs, integer_constant)) {
                         if (integer_constant.is_minus_one()) {
                             rewrite_applies = true;
@@ -226,7 +226,7 @@ class ext_str_tactic : public tactic {
                 }
             }
 
-            // Rewrite: (str.indexof H N I) >= 0 --> (str.contains H N)
+            // Rewrite: (str.indexof H N 0) >= 0 --> (str.contains H N)
             {
                 expr * haystack = nullptr;
                 expr * needle = nullptr;
@@ -234,7 +234,7 @@ class ext_str_tactic : public tactic {
                 bool rewrite_applies = false;
                 rational integer_constant;
 
-                if (u.str.is_index(lhs, haystack, needle, index)) {
+                if (u.str.is_index(lhs, haystack, needle, index) && m_autil.is_numeral(index, integer_constant) && integer_constant.is_zero()) {
                     if (m_autil.is_numeral(rhs, integer_constant)) {
                         if (integer_constant.is_zero()) {
                             rewrite_applies = true;
@@ -275,7 +275,7 @@ class ext_str_tactic : public tactic {
                 }
             }
 
-            // Rewrite: (str.indexof H N I) < n < 0 --> not(str.contains H N)
+            // Rewrite: (str.indexof H N 0) < n < 0 --> not(str.contains H N)
             {
                 expr * haystack = nullptr;
                 expr * needle = nullptr;
@@ -283,7 +283,7 @@ class ext_str_tactic : public tactic {
                 bool rewrite_applies = false;
                 rational integer_constant;
 
-                if (u.str.is_index(lhs, haystack, needle, index)) {
+                if (u.str.is_index(lhs, haystack, needle, index) && m_autil.is_numeral(index, integer_constant) && integer_constant.is_zero()) {
                     if (m_autil.is_numeral(rhs, integer_constant)) {
                         if (integer_constant.is_neg()) {
                             rewrite_applies = true;
@@ -324,7 +324,7 @@ class ext_str_tactic : public tactic {
                 }
             }
 
-            // Rewrite: (str.indexof H N I) > -1 --> (str.contains H N)
+            // Rewrite: (str.indexof H N 0) > -1 --> (str.contains H N)
             {
                 expr * haystack = nullptr;
                 expr * needle = nullptr;
@@ -332,7 +332,7 @@ class ext_str_tactic : public tactic {
                 bool rewrite_applies = false;
                 rational integer_constant;
 
-                if (u.str.is_index(lhs, haystack, needle, index)) {
+                if (u.str.is_index(lhs, haystack, needle, index) && m_autil.is_numeral(index, integer_constant) && integer_constant.is_zero()) {
                     if (m_autil.is_numeral(rhs, integer_constant)) {
                         if (integer_constant.is_minus_one()) {
                             rewrite_applies = true;
