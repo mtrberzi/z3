@@ -1395,7 +1395,11 @@ namespace smt {
         {
             expr_ref premise(m_autil.mk_le(i, minus_one), m);
             expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
-            assert_implication(premise, conclusion);
+            expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
+            rw(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                assert_axiom(finalAxiom);
+            }
         }
 
         // case 1.1: N == "" and i out of range
@@ -1409,7 +1413,9 @@ namespace smt {
             expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
             expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
             rw(finalAxiom);
-            assert_axiom(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                assert_axiom(finalAxiom);
+            }
         }
 
         // case 1.2: N == "" and i within range
@@ -1423,7 +1429,9 @@ namespace smt {
             expr_ref conclusion(ctx.mk_eq_atom(e, i), m);
             expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
             rw(finalAxiom);
-            assert_axiom(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                assert_axiom(finalAxiom);
+            }
         }
 
         // case 2: i = 0
@@ -1434,7 +1442,11 @@ namespace smt {
             rw(premise);
             // reduction to simpler case
             expr_ref conclusion(ctx.mk_eq_atom(e, mk_indexof(H, N)), m);
-            assert_implication(premise, conclusion);
+            expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
+            rw(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                assert_axiom(finalAxiom);
+            }
         }
         // case 3: i >= len(H)
         {
@@ -1447,14 +1459,22 @@ namespace smt {
             expr_ref premise(m.mk_and(premise1, premise2), m);
             rw(premise);
             expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
-            assert_implication(premise, conclusion);
+            expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
+            rw(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                assert_axiom(finalAxiom);
+            }
         }
         // case 3.5: H doesn't contain N
         {
             expr_ref premise(m.mk_not(u.str.mk_contains(H, N)), m);
             expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
             rw(premise);
-            assert_implication(premise, conclusion);
+            expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
+            rw(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                assert_axiom(finalAxiom);
+            }
         }
         // case 4: 0 < i < len(H), N non-empty, and H contains N
         {
@@ -1483,7 +1503,11 @@ namespace smt {
             conclusion_terms.push_back(ctx.mk_eq_atom(e, m_autil.mk_add(i, mk_indexof(tl, N))));
 
             expr_ref conclusion(mk_and(conclusion_terms), m);
-            assert_implication(premise, conclusion);
+            expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
+            rw(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                assert_axiom(finalAxiom);
+            }
         }
 
         {
@@ -1504,7 +1528,10 @@ namespace smt {
             expr_ref finalAxiom(rewrite_implication(precondition, containsAxiom), m);
             SASSERT(finalAxiom);
             // we can't assert this during init_search as it breaks an invariant if the instance becomes inconsistent
-            m_delayed_assertions_todo.push_back(finalAxiom);
+            rw(finalAxiom);
+            if (!m.is_true(finalAxiom)) {
+                m_delayed_assertions_todo.push_back(finalAxiom);
+            }
         }
     }
 
