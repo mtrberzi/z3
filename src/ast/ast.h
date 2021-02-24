@@ -1667,6 +1667,8 @@ public:
     bool are_equal(expr * a, expr * b) const;
 
     bool are_distinct(expr * a, expr * b) const;
+
+    bool contains(ast * a) const { return m_ast_table.contains(a); }
     
     bool is_lambda_def(quantifier* q) const { return q->get_qid() == m_lambda_def; }
     void add_lambda_def(func_decl* f, quantifier* q);
@@ -2452,6 +2454,12 @@ typedef obj_ref<quantifier, ast_manager> quantifier_ref;
 typedef obj_ref<app, ast_manager>        app_ref;
 typedef obj_ref<var,ast_manager>         var_ref;
 typedef app_ref proof_ref;
+
+inline expr_ref operator~(expr_ref const & e) {
+    if (e.m().is_not(e))
+        return expr_ref(to_app(e)->get_arg(0), e.m());
+    return expr_ref(e.m().mk_not(e), e.m());
+}
 
 // -----------------------------------
 //

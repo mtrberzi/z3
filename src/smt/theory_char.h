@@ -38,7 +38,6 @@ namespace smt {
         vector<expr_ref_vector> m_ebits;
         unsigned_vector         m_var2value;
         svector<theory_var>     m_value2var;
-        bool                    m_enabled { false };
         bit_blaster             m_bb;
         stats                   m_stats;
         symbol                  m_bits2char;
@@ -60,6 +59,7 @@ namespace smt {
         void new_char2int(theory_var v, expr* c);
         unsigned get_char_value(theory_var v);
         void internalize_le(literal lit, app* term);        
+        void internalize_is_digit(literal lit, app* term);        
 
         theory_var mk_var(enode* n) override;
 

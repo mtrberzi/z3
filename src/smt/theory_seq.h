@@ -355,7 +355,7 @@ namespace smt {
         seq_rewriter     m_seq_rewrite;
         seq_util         m_util;
         arith_util       m_autil;
-        seq_skolem       m_sk;
+        seq::skolem      m_sk;
         seq_axioms       m_ax;
         seq_regex        m_regex;
         arith_value      m_arith_value;
@@ -514,8 +514,8 @@ namespace smt {
 
         // asserting consequences
         void linearize(dependency* dep, enode_pair_vector& eqs, literal_vector& lits) const;
-        void propagate_lit(dependency* dep, literal lit) { propagate_lit(dep, 0, nullptr, lit); }
-        void propagate_lit(dependency* dep, unsigned n, literal const* lits, literal lit);
+        bool propagate_lit(dependency* dep, literal lit) { return propagate_lit(dep, 0, nullptr, lit); }
+        bool propagate_lit(dependency* dep, unsigned n, literal const* lits, literal lit);
         bool propagate_eq(dependency* dep, enode* n1, enode* n2);
         bool propagate_eq(literal lit, expr* e1, expr* e2, bool add_to_eqs);
         bool propagate_eq(dependency* dep, literal_vector const& lits, expr* e1, expr* e2, bool add_to_eqs = true);

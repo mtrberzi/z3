@@ -466,20 +466,28 @@ bool theory_seq::branch_variable() {
         TRACE("seq", tout << "branch_quat_variable\n";);
         return true;
     }
-    if (branch_variable_mb()) {
-        TRACE("seq", tout << "branch_variable_mb\n";);
-        return true;
-    }
-    if (branch_variable_eq()) {
-        TRACE("seq", tout << "branch_variable_eq\n";);
-        return true;
+
+    unsigned turn = ctx.get_random_value() % 2 == 0;
+    for (unsigned i = 0; i < 2; ++i, turn = !turn) {
+        if (turn && branch_variable_mb()) {
+            TRACE("seq", tout << "branch_variable_mb\n";);
+            return true;
+        }
+        if (!turn && branch_variable_eq()) {
+            TRACE("seq", tout << "branch_variable_eq\n";);
+            return true;
+        }
     }
     return false;
 }
 
 bool theory_seq::branch_variable_mb() {
     bool change = false;
-    for (auto const& e : m_eqs) {
+    unsigned sz = m_eqs.size();
+    int start = ctx.get_random_value();
+    for (unsigned i = 0; i < sz; ++i) {
+        unsigned k = (i + start) % sz;
+        eq const& e = m_eqs[k];
         vector<rational> len1, len2;
         if (!is_complex(e)) {
             continue;
@@ -860,17 +868,16 @@ bool theory_seq::branch_ternary_variable_rhs(eq const& e) {
         !is_ternary_eq_rhs(e.rs(), e.ls(), x, xs, y1, ys, y2)) {
         return false;
     }
+    if (m_sk.is_align_l(y1) || m_sk.is_align_r(y1))
+        return false;
 
     rational lenX, lenY1, lenY2;
-    if (!get_length(x, lenX)) {
+    if (!get_length(x, lenX)) 
         add_length_to_eqc(x);
-    }
-    if (!get_length(y1, lenY1)) {
+    if (!get_length(y1, lenY1)) 
         add_length_to_eqc(y1);
-    }
-    if (!get_length(y2, lenY2)) {
+    if (!get_length(y2, lenY2)) 
         add_length_to_eqc(y2);
-    }
 
     SASSERT(!xs.empty() && !ys.empty());
     if (!can_align_from_lhs(xs, ys)) {
@@ -882,11 +889,16 @@ bool theory_seq::branch_ternary_variable_rhs(eq const& e) {
         expr_ref y1ysZ = mk_concat(y1ys, Z);
 
         dependency* dep = e.dep();
-        propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_len(y2), xs.size()));
-        propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_sub(mk_len(x), mk_len(y1)), ys.size()));
-        propagate_eq(dep, x, y1ysZ, true);
-        propagate_eq(dep, y2, ZxsE, true);
-        return true;
+        bool propagated = false;
+        if (propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_len(y2), xs.size())))
+            propagated = true;
+        if (propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_sub(mk_len(x), mk_len(y1)), ys.size())))
+            propagated = true;
+        if (propagate_eq(dep, x, y1ysZ, true))
+            propagated = true;
+        if (propagate_eq(dep, y2, ZxsE, true))
+            propagated = true;
+        return propagated;
     }
     return false;
 }
@@ -900,17 +912,16 @@ bool theory_seq::branch_ternary_variable_lhs(eq const& e) {
     if (!is_ternary_eq_lhs(e.ls(), e.rs(), xs, x, y1, ys, y2) &&
         !is_ternary_eq_lhs(e.rs(), e.ls(), xs, x, y1, ys, y2))
         return false;
+    if (m_sk.is_align_l(y1) || m_sk.is_align_r(y1))
+        return false;
 
     rational lenX, lenY1, lenY2;
-    if (!get_length(x, lenX)) {
+    if (!get_length(x, lenX)) 
         add_length_to_eqc(x);
-    }
-    if (!get_length(y1, lenY1)) {
+    if (!get_length(y1, lenY1)) 
         add_length_to_eqc(y1);
-    }
-    if (!get_length(y2, lenY2)) {
+    if (!get_length(y2, lenY2)) 
         add_length_to_eqc(y2);
-    }
     SASSERT(!xs.empty() && !ys.empty());
 
     if (!can_align_from_rhs(xs, ys)) {
@@ -922,10 +933,15 @@ bool theory_seq::branch_ternary_variable_lhs(eq const& e) {
         expr_ref Zysy2 = mk_concat(Z, ysy2);
 
         dependency* dep = e.dep();
-        propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_len(y1), xs.size()));
-        propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_sub(mk_len(x), mk_len(y2)), ys.size()));
-        propagate_eq(dep, x, Zysy2, true);
-        propagate_eq(dep, y1, xsZ, true);
+        bool propagated = false;
+        if (propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_len(y1), xs.size())))
+            propagated = true;
+        if (propagate_lit(dep, 0, nullptr, m_ax.mk_ge(mk_sub(mk_len(x), mk_len(y2)), ys.size())))
+            propagated = true;
+        if (propagate_eq(dep, x, Zysy2, true))
+            propagated = true;
+        if (propagate_eq(dep, y1, xsZ, true))
+            propagated = true;
         return true;
     }
     return false;
@@ -1321,23 +1337,34 @@ bool theory_seq::propagate_length_coherence(expr* e) {
     expr_ref lo_e(m_autil.mk_numeral(lo, true), m);
     expr_ref len_e_ge_lo(m_autil.mk_ge(mk_len(e), lo_e), m);
     literal low = mk_literal(len_e_ge_lo);
-    add_axiom(~low, mk_seq_eq(e, tail));
+    literal eq = mk_seq_eq(e, tail);
+    bool added = false;
+    if (ctx.get_assignment(eq) != l_true) {
+        add_axiom(~low, eq);
+        added = true;
+    }
     expr_ref len_e = mk_len(e);
     if (upper_bound(len_e, hi)) {
         // len(e) <= hi => len(tail) <= hi - lo
         expr_ref high1(m_autil.mk_le(len_e, m_autil.mk_numeral(hi, true)), m);
         if (hi == lo) {
             add_axiom(~mk_literal(high1), mk_seq_eq(seq, emp));
+            added = true;
         }
         else {
             expr_ref high2(m_autil.mk_le(mk_len(seq), m_autil.mk_numeral(hi-lo, true)), m);
-            add_axiom(~mk_literal(high1), mk_literal(high2));
+            literal h2 = mk_literal(high2);
+            if (ctx.get_assignment(h2) != l_true) {
+                add_axiom(~mk_literal(high1), h2);
+                added = true;
+            }
         }
     }
     else {
         assume_equality(seq, emp);
+        added = true;
     }
-    return true;
+    return added;
 }
 
 
