@@ -566,7 +566,8 @@ public class Context implements AutoCloseable {
     /**
      * Create a quantifier pattern.
      **/
-    public Pattern mkPattern(Expr<?>... terms)
+    @SafeVarargs
+    public final Pattern mkPattern(Expr<?>... terms)
     {
         if (terms.length == 0)
             throw new Z3Exception("Cannot create a pattern from zero terms");
@@ -687,7 +688,8 @@ public class Context implements AutoCloseable {
     /**
      * Create a new function application.
      **/
-    public <R extends Sort> Expr<R> mkApp(FuncDecl<R> f, Expr<?>... args)
+    @SafeVarargs
+    public final <R extends Sort> Expr<R> mkApp(FuncDecl<R> f, Expr<?>... args)
     {
         checkContextMatch(f);
         checkContextMatch(args);
@@ -732,7 +734,8 @@ public class Context implements AutoCloseable {
     /**
      * Creates a {@code distinct} term.
      **/
-    public <R extends Sort> BoolExpr mkDistinct(Expr<R>... args)
+    @SafeVarargs
+    public final <R extends Sort> BoolExpr mkDistinct(Expr<R>... args)
     {
         checkContextMatch(args);
         return new BoolExpr(this, Native.mkDistinct(nCtx(), args.length,
@@ -800,7 +803,8 @@ public class Context implements AutoCloseable {
     /**
      * Create an expression representing {@code t[0] and t[1] and ...}.
      **/
-    public BoolExpr mkAnd(Expr<BoolSort>... t)
+    @SafeVarargs
+    public final BoolExpr mkAnd(Expr<BoolSort>... t)
     {
         checkContextMatch(t);
         return new BoolExpr(this, Native.mkAnd(nCtx(), t.length,
@@ -810,7 +814,8 @@ public class Context implements AutoCloseable {
     /**
      * Create an expression representing {@code t[0] or t[1] or ...}.
      **/
-    public BoolExpr mkOr(Expr<BoolSort>... t)
+    @SafeVarargs
+    public final BoolExpr mkOr(Expr<BoolSort>... t)
     {
         checkContextMatch(t);
         return new BoolExpr(this, Native.mkOr(nCtx(), t.length,
@@ -820,7 +825,8 @@ public class Context implements AutoCloseable {
     /**
      * Create an expression representing {@code t[0] + t[1] + ...}.
      **/
-    public <R extends ArithSort> ArithExpr<R> mkAdd(Expr<R>... t)
+    @SafeVarargs
+    public final <R extends ArithSort> ArithExpr<R> mkAdd(Expr<R>... t)
     {
         checkContextMatch(t);
         return (ArithExpr<R>) Expr.create(this,
@@ -830,7 +836,8 @@ public class Context implements AutoCloseable {
     /**
      * Create an expression representing {@code t[0] * t[1] * ...}.
      **/
-    public <R extends ArithSort> ArithExpr<R> mkMul(Expr<R>... t)
+    @SafeVarargs
+    public final <R extends ArithSort> ArithExpr<R> mkMul(Expr<R>... t)
     {
         checkContextMatch(t);
         return (ArithExpr<R>) Expr.create(this,
@@ -840,7 +847,8 @@ public class Context implements AutoCloseable {
     /**
      * Create an expression representing {@code t[0] - t[1] - ...}.
      **/
-    public <R extends ArithSort> ArithExpr<R> mkSub(Expr<R>... t)
+    @SafeVarargs
+    public final <R extends ArithSort> ArithExpr<R> mkSub(Expr<R>... t)
     {
         checkContextMatch(t);
         return (ArithExpr<R>) Expr.create(this,
@@ -1814,7 +1822,8 @@ public class Context implements AutoCloseable {
      * @see #mkStore
 
      **/
-    public <D extends Sort, R1 extends Sort, R2 extends Sort> ArrayExpr<D, R2> mkMap(FuncDecl<R2> f, Expr<ArraySort<D, R1>>... args)
+    @SafeVarargs
+    public final <D extends Sort, R1 extends Sort, R2 extends Sort> ArrayExpr<D, R2> mkMap(FuncDecl<R2> f, Expr<ArraySort<D, R1>>... args)
     {
         checkContextMatch(f);
         checkContextMatch(args);
@@ -1903,7 +1912,8 @@ public class Context implements AutoCloseable {
     /**
      * Take the union of a list of sets.
      **/
-    public <D extends Sort> ArrayExpr<D, BoolSort> mkSetUnion(Expr<ArraySort<D, BoolSort>>... args)
+    @SafeVarargs
+    public final <D extends Sort> ArrayExpr<D, BoolSort> mkSetUnion(Expr<ArraySort<D, BoolSort>>... args)
     {
         checkContextMatch(args);
         return (ArrayExpr<D, BoolSort>)Expr.create(this,
@@ -1914,7 +1924,8 @@ public class Context implements AutoCloseable {
     /**
      * Take the intersection of a list of sets.
      **/
-    public <D extends Sort> ArrayExpr<D, BoolSort> mkSetIntersection(Expr<ArraySort<D, BoolSort>>... args)
+    @SafeVarargs
+    public final <D extends Sort> ArrayExpr<D, BoolSort> mkSetIntersection(Expr<ArraySort<D, BoolSort>>... args)
     {
         checkContextMatch(args);
         return (ArrayExpr<D, BoolSort>) Expr.create(this,
@@ -2018,7 +2029,8 @@ public class Context implements AutoCloseable {
     /**
      * Concatenate sequences.
      */
-    public <R extends Sort> SeqExpr<R> mkConcat(Expr<SeqSort<R>>... t)
+    @SafeVarargs
+    public final <R extends Sort> SeqExpr<R> mkConcat(Expr<SeqSort<R>>... t)
     {
         checkContextMatch(t);
         return (SeqExpr<R>) Expr.create(this, Native.mkSeqConcat(nCtx(), t.length, AST.arrayToNative(t)));
@@ -2182,7 +2194,8 @@ public class Context implements AutoCloseable {
     /**
      * Create the concatenation of regular languages.
      */
-    public <R extends Sort> ReExpr<R> mkConcat(ReExpr<R>... t)
+    @SafeVarargs
+    public final <R extends Sort> ReExpr<R> mkConcat(ReExpr<R>... t)
     {
         checkContextMatch(t);
         return (ReExpr<R>) Expr.create(this, Native.mkReConcat(nCtx(), t.length, AST.arrayToNative(t)));
@@ -2191,7 +2204,8 @@ public class Context implements AutoCloseable {
     /**
      * Create the union of regular languages.
      */
-    public <R extends Sort> ReExpr<R> mkUnion(Expr<ReSort<R>>... t)
+    @SafeVarargs
+    public final <R extends Sort> ReExpr<R> mkUnion(Expr<ReSort<R>>... t)
     {
         checkContextMatch(t);
         return (ReExpr<R>) Expr.create(this, Native.mkReUnion(nCtx(), t.length, AST.arrayToNative(t)));
@@ -2200,7 +2214,8 @@ public class Context implements AutoCloseable {
     /**
      * Create the intersection of regular languages.
      */
-    public <R extends Sort> ReExpr<R> mkIntersect(Expr<ReSort<R>>... t)
+    @SafeVarargs
+    public final <R extends Sort> ReExpr<R> mkIntersect(Expr<ReSort<R>>... t)
     {
         checkContextMatch(t);
         return (ReExpr<R>) Expr.create(this, Native.mkReIntersect(nCtx(), t.length, AST.arrayToNative(t)));
