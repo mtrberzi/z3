@@ -96,6 +96,55 @@ probe * mk_is_cf_probe() {
     return alloc(is_cf_probe);
 }
 
+
+static bool has_word_eq_helper(ast_manager &m, expr * f)
+{
+    seq_util u(m);
+
+    if (m.is_eq(f) && to_app(f)->get_arg(0)->get_sort()->get_family_id() == u.get_family_id())
+    {
+        TRACE("str_fl", tout << "Found a word equation! " << mk_pp(f, m) << std::endl;);
+        return true;
+    }
+    else {
+        TRACE("str_fl", tout << "other " << mk_pp(f, m) << std::endl;);
+        for (unsigned int i = 0; i < to_app(f)->get_num_args(); i++)
+        {
+            if (has_word_eq_helper(m, to_app(f)->get_arg(i))) {
+                return true;
+            }
+        }
+        TRACE("str_fl", tout << "No word equation found! " << std::endl;);
+        return false;
+    }
+}
+
+static bool has_word_eq(goal const &g)
+{
+    ast_manager &m = g.m();
+    unsigned sz = g.size();
+    for (unsigned i = 0; i < sz; i++)
+    {
+        expr *f = g.form(i);
+        if (has_word_eq_helper(m, f)){
+            return true;
+        }
+    }
+    TRACE("str_fl", tout << "Does not have word equations!" << std::endl;);
+    return false;
+}
+
+class has_word_eq_probe : public probe {
+public:
+    result operator()(goal const & g) override {
+        return has_word_eq(g);
+    }
+};
+
+probe * mk_has_word_eq_probe() {
+    return alloc(has_word_eq_probe);
+}
+
 tactic * mk_rewriter_tactic(ast_manager & m, params_ref const & p) {
     smt_params m_smt_params;
     m_smt_params.updt_params(p);
@@ -198,6 +247,21 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
     } else if (m_smt_params.m_StrTactic == symbol("cheese")) {
         tactic * cheese = mk_string_cheese_tactic(m, p);
         tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), cheese), p);
+        return st;
+    } else if (m_smt_params.m_StrTactic == symbol("2probe")) {
+        seq_p.set_uint("seq.giveup_point", 7);
+        tactic * z3seqBefore = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
+        seq_p.set_uint("seq.giveup_point", 0);
+        tactic * z3seqAfter = using_params(mk_smt_tactic(m), seq_p);
+
+        tactic * tree =
+            cond(mk_has_word_eq_probe(),
+                cond(mk_is_cf_probe(),
+                     or_else(z3str3_1, z3str3_2, z3seqAfter),
+                     or_else(z3str3_2, z3seqAfter)),
+                z3seqAfter);
+
+        tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), tree), p);
         return st;
     } else {
         // unknown tactic
