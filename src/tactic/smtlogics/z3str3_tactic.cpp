@@ -297,6 +297,8 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), cheese), p);
         return st;
     } else if (m_smt_params.m_StrTactic == symbol("2probe")) {
+        seq_p.set_uint("seq.giveup_point", 7);
+        tactic * z3seqBefore = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
         seq_p.set_uint("seq.giveup_point", 0);
         tactic * z3seqAfter = using_params(mk_smt_tactic(m), seq_p);
 
@@ -304,12 +306,14 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
             cond(mk_has_word_eq_probe(),
                 cond(mk_is_cf_probe(),
                      or_else(z3str3_1, z3str3_2, z3seqAfter),
-                     or_else(z3str3_2, z3seqAfter)),
+                     or_else(z3seqBefore, z3str3_2, z3seqAfter)),
                 z3seqAfter);
 
         tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), tree), p);
         return st;
     } else if (m_smt_params.m_StrTactic == symbol("3probe")) {
+        seq_p.set_uint("seq.giveup_point", 7);
+        tactic * z3seqBefore = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
         seq_p.set_uint("seq.giveup_point", 0);
         tactic * z3seqAfter = using_params(mk_smt_tactic(m), seq_p);
 
@@ -317,7 +321,7 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
             cond(mk_has_word_eq_probe(),
                 cond(mk_is_cf_probe(),
                      or_else(z3str3_1, z3str3_2, z3seqAfter),
-                     or_else(z3str3_2, z3seqAfter)),
+                     or_else(z3seqBefore, z3str3_2, z3seqAfter)),
                 z3seqAfter);
 
         tactic * tree = cond(mk_has_regex_probe(), or_else(z3str3_2, z3seqAfter), innertree);
