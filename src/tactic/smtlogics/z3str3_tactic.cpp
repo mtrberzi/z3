@@ -111,6 +111,9 @@ static bool has_word_eq_helper(ast_manager &m, expr * f)
     }
     else {
         TRACE("str_fl", tout << "other " << mk_pp(f, m) << std::endl;);
+        if (!is_app(f)) {
+            return false;
+        }
         for (unsigned int i = 0; i < to_app(f)->get_num_args(); i++)
         {
             if (has_word_eq_helper(m, to_app(f)->get_arg(i))) {
@@ -159,6 +162,9 @@ static bool has_regex_helper(ast_manager &m, expr * f)
     }
     else {
         TRACE("str_fl", tout << "other " << mk_pp(f, m) << std::endl;);
+        if (!is_app(f)) {
+            return false;
+        }
         for (unsigned int i = 0; i < to_app(f)->get_num_args(); i++)
         {
             if (has_regex_helper(m, to_app(f)->get_arg(i))) {
