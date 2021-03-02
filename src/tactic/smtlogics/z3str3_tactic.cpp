@@ -58,6 +58,9 @@ static bool is_cf_helper(ast_manager &m, expr * f, bool sign)
     }
     else {
         TRACE("str_fl", tout << "other " << mk_pp(f, m) << std::endl;);
+        if (!is_app(f)) {
+            return false;
+        }
         for (unsigned int i = 0; i < to_app(f)->get_num_args(); i++)
         {
             if (!is_cf_helper(m, to_app(f)->get_arg(i), sign)) {
