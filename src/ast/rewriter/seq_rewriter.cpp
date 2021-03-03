@@ -1667,7 +1667,7 @@ br_status seq_rewriter::mk_seq_index(expr* a, expr* b, expr* c, expr_ref& result
         return BR_DONE;
     }
 
-    // indexof(substr(X, Y, len(X)-Y), B, C) --> indexof(X, B, C+Y)
+    // indexof(substr(X, Y, len(X)-Y), B, C) --> (F == -1? -1 : F - Y) where F == indexof(X, B, C+Y)
     if (str().is_extract(a, x, y, len1) && m_autil.is_numeral(y, r1) && r1.is_nonneg()) {
         expr * s1 = nullptr, *s2 = nullptr;
         // Check for an addition, because this term would have been rewritten by now
@@ -1686,8 +1686,7 @@ br_status seq_rewriter::mk_seq_index(expr* a, expr* b, expr* c, expr_ref& result
             }
 
             if (rewrite_applies) {
-                result = str().mk_index(x, b, m_autil.mk_add(c, y));
-                TRACE("str", tout << "rewrite indexof-over-substr: orig (str.indexof " << mk_pp(a, m()) << " " << mk_pp(b, m()) << " " << mk_pp(c, m()) << " rewritten " << mk_pp(result, m()) << std::endl;);
+                result = m().mk_ite(m().mk_eq(str().mk_index(x, b, m_autil.mk_add(c, y)), minus_one()), minus_one(), m_autil.mk_sub(str().mk_index(x, b, m_autil.mk_add(c, y)), y));
                 return BR_REWRITE_FULL;
             }
         }
