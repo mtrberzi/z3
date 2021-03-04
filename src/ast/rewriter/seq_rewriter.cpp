@@ -1932,7 +1932,7 @@ br_status seq_rewriter::mk_seq_replace_all(expr* a, expr* b, expr* c, expr_ref& 
             if (s1.length() >= s2.length() + i && 
                 s2 == s1.extract(i, s2.length())) {
                 strs.push_back(c);
-                i += s2.length();
+                i += s2.length() - 1;
             }
             else 
                 strs.push_back(str().mk_unit(str().mk_char(s1, i)));
@@ -2072,8 +2072,8 @@ br_status seq_rewriter::mk_seq_prefix(expr* a, expr* b, expr_ref& result) {
     }
 
     expr* b2 = nullptr, *b3 = nullptr;    
-    if (str().is_replace(b, b1, b2, b3) && b2 == a1 && str().is_empty(b3)) {
-        result = str().mk_prefix(str().mk_concat(a1, a1), b1);
+    if (str().is_replace(b, b1, b2, b3) && b2 == a && str().is_empty(b3)) {
+        result = str().mk_prefix(str().mk_concat(a, a), b1);
         return BR_REWRITE2;
     }
 

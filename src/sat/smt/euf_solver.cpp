@@ -19,7 +19,7 @@ Author:
 #include "ast/ast_ll_pp.h"
 #include "sat/sat_solver.h"
 #include "sat/smt/sat_smt.h"
-#include "sat/smt/ba_solver.h"
+#include "sat/smt/pb_solver.h"
 #include "sat/smt/bv_solver.h"
 #include "sat/smt/euf_solver.h"
 #include "sat/smt/array_solver.h"
@@ -112,7 +112,7 @@ namespace euf {
         datatype_util dt(m);
         recfun::util rf(m);
         if (pb.get_family_id() == fid)
-            ext = alloc(sat::ba_solver, *this, fid);
+            ext = alloc(pb::solver, *this, fid);
         else if (bvu.get_family_id() == fid)
             ext = alloc(bv::solver, *this, fid);
         else if (au.get_family_id() == fid)
@@ -218,10 +218,10 @@ namespace euf {
             log_antecedents(l, r);
     }
 
-    void solver::get_antecedents(literal l, th_propagation& jst, literal_vector& r, bool probing) {
-        for (auto lit : euf::th_propagation::lits(jst))
+    void solver::get_antecedents(literal l, th_explain& jst, literal_vector& r, bool probing) {
+        for (auto lit : euf::th_explain::lits(jst))
             r.push_back(lit);
-        for (auto eq : euf::th_propagation::eqs(jst))
+        for (auto eq : euf::th_explain::eqs(jst))
             add_antecedent(eq.first, eq.second);
 
         if (!probing && use_drat()) 
@@ -277,6 +277,11 @@ namespace euf {
             IF_VERBOSE(0, verbose_stream() << (unsigned)j.kind() << "\n");
             UNREACHABLE();
         }
+    }
+
+    void solver::set_eliminated(bool_var v) {
+        si.uncache(literal(v, false));
+        si.uncache(literal(v, true));
     }
 
     void solver::asserted(literal l) {
@@ -396,6 +401,8 @@ namespace euf {
             size_t idx = get_justification(p);
             auto* ext = sat::constraint_base::to_extension(idx);                
             if (ext->get_id() != e.id())
+                return false;
+            if (ext->enable_self_propagate())
                 return false;
         }
         return true;

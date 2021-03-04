@@ -97,6 +97,7 @@ namespace dt {
         enode_pair_vector     m_used_eqs; // conflict, if any
         parent_tbl            m_parent; // parent explanation for occurs_check
         svector<stack_entry>  m_dfs; // stack for DFS for occurs_check
+        sat::literal_vector   m_lits;
 
         void clear_mark();
 
@@ -118,7 +119,8 @@ namespace dt {
         void occurs_check_explain(enode * top, enode * root);
         void explain_is_child(enode* parent, enode* child);
 
-        void mk_split(theory_var v);
+        void mk_split(theory_var v, bool is_final);
+        void mk_enum_split(theory_var v);
 
         void display_var(std::ostream & out, theory_var v) const;
 
@@ -127,6 +129,8 @@ namespace dt {
         bool visited(expr* e) override;
         bool post_visit(expr* e, bool sign, bool root) override;
         void clone_var(solver& src, theory_var v);
+
+        sat::literal mk_recognizer_constructor_literal(func_decl* c, euf::enode* n);
         
     public:
         solver(euf::solver& ctx, theory_id id);
@@ -138,7 +142,7 @@ namespace dt {
         sat::check_result check() override;
 
         std::ostream& display(std::ostream& out) const override;
-        std::ostream& display_justification(std::ostream& out, sat::ext_justification_idx idx) const override { return euf::th_propagation::from_index(idx).display(out); }
+        std::ostream& display_justification(std::ostream& out, sat::ext_justification_idx idx) const override { return euf::th_explain::from_index(idx).display(out); }
         std::ostream& display_constraint(std::ostream& out, sat::ext_constraint_idx idx) const override { return display_justification(out, idx); }
         void collect_statistics(statistics& st) const override;
         euf::th_solver* clone(euf::solver& ctx) override;
@@ -152,6 +156,7 @@ namespace dt {
         void apply_sort_cnstr(euf::enode* n, sort* s) override;
         bool is_shared(theory_var v) const override { return false; }
         lbool get_phase(bool_var v) override { return l_true; }
+        bool enable_self_propagate() const override { return true; }
 
         void merge_eh(theory_var, theory_var, theory_var v1, theory_var v2);
         void after_merge_eh(theory_var r1, theory_var r2, theory_var v1, theory_var v2) {}

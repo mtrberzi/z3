@@ -328,14 +328,19 @@ namespace sat {
     }
 
     void solver::set_eliminated(bool_var v, bool f) { 
-        if (m_eliminated[v] && !f) 
+        if (m_eliminated[v] == f)
+            return;
+        if (!f) 
             reset_var(v, m_external[v], m_decision[v]);
+        else if (f && m_ext)
+            m_ext->set_eliminated(v);
         m_eliminated[v] = f; 
     }
 
 
     clause* solver::mk_clause(unsigned num_lits, literal * lits, sat::status st) {
         m_model_is_current = false;
+            
         for (unsigned i = 0; i < num_lits; i++) 
             VERIFY(!was_eliminated(lits[i]));
         
@@ -4002,17 +4007,18 @@ namespace sat {
 
     void solver::display_wcnf(std::ostream & out, unsigned sz, literal const* lits, unsigned const* weights) const {
         unsigned max_weight = 0;
-        for (unsigned i = 0; i < sz; ++i) {
-            max_weight = std::max(max_weight, weights[i]);
-        }
+        for (unsigned i = 0; i < sz; ++i) 
+            max_weight += weights[i];
         ++max_weight;
+
+        if (m_ext)
+            throw default_exception("wcnf is only supported for pure CNF problems");
 
         out << "p wcnf " << num_vars() << " " << num_clauses() + sz << " " << max_weight << "\n";
         out << "c soft " << sz << "\n";
 
-        for (literal lit : m_trail) {
+        for (literal lit : m_trail) 
             out << max_weight << " " << dimacs_lit(lit) << " 0\n";
-        }
         unsigned l_idx = 0;
         for (watch_list const& wlist : m_watches) {
             literal l = ~to_literal(l_idx);
