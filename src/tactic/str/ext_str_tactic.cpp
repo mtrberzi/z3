@@ -403,6 +403,29 @@ class ext_str_tactic : public tactic {
             stack.push_back(haystack);
         }
 
+        void process_contains(expr* contains, goal_ref const& g, expr_substitution& sub) {
+            if (sub.contains(contains)) return;
+
+            expr * needle;
+            expr * haystack;
+            u.str.is_contains(contains, haystack, needle);
+
+            // Rewrite: (str.contains X "const") -> (str.in_re X (re.++ .* "const" .*))
+            {
+                zstring string_constant;
+                if (u.str.is_string(needle, string_constant)) {
+                    TRACE("ext_str_tactic", tout << "str.contains rewrite applies: " << mk_pp(haystack, m) << "in .* \"" << string_constant << "\" .*" << std::endl;);
+                    expr_ref string_expr(u.str.mk_string(string_constant), m);
+                    expr_ref string_expr_re(u.re.mk_to_re(string_expr), m);
+                    sort * re_str_sort = string_expr_re->get_sort();
+                    expr_ref re_any_string(u.re.mk_full_seq(re_str_sort), m);
+                    expr_ref regex(u.re.mk_concat(re_any_string, u.re.mk_concat(string_expr_re, re_any_string)), m);
+                    expr_ref str_in_regex(u.re.mk_in_re(haystack, regex), m);
+                    sub.insert(contains, str_in_regex);
+                }
+            }
+        }
+
         void operator()(goal_ref const& g, goal_ref_buffer& result) {
             SASSERT(g->is_well_formed());
             tactic_report report("ext_str", *g);
@@ -457,6 +480,8 @@ class ext_str_tactic : public tactic {
                             process_prefix(curr, g, sub);
                         } else if (u.str.is_suffix(curr)) {
                             process_suffix(curr, g, sub);
+                        } else if (u.str.is_contains(curr)) {
+                            process_contains(curr, g, sub);
                         } else if (u.str.is_in_re(curr)) {
                             process_regex_membership(curr, g, sub);
                         }
