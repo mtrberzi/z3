@@ -1668,7 +1668,9 @@ br_status seq_rewriter::mk_seq_index(expr* a, expr* b, expr* c, expr_ref& result
     }
 
     // indexof(substr(X, Y, len(X)-Y), B, C) --> (F == -1? -1 : F - Y) where F == indexof(X, B, C+Y)
-    if (str().is_extract(a, x, y, len1) && m_autil.is_numeral(y, r1) && r1.is_nonneg()) {
+    // mtrberzi: disabled this rule as it is causing unsoundness
+    //if (str().is_extract(a, x, y, len1) && m_autil.is_numeral(y, r1) && r1.is_nonneg()) {
+    if (false) {
         expr * s1 = nullptr, *s2 = nullptr;
         // Check for an addition, because this term would have been rewritten by now
         if (m_autil.is_add(len1, s1, s2)) {
