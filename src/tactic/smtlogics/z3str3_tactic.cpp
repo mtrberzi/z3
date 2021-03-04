@@ -26,7 +26,7 @@ Notes:
 #include "tactic/str/ext_str_tactic.h"
 #include "tactic/str/str_ml_tactic.h"
 #include "tactic/str/string_cheese_tactic.h"
-#include "smt/tactic/smt_tactic.h"
+#include "tactic/smtlogics/smt_tactic.h"
 #include "smt/params/smt_params.h"
 #include "ast/ast_pp.h"
 
