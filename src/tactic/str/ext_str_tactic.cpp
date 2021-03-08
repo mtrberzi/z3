@@ -414,7 +414,7 @@ class ext_str_tactic : public tactic {
             {
                 zstring string_constant;
                 if (u.str.is_string(needle, string_constant)) {
-                    TRACE("ext_str_tactic", tout << "str.contains rewrite applies: " << mk_pp(haystack, m) << "in .* \"" << string_constant << "\" .*" << std::endl;);
+                    TRACE("ext_str_tactic", tout << "str.contains rewrite applies: " << mk_pp(haystack, m) << " in .* \"" << string_constant << "\" .*" << std::endl;);
                     expr_ref string_expr(u.str.mk_string(string_constant), m);
                     expr_ref string_expr_re(u.re.mk_to_re(string_expr), m);
                     sort * re_str_sort = string_expr_re->get_sort();
@@ -424,6 +424,9 @@ class ext_str_tactic : public tactic {
                     sub.insert(contains, str_in_regex);
                 }
             }
+
+            stack.push_back(needle);
+            stack.push_back(haystack);
         }
 
         void operator()(goal_ref const& g, goal_ref_buffer& result) {
@@ -484,6 +487,12 @@ class ext_str_tactic : public tactic {
                             process_contains(curr, g, sub);
                         } else if (u.str.is_in_re(curr)) {
                             process_regex_membership(curr, g, sub);
+                        } else {
+                            app * a = to_app(curr);
+                            for (unsigned i = 0; i < a->get_num_args(); ++i) {
+                                expr * arg = a->get_arg(i);
+                                stack.push_back(arg);
+                            }
                         }
                     }
                 }

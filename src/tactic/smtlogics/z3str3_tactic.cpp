@@ -283,6 +283,12 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         TRACE("str", tout << "z3str3 tactic bypassed: performing arrangement solving" << std::endl;);
         tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), z3str3_2), p);
         return st;
+    } else if (m_smt_params.m_StrTactic == symbol("seq")) {
+        // sequence solver only
+        TRACE("str", tout << "z3str3 tactic bypassed: using sequence solver" << std::endl;);
+        z3seq = using_params(mk_smt_tactic(m), seq_p);
+        tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), z3seq), p);
+        return st;
     } else if (m_smt_params.m_StrTactic == symbol("z3str4")) {
         // Dynamic Algorithm Selection
         seq_p.set_uint("seq.giveup_point", 7);
@@ -321,6 +327,8 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
         tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), tree), p);
         return st;
     } else if (m_smt_params.m_StrTactic == symbol("3probe")) {
+        // don't apply ext_str_tactic before the regex probe, as it may introduce regexes
+
         seq_p.set_uint("seq.giveup_point", 7);
         tactic * z3seqBefore = using_params(try_for(mk_smt_tactic(m), m_smt_params.m_PreMilliseconds), seq_p);
         seq_p.set_uint("seq.giveup_point", 0);
@@ -333,9 +341,16 @@ tactic * mk_z3str3_tactic(ast_manager & m, params_ref const & p) {
                      or_else(z3seqBefore, z3str3_2, z3str3_1)),
                 z3seqAfter);
 
-        tactic * tree = cond(mk_has_regex_probe(), or_else(z3str3_2, z3seqAfter), innertree);
+        tactic * regextrue = or_else(z3str3_2, z3seqAfter);
+        tactic * regexfalse = innertree;
+        if (m_smt_params.m_RewriterTactic) {
+            regextrue = and_then(mk_ext_str_tactic(m, p), regextrue);
+            regexfalse = and_then(mk_ext_str_tactic(m, p), regexfalse);
+        }
 
-        tactic * st = using_params(and_then(mk_rewriter_tactic(m, p), tree), p);
+        tactic * tree = cond(mk_has_regex_probe(), regextrue, regexfalse);
+
+        tactic * st = using_params(and_then(mk_simplify_tactic(m, p), tree), p);
         
         return st;
     } else {
