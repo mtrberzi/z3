@@ -272,7 +272,7 @@ theory_seq::theory_seq(context& ctx):
     m_autil(m),
     m_sk(m, m_rewrite),
     m_ax(*this, m_rewrite),
-    m_eq(m, m_ax.ax()),
+    m_eq(m, *this, m_ax.ax()),
     m_regex(*this),
     m_arith_value(m),
     m_trail_stack(*this),
@@ -285,13 +285,6 @@ theory_seq::theory_seq(context& ctx):
     m_has_seq(m_util.has_seq()),
     m_new_solution(false),
     m_new_propagation(false) {
-
-    std::function<void(bool, expr_ref_vector const&)> _add_consequence = 
-        [&](bool uses_eq, expr_ref_vector const& clause) { 
-        add_consequence(uses_eq, clause);
-    };
-
-    m_eq.set_add_consequence(_add_consequence);
 }
 
 theory_seq::~theory_seq() {
@@ -956,8 +949,12 @@ bool theory_seq::simplify_eq(expr_ref_vector& ls, expr_ref_vector& rs, dependenc
             break;
         expr_ref li(p.first, m);
         expr_ref ri(p.second, m);
-        if (solve_unit_eq(li, ri, deps)) {
-            // no-op
+        seq::eq_ptr r;
+        m_eq_deps = deps;
+        if (m_eq.reduce(li, ri, r)) {
+            if (r) {
+                m_eqs.push_back(mk_eqdep(r->ls, r->rs, deps));
+            }
         }
         else if (m_util.is_seq(li) || m_util.is_re(li)) {
             TRACE("seq_verbose", tout << "inserting " << li << " = " << ri << "\n";);
@@ -977,57 +974,6 @@ bool theory_seq::simplify_eq(expr_ref_vector& ls, expr_ref_vector& rs, dependenc
     return true;
 }
 
-bool theory_seq::solve_itos(expr_ref_vector const& ls, expr_ref_vector const& rs, dependency* dep) {
-    expr* e = nullptr;
-    
-    if (rs.size() == 1 && m_util.str.is_itos(rs[0], e) && solve_itos(e, ls, dep))
-        return true;
-    if (ls.size() == 1 && m_util.str.is_itos(ls[0], e) && solve_itos(e, rs, dep)) 
-        return true;
-    return false;
-}
-
-bool theory_seq::solve_itos(expr* n, expr_ref_vector const& rs, dependency* dep) {
-    if (rs.empty()) {
-        literal lit = m_ax.mk_le(n, -1);
-        propagate_lit(dep, 0, nullptr, lit);
-        return true;
-    }
-    expr* u = nullptr;
-    for (expr* r : rs) {
-        if (m_util.str.is_unit(r, u) && !m_is_digit.contains(u)) {
-            m_is_digit.insert(u);
-            m_trail_stack.push(insert_obj_trail<expr>(m_is_digit, u));
-            literal is_digit = m_ax.is_digit(u);
-            if (ctx.get_assignment(is_digit) != l_true) {
-                propagate_lit(dep, 0, nullptr, is_digit);
-            }
-        }
-    }
-
-    expr_ref num(m), digit(m);
-    for (expr* r : rs) {
-        if (!m_util.str.is_unit(r, u))
-            return false;
-        digit = m_sk.mk_digit2int(u);
-        if (!num) {
-            num = digit;
-        }
-        else {
-            num = m_autil.mk_add(m_autil.mk_mul(m_autil.mk_int(10), num), digit);
-        }
-    }
-
-    propagate_lit(dep, 0, nullptr, mk_simplified_literal(m.mk_eq(n, num)));
-    if (rs.size() > 1) {
-        VERIFY (m_util.str.is_unit(rs[0], u));
-        digit = m_sk.mk_digit2int(u);
-        propagate_lit(dep, 0, nullptr, m_ax.mk_ge(digit, 1));
-    }
-    return true;
-}
-
-
 
 bool theory_seq::reduce_length(expr* l, expr* r, literal_vector& lits) {
     expr_ref len1(m), len2(m);
@@ -1043,15 +989,7 @@ bool theory_seq::reduce_length(expr* l, expr* r, literal_vector& lits) {
 
 
 bool theory_seq::is_var(expr* a) const {
-    return
-        m_util.is_seq(a) &&
-        !m_util.str.is_concat(a) &&
-        !m_util.str.is_empty(a)  &&
-        !m_util.str.is_string(a) &&
-        !m_util.str.is_unit(a) &&
-        !m_util.str.is_itos(a) &&
-        !m_util.str.is_nth_i(a) && 
-        !m.is_ite(a);
+    return m_eq.is_var(a);
 }
 
 

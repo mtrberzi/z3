@@ -316,7 +316,7 @@ namespace arith {
         if (e1->get_sort() != e2->get_sort())
             return;
         reset_evidence();
-        for (auto const& ev : e)
+        for (auto ev : e)
             set_evidence(ev.ci(), m_core, m_eqs);
         auto* jst = euf::th_explain::propagate(*this, m_core, m_eqs, n1, n2);
         ctx.propagate(n1, n2, jst->to_index());
@@ -626,12 +626,16 @@ namespace arith {
             ctx.get_rewriter()(value);
         }
         else {
-            UNREACHABLE();
+            value = mdl.get_fresh_value(o->get_sort());
         }
+        mdl.register_value(value);
         values.set(n->get_root_id(), value);
     }
 
-    void solver::add_dep(euf::enode* n, top_sort<euf::enode>& dep) {
+    bool solver::add_dep(euf::enode* n, top_sort<euf::enode>& dep) {
+        theory_var v = n->get_th_var(get_id());
+        if (v == euf::null_theory_var && !a.is_arith_expr(n->get_expr()))
+            return false;
         expr* e = n->get_expr();
         if (a.is_arith_expr(e) && to_app(e)->get_num_args() > 0) {
             for (auto* arg : euf::enode_args(n))
@@ -640,6 +644,7 @@ namespace arith {
         else {
             dep.insert(n, nullptr); 
         }
+        return true;
     }
 
     void solver::push_core() {
@@ -1030,7 +1035,7 @@ namespace arith {
                 rational c1(0);
                 m_nla->am().set(r1, c1.to_mpq());
                 m_nla->am().add(r, r1, r);
-                for (auto const& arg : term) {
+                for (lp::lar_term::ival arg : term) {
                     auto wi = lp().column2tv(arg.column());
                     c1 = arg.coeff() * wcoeff;
                     if (wi.is_term()) {
@@ -1103,7 +1108,7 @@ namespace arith {
             ++m_stats.m_gomory_cuts;
             // m_explanation implies term <= k
             reset_evidence();
-            for (auto const& ev : m_explanation)
+            for (auto ev : m_explanation)
                 set_evidence(ev.ci(), m_core, m_eqs);
             // The call mk_bound() can set the m_infeasible_column in lar_solver
             // so the explanation is safer to take before this call.
@@ -1163,7 +1168,7 @@ namespace arith {
 
         ++m_num_conflicts;
         ++m_stats.m_conflicts;
-        for (auto const& ev : m_explanation)
+        for (auto ev : m_explanation)
             set_evidence(ev.ci(), m_core, m_eqs);
         TRACE("arith",
             tout << "Lemma - " << (is_conflict ? "conflict" : "propagation") << "\n";
@@ -1300,7 +1305,7 @@ namespace arith {
 
     void solver::term2coeffs(lp::lar_term const& term, u_map<rational>& coeffs, rational const& coeff) {
         TRACE("arith", lp().print_term(term, tout) << "\n";);
-        for (const auto& ti : term) {
+        for (lp::lar_term::ival ti : term) {
             theory_var w;
             auto tv = lp().column2tv(ti.column());
             if (tv.is_term()) {
