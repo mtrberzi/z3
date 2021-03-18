@@ -110,9 +110,7 @@ namespace smt {
     }
 
     void theory_str::init() {
-        auto m_params = ctx.get_fparams();
-        m_params.m_string_solver = symbol("seq");
-        m_mk_aut.set_solver(alloc(seq_expr_solver, get_manager(), m_params));
+        m_mk_aut.set_solver(alloc(seq_expr_solver, get_manager(), ctx.get_fparams()));
     }
 
     void theory_str::reset_internal_data_structures() {
