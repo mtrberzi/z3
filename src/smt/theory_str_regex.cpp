@@ -16,6 +16,7 @@
   --*/
 
 #include "smt/theory_str.h"
+#include <cmath>
 
 namespace smt {
 
@@ -778,22 +779,34 @@ namespace smt {
                       });
 
                 if (regex_get_counter(regex_length_attempt_count, aut.get_regex_term()) >= m_params.m_RegexAutomata_LengthAttemptThreshold) {
+                    expr * str_in_re_term(u.re.mk_in_re(str, aut.get_regex_term()));
+                    lbool current_assignment = ctx.get_assignment(str_in_re_term);
+                    bool need_to_complement = false;
+                    if ( (current_assignment == l_true && aut.get_polarity()) || (current_assignment == l_false && !aut.get_polarity())) {
+                        need_to_complement = false;
+                    } else {
+                        need_to_complement = true;
+                    }
+
                     unsigned intersectionDifficulty = 0;
-                    if (aut_inter != nullptr) {
-                        intersectionDifficulty = estimate_automata_intersection_difficulty(aut_inter, aut.get_automaton());
+                    if (aut_inter == nullptr) {
+                        if (need_to_complement) {
+                            intersectionDifficulty = estimate_automata_complement_difficulty(aut.get_automaton());
+                        } else {
+                            intersectionDifficulty = 0;
+                        }
+                    } else {
+                        intersectionDifficulty = estimate_automata_intersection_difficulty(aut_inter, aut.get_automaton(), need_to_complement);
                     }
                     TRACE("str", tout << "intersection difficulty is " << intersectionDifficulty << std::endl;);
                     if (intersectionDifficulty <= m_params.m_RegexAutomata_IntersectionDifficultyThreshold
                             || regex_get_counter(regex_intersection_fail_count, aut.get_regex_term()) >= m_params.m_RegexAutomata_FailedIntersectionThreshold) {
 
-                        expr * str_in_re_term(u.re.mk_in_re(str, aut.get_regex_term()));
-                        lbool current_assignment = ctx.get_assignment(str_in_re_term);
                         // if the assignment is consistent with our assumption, use the automaton directly;
                         // otherwise, complement it (and save that automaton for next time)
                         // TODO we should cache these intermediate results
                         // TODO do we need to push the intermediates into a vector for deletion anyway?
-                        if ( (current_assignment == l_true && aut.get_polarity())
-                                || (current_assignment == l_false && !aut.get_polarity())) {
+                        if (!need_to_complement) {
                             if (aut_inter == nullptr) {
                                 aut_inter = aut.get_automaton();
                             } else {
@@ -976,10 +989,23 @@ namespace smt {
         }
     }
 
-    unsigned theory_str::estimate_automata_intersection_difficulty(eautomaton * aut1, eautomaton * aut2) {
+    unsigned theory_str::estimate_automata_intersection_difficulty(eautomaton * aut1, eautomaton * aut2, bool need_to_complement) {
         ENSURE(aut1 != nullptr);
         ENSURE(aut2 != nullptr);
-        return _qmul(aut1->num_states(), aut2->num_states());
+
+        if (need_to_complement) {
+            return _qmul(aut1->num_states(), estimate_automata_complement_difficulty(aut2));
+        } else {
+            return _qmul(aut1->num_states(), aut2->num_states());
+        }
+    }
+
+    unsigned theory_str::estimate_automata_complement_difficulty(eautomaton * aut) {
+        if (aut->num_states() >= 32) {
+            return UINT_MAX;
+        } else {
+            return (unsigned)pow(2.0, aut->num_states());
+        }
     }
 
     // Check whether a regex translates well to a linear set of length constraints.
