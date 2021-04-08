@@ -103,12 +103,14 @@ class lp_bound_propagator {
     // x[m_root->column()] - m_pol[j].pol()*x[j] == const;
     // to bind polarity and the vertex in the table
     struct pol_vert {
-        int m_polarity;
-        const vertex* m_v;
-        pol_vert() {}
-        pol_vert(int p, const vertex* v): m_polarity(p), m_v(v) {}
+        int           m_polarity { -2 };
+        unsigned      m_row_index { 0 };
+        const vertex* m_v { nullptr };
+    pol_vert() {}
+    pol_vert(int p, unsigned r, const vertex* v): m_polarity(p), m_row_index(r), m_v(v) {}
         int pol() const { return m_polarity; }
         const vertex* v() const { return m_v; }
+        unsigned row() const { return m_row_index; }
     };
     u_map<pol_vert>                                     m_pol; 
     // if m_pos.contains(j) then  x[j] = x[m_root->column()] + o
@@ -214,7 +216,7 @@ public:
         unsigned j = null_lpvar;
         if (!lp().find_in_fixed_tables(val(v_j), is_int(v_j), j)) 
             return;
-        TRACE("cheap_eq", tout << "found j=" << j << " for v=";
+        TRACE("cheap_eq", tout << "found j = " << j << " v_j = " << v_j << " for v = ";
               print(tout, v) << "\n in lp.fixed tables\n";);
         vector<edge> path;
         find_path_on_tree(path, v, m_fixed_vertex);
@@ -258,21 +260,29 @@ public:
     // pol for polarity
     int pol(const vertex* v) const { return pol(v->column()); }
     int pol(unsigned j) const { return m_pol[j].pol(); }
-    void set_polarity(const vertex* v, int p) {
+    void set_polarity(const vertex* v, unsigned r, int p) {
         SASSERT(p == 1 || p == -1);
         unsigned j = v->column();
         SASSERT(!m_pol.contains(j));
-        m_pol.insert(j, pol_vert(p, v));
+        m_pol.insert(j, pol_vert(p, r, v));
     }
 
     void check_and_set_polarity(vertex* v, int polarity, unsigned row_index) {
         pol_vert prev_pol;
         if (!m_pol.find(v->column(), prev_pol)) {
-            set_polarity(v, polarity);
+            set_polarity(v, row_index, polarity);
             return;
         }
         if (prev_pol.pol() == polarity)
             return;
+        return;
+        //
+        // TODO disabled pending fix for #5127
+        // the explanation is missing some terms. 
+        // Probably because in this case there isn't a single, but two paths
+        // from u to v. The bounds for the fixed variables for the two paths
+        // have to be taken into account.
+        // 
         const vertex *u = prev_pol.v();
         // we have a path L between u and v with p(L) = -1, that means we can
         // create an equality of the form x + x = a, where x = v->column() = u->column()
@@ -281,11 +291,11 @@ public:
         m_fixed_vertex_explanation = get_explanation_from_path(path);
         explain_fixed_in_row(row_index, m_fixed_vertex_explanation);
         set_fixed_vertex(v);
-        TRACE("cheap_eq", tout << "polarity switch between: v = "; print(tout , v) << "\nand u = "; print(tout, u) << "\n";);
-        TRACE("cheap_eq", tout << "fixed vertex explanation\n";
-              for (auto p : m_fixed_vertex_explanation) {
-                  lp().constraints().display(tout, [this](lpvar j) { return lp().get_variable_name(j);}, p.ci());
-              });
+        TRACE("cheap_eq", 
+              tout << "polarity switch: " << row_index << " pol: " << polarity << "\nv = "; print(tout , v) << "\nu = "; print(tout, u) << "\n";
+              tout << "fixed vertex explanation\n";
+              for (auto p : m_fixed_vertex_explanation) 
+                  lp().constraints().display(tout, [this](lpvar j) { return lp().get_variable_name(j);}, p.ci()););
 
     }
     
@@ -316,7 +326,7 @@ public:
         }
         TRACE("cheap_eq", print_row(tout, row_index););
         m_root = alloc_v(x);
-        set_polarity(m_root, 1); // keep m_root in the positive table
+        set_polarity(m_root, row_index, 1); // keep m_root in the positive table
         if (not_set(y)) {
             set_fixed_vertex(m_root);
             explain_fixed_in_row(row_index, m_fixed_vertex_explanation);
@@ -379,7 +389,7 @@ public:
     }
 
     void check_for_eq_and_add_to_val_table(vertex* v,  map<mpq, const vertex*, obj_hash<mpq>, default_eq<mpq>>& table) {
-        TRACE("cheap_eq", tout << "v="; print(tout, v) << "\n";);
+        TRACE("cheap_eq", tout << "v = "; print(tout, v) << "\n";);
         const vertex *k; // the other vertex
         if (table.find(val(v), k)) {
             TRACE("cheap_eq", tout << "found k " ; print(tout, k) << "\n";);
@@ -447,7 +457,9 @@ public:
         SASSERT(j != k);
         unsigned je = lp().column_to_reported_index(j);
         unsigned ke = lp().column_to_reported_index(k);
-        TRACE("cheap_eq", tout << "reporting eq " << j << ", " << k << "\n";
+        TRACE("cheap_eq", 
+              tout << "reporting eq " << j  << ", " << k << "\n";
+              tout << "reported idx " << je << ", " << ke << "\n";
               for (auto p : exp) {
                   lp().constraints().display(tout, [this](lpvar j) { return lp().get_variable_name(j);}, p.ci());
               }
@@ -480,14 +492,14 @@ public:
     }
 
     void explain_fixed_in_row(unsigned row, explanation& ex) const {
-        for (const auto & c : lp().get_row(row)) {
-            if (lp().is_fixed(c.var())) {
+        TRACE("cheap_eq", tout << "explain-row " << row << "\n";);
+        for (const auto & c : lp().get_row(row)) 
+            if (lp().is_fixed(c.var())) 
                 explain_fixed_column(c.var(), ex);
-            }
-        }
     }
 
     void explain_fixed_column(unsigned j, explanation & ex) const {
+        TRACE("cheap_eq", tout << "explain-column " << j << "\n";);
         SASSERT(column_is_fixed(j));
         constraint_index lc, uc;            
         lp().get_bound_constraint_witnesses_for_column(j, lc, uc);
@@ -545,7 +557,7 @@ public:
         out << "\nchildren :\n";
         for (auto c : v->edges()) {
             out << "row = ";
-            print_row(out, c.row());
+            print_row(out << c.row() << ": ", c.row());
             print_tree(out, c.target());
         }
         return out;

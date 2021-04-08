@@ -340,6 +340,8 @@ namespace smt {
     void context::ensure_internalized(expr* e) {
         if (!e_internalized(e)) 
             internalize(e, false);
+        if (is_app(e) && !m.is_bool(e))
+            internalize_term(to_app(e));
     }
 
     /**
@@ -354,9 +356,8 @@ namespace smt {
 
     void context::internalize(expr* const* exprs, unsigned num_exprs, bool gate_ctx) {
         internalize_deep(exprs, num_exprs);
-        for (unsigned i = 0; i < num_exprs; ++i) {
+        for (unsigned i = 0; i < num_exprs; ++i) 
             internalize_rec(exprs[i], gate_ctx);
-        }
     }
 
     void context::internalize_rec(expr * n, bool gate_ctx) {
@@ -601,6 +602,9 @@ namespace smt {
         m_app2enode.setx(q->get_id(), get_enode(lam_name), nullptr);
         m_l_internalized_stack.push_back(q);
         m_trail_stack.push_back(&m_mk_lambda_trail);
+        bool_var bv = get_bool_var(fa);
+        assign(literal(bv, false), nullptr);
+        mark_as_relevant(bv);
     }
 
     /**

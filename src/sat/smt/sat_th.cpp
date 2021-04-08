@@ -45,7 +45,7 @@ namespace euf {
                 if (!visit(arg))
                     goto loop;
             }
-            if (!post_visit(e, sign, root && a == e))
+            if (!visited(e) && !post_visit(e, sign, root && a == e))
                 return false;
             m_stack.pop_back();
         }
@@ -65,7 +65,7 @@ namespace euf {
         return ctx.get_region();
     }
 
-    trail_stack<euf::solver>& th_euf_solver::get_trail_stack() {
+    trail_stack& th_euf_solver::get_trail_stack() {
         return ctx.get_trail_stack();
     }
 

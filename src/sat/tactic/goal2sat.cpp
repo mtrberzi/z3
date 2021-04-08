@@ -63,7 +63,7 @@ struct goal2sat::imp : public sat::sat_internalizer {
     obj_map<app, sat::literal>  m_app2lit;
     u_map<app*>                 m_lit2app;
     unsigned_vector             m_cache_lim;
-    ptr_vector<app>             m_cache_trail;
+    app_ref_vector              m_cache_trail;
     obj_hashtable<expr>         m_interface_vars;
     sat::solver_core &          m_solver;
     atom2bool_var &             m_map;
@@ -85,6 +85,7 @@ struct goal2sat::imp : public sat::sat_internalizer {
     imp(ast_manager & _m, params_ref const & p, sat::solver_core & s, atom2bool_var & map, dep2asm_map& dep2asm, bool default_external):
         m(_m),
         pb(m),
+        m_cache_trail(m),
         m_solver(s),
         m_map(map),
         m_dep2asm(dep2asm),
@@ -95,7 +96,8 @@ struct goal2sat::imp : public sat::sat_internalizer {
         m_true = sat::null_literal;
     }
 
-    ~imp() override {}
+    ~imp() override {
+    }
         
 
     sat::cut_simplifier* aig() {
@@ -258,7 +260,7 @@ struct goal2sat::imp : public sat::sat_internalizer {
         m_map.pop(n);
         unsigned k = m_cache_lim[m_cache_lim.size() - n];
         for (unsigned i = m_cache_trail.size(); i-- > k; ) {
-            app* t = m_cache_trail[i];
+            app* t = m_cache_trail.get(i);
             sat::literal lit;
             if (m_app2lit.find(t, lit)) {
                 m_app2lit.remove(t);
@@ -303,7 +305,7 @@ struct goal2sat::imp : public sat::sat_internalizer {
                 if (m_euf) {
                     convert_euf(t, root, sign);  
                     return;
-                }
+                } 
                 if (!is_uninterp_const(t)) {
                     if (!is_app(t)) {
                         std::ostringstream strm;
@@ -886,6 +888,7 @@ struct goal2sat::imp : public sat::sat_internalizer {
             ~scoped_reset() {
                 i.m_interface_vars.reset();
                 i.m_app2lit.reset();
+                i.m_lit2app.reset();
             }
         };
         scoped_reset _reset(*this);
@@ -935,11 +938,10 @@ struct goal2sat::imp : public sat::sat_internalizer {
     }
 
     void user_push() {
-        
     }
 
     void user_pop(unsigned n) {
-        m_true = sat::null_literal;
+        m_true = sat::null_literal;   
     }
 
 };
@@ -988,22 +990,25 @@ void goal2sat::collect_param_descrs(param_descrs & r) {
 
 
 void goal2sat::operator()(goal const & g, params_ref const & p, sat::solver_core & t, atom2bool_var & m, dep2asm_map& dep2asm, bool default_external) {
-    if (!m_imp) 
+    if (!m_imp) {
         m_imp = alloc(imp, g.m(), p, t, m, dep2asm, default_external);
-        
+        for (unsigned i = 0; i < m_scopes; ++i)
+            m_imp->user_push();
+    }
     (*m_imp)(g);
     
     if (!t.get_extension() && m_imp->interpreted_funs().empty()) {
         dealloc(m_imp);
         m_imp = nullptr;
     }
+    else 
+        m_scopes = 0;
 
 }
 
 void goal2sat::get_interpreted_funs(func_decl_ref_vector& funs) {
-    if (m_imp) {
+    if (m_imp) 
         funs.append(m_imp->interpreted_funs());
-    }
 }
 
 bool goal2sat::has_interpreted_funs() const {
@@ -1018,11 +1023,15 @@ void goal2sat::update_model(model_ref& mdl) {
 void goal2sat::user_push() {
     if (m_imp)
         m_imp->user_push();
+    else 
+        m_scopes++;
 }
     
 void goal2sat::user_pop(unsigned n) {
     if (m_imp)
         m_imp->user_pop(n);
+    else
+        m_scopes -= n;
 }
 
 

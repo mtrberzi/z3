@@ -73,7 +73,6 @@ namespace euf {
         struct scope {
             unsigned m_var_lim;
         };
-        typedef trail_stack<solver> euf_trail_stack;
 
 
         size_t* to_ptr(sat::literal l) { return TAG(size_t*, reinterpret_cast<size_t*>((size_t)(l.index() << 4)), 1); }
@@ -93,7 +92,7 @@ namespace euf {
         sat::sat_internalizer& si;
         smt_params             m_config;
         euf::egraph            m_egraph;
-        euf_trail_stack        m_trail;
+        trail_stack            m_trail;
         stats                  m_stats;
         th_rewriter            m_rewriter;
         func_decl_ref_vector   m_unhandled_functions;
@@ -265,7 +264,7 @@ namespace euf {
             vec.push_back(val);
             push(push_back_trail< V, false>(vec));
         }
-        euf_trail_stack& get_trail_stack() { return m_trail; }
+        trail_stack& get_trail_stack() { return m_trail; }
 
         void updt_params(params_ref const& p);
         void set_lookahead(sat::lookahead* s) override { m_lookahead = s; }
@@ -359,6 +358,7 @@ namespace euf {
         bool relevancy_enabled() const { return get_config().m_relevancy_lvl > 0; }
         void add_root(unsigned n, sat::literal const* lits);
         void add_aux(unsigned n, sat::literal const* lits);
+        void add_aux(sat::literal a, sat::literal b) { sat::literal lits[2] = {a, b}; add_aux(2, lits); }
         void track_relevancy(sat::bool_var v);
         bool is_relevant(expr* e) const;
         bool is_relevant(enode* n) const;

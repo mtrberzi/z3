@@ -322,6 +322,8 @@ struct smt_params : public preprocessor_params,
     void updt_params(context_params const & p);
 
     void display(std::ostream & out) const;
+
+    void validate_string_solver(symbol const& s) const;
 };
 
 

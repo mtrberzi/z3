@@ -32,20 +32,12 @@ namespace arith {
     {
         m_solver = alloc(lp::lar_solver);
 
-        smt_params_helper lpar(ctx.s().params());
+        lp().updt_params(ctx.s().params());
         lp().settings().set_resource_limit(m_resource_limit);
-        lp().settings().simplex_strategy() = static_cast<lp::simplex_strategy_enum>(lpar.arith_simplex_strategy());
         lp().settings().bound_propagation() = bound_prop_mode::BP_NONE != propagation_mode();
-        lp().settings().enable_hnf() = lpar.arith_enable_hnf();
-        lp().settings().print_external_var_name() = lpar.arith_print_ext_var_names();
-        lp().set_track_pivoted_rows(lpar.arith_bprop_on_pivoted_rows());
-        lp().settings().report_frequency = lpar.arith_rep_freq();
-        lp().settings().print_statistics = lpar.arith_print_stats();
-        lp().settings().cheap_eqs() = lpar.arith_propagate_eqs();
-        lp().set_cut_strategy(get_config().m_arith_branch_cut_ratio);
         lp().settings().int_run_gcd_test() = get_config().m_arith_gcd_test;
         lp().settings().set_random_seed(get_config().m_random_seed);
-
+        
         m_lia = alloc(lp::int_solver, *m_solver.get());
     }
 
@@ -78,7 +70,7 @@ namespace arith {
         }
 
         // clone rows into m_solver, m_nla, m_lia
-        NOT_IMPLEMENTED_YET();
+        // NOT_IMPLEMENTED_YET();
 
         return result;        
     }
@@ -307,8 +299,6 @@ namespace arith {
             return;
         enode* n1 = var2enode(uv);
         enode* n2 = var2enode(vv);
-        if (!ctx.is_shared(n1) || !ctx.is_shared(n2))
-            return;
         expr* e1 = n1->get_expr();
         expr* e2 = n2->get_expr();
         if (m.is_ite(e1) || m.is_ite(e2))
@@ -402,12 +392,13 @@ namespace arith {
 
     }
 
-    void solver::propagate_eqs(lp::tv t, lp::constraint_index ci, lp::lconstraint_kind k, api_bound& b, rational const& value) {
-        if (k == lp::GE && set_lower_bound(t, ci, value) && has_upper_bound(t.index(), ci, value)) {
-            fixed_var_eh(b.get_var(), value);
+    void solver::propagate_eqs(lp::tv t, lp::constraint_index ci1, lp::lconstraint_kind k, api_bound& b, rational const& value) {
+        lp::constraint_index ci2;
+        if (k == lp::GE && set_lower_bound(t, ci1, value) && has_upper_bound(t.index(), ci2, value)) {
+            fixed_var_eh(b.get_var(), ci1, ci2, value);
         }
-        else if (k == lp::LE && set_upper_bound(t, ci, value) && has_lower_bound(t.index(), ci, value)) {
-            fixed_var_eh(b.get_var(), value);
+        else if (k == lp::LE && set_upper_bound(t, ci1, value) && has_lower_bound(t.index(), ci2, value)) {
+            fixed_var_eh(b.get_var(), ci1, ci2, value);
         }
     }
 
@@ -977,6 +968,9 @@ namespace arith {
 
         TRACE("arith", ctx.display(tout););
 
+        if (!check_delayed_eqs()) 
+            return sat::check_result::CR_CONTINUE;
+
         switch (check_lia()) {
         case l_true:
             break;
@@ -1070,6 +1064,19 @@ namespace arith {
             TRACE("arith", tout << "status treated as inconclusive: " << status << "\n";);
             return l_undef;
         }
+    }
+
+    bool solver::check_delayed_eqs() {
+        for (auto p : m_delayed_eqs) {
+            auto const& e = p.first;
+            if (p.second)
+                new_eq_eh(e);
+            else if (is_eq(e.v1(), e.v2())) {
+                mk_diseq_axiom(e);
+                return false;
+            }
+        }
+        return true;
     }
 
     lbool solver::check_lia() {

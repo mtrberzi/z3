@@ -160,6 +160,18 @@ public:
     virtual void updt_params(params_ref const& p) = 0;
 };
 
+class ast_context_params : public context_params { 
+    ast_manager* m_manager { nullptr };
+public:
+    /**
+       \brief Create an AST manager using this configuration.
+    */
+    ast_manager * mk_ast_manager();
+
+    void set_foreign_manager(ast_manager* m) { m_manager = m; }
+    bool owns_manager() const { return m_manager != nullptr; }
+};
+
 class cmd_context : public progress_callback, public tactic_manager, public ast_printer_context {
 public:
     enum status {
@@ -179,8 +191,10 @@ public:
         ~scoped_watch() { m_ctx.m_watch.stop(); }
     };
 
+    
+
 protected:
-    context_params               m_params;
+    ast_context_params                  m_params;
     bool                         m_main_ctx;
     symbol                       m_logic;
     bool                         m_interactive_mode;
@@ -316,6 +330,7 @@ public:
     cmd_context(bool main_ctx = true, ast_manager * m = nullptr, symbol const & l = symbol::null);
     ~cmd_context() override;
     void set_cancel(bool f);
+    void register_plist();
     context_params  & params() { return m_params; }
     solver_factory &get_solver_factory() { return *m_solver_factory; }
     opt_wrapper*  get_opt();

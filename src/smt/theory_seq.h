@@ -49,7 +49,6 @@ namespace smt {
         typedef scoped_dependency_manager<assumption> dependency_manager;
         typedef dependency_manager::dependency dependency;        
 
-        typedef trail_stack<theory_seq> th_trail_stack;
         struct expr_dep {
             expr* v;
             expr* e;
@@ -365,7 +364,7 @@ namespace smt {
         seq::eq_solver   m_eq;
         seq_regex        m_regex;
         arith_value      m_arith_value;
-        th_trail_stack   m_trail_stack;
+        trail_stack      m_trail_stack;
         stats            m_stats;
         ptr_vector<expr> m_todo, m_concat;
         expr_ref_vector  m_ls, m_rs, m_lhs, m_rhs;
@@ -556,7 +555,7 @@ namespace smt {
         void add_axiom(literal_vector& lits);
         
         bool has_length(expr *e) const { return m_has_length.contains(e); }
-        void add_length(expr* e, expr* l);
+        void add_length(expr* l);
         bool add_length_to_eqc(expr* n);
         bool enforce_length(expr_ref_vector const& es, vector<rational>& len);
         void enforce_length_coherence(enode* n1, enode* n2);
@@ -622,7 +621,7 @@ namespace smt {
         // model building
         app* mk_value(app* a);
 
-        th_trail_stack& get_trail_stack() { return m_trail_stack; }
+        trail_stack& get_trail_stack() { return m_trail_stack; }
         void merge_eh(theory_var, theory_var, theory_var v1, theory_var v2) {}
         void after_merge_eh(theory_var r1, theory_var r2, theory_var v1, theory_var v2) { }
         void unmerge_eh(theory_var v1, theory_var v2) {}

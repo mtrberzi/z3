@@ -352,6 +352,8 @@ public:
     bool is_sign_ext(expr const * e) const { return is_app_of(e, get_fid(), OP_SIGN_EXT); }
     bool is_bv_umul_no_ovfl(expr const* e) const { return is_app_of(e, get_fid(), OP_BUMUL_NO_OVFL); }
 
+    MATCH_UNARY(is_bv_not);
+
     MATCH_BINARY(is_bv_add);
     MATCH_BINARY(is_bv_mul);
     MATCH_BINARY(is_bv_sle);
@@ -377,7 +379,6 @@ public:
     rational norm(rational const & val, unsigned bv_size, bool is_signed) const ;
     rational norm(rational const & val, unsigned bv_size) const { return norm(val, bv_size, false); }
     bool has_sign_bit(rational const & n, unsigned bv_size) const;
-    bool mult_inverse(rational const & n, unsigned bv_size, rational & result);
 };
 
 class bv_util : public bv_recognizers {

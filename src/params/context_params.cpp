@@ -19,7 +19,6 @@ Notes:
 --*/
 #include "util/gparams.h"
 #include "util/params.h"
-#include "ast/ast.h"
 #include "params/context_params.h"
 
 context_params::context_params() {
@@ -187,24 +186,12 @@ params_ref context_params::merge_default_params(params_ref const & p) {
     }
 }
 
-void context_params::get_solver_params(ast_manager const & m, params_ref & p, bool & proofs_enabled, bool & models_enabled, bool & unsat_core_enabled) {
-    proofs_enabled     = m.proofs_enabled() && p.get_bool("proof", m_proof);
-    models_enabled     = p.get_bool("model", m_model);
+void context_params::get_solver_params(params_ref & p, bool & proofs_enabled, bool & models_enabled, bool & unsat_core_enabled) {
+    proofs_enabled     &= p.get_bool("proof", m_proof);
+    models_enabled     &= p.get_bool("model", m_model);
     unsat_core_enabled = m_unsat_core || p.get_bool("unsat_core", false);
     p = merge_default_params(p);
 }
 
-ast_manager * context_params::mk_ast_manager() {
-    if (m_manager)
-        return m_manager;
-    ast_manager * r = alloc(ast_manager,
-                            m_proof ? PGM_ENABLED : PGM_DISABLED,
-                            m_trace ? m_trace_file_name.c_str() : nullptr);
-    if (m_smtlib2_compliant)
-        r->enable_int_real_coercions(false);
-    if (m_debug_ref_count)
-        r->debug_ref_count();
-    return r;
-}
 
 

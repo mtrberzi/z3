@@ -235,8 +235,6 @@ public:
 
 re2automaton::re2automaton(ast_manager& m): m(m), u(m), m_ba(nullptr), m_sa(nullptr) {}
 
-re2automaton::~re2automaton() {}
-
 void re2automaton::set_solver(expr_solver* solver) {
     m_solver = solver;
     m_ba = alloc(sym_expr_boolean_algebra, m, *solver);
@@ -2082,11 +2080,6 @@ br_status seq_rewriter::mk_seq_prefix(expr* a, expr* b, expr_ref& result) {
         return BR_DONE;
     }
 
-    expr* b2 = nullptr, *b3 = nullptr;    
-    if (str().is_replace(b, b1, b2, b3) && b2 == a && str().is_empty(b3)) {
-        result = str().mk_prefix(str().mk_concat(a, a), b1);
-        return BR_REWRITE2;
-    }
 
     unsigned len_a;
     rational len_b;
@@ -2371,10 +2364,9 @@ br_status seq_rewriter::mk_str_stoi(expr* a, expr_ref& result) {
     }
     if (str().is_unit(as.get(0), u) && m_util.is_const_char(u, ch) && '0' == ch) {
         result = str().mk_concat(as.size() - 1, as.c_ptr() + 1, as[0]->get_sort());
-        result = str().mk_stoi(result);
-        result = m().mk_ite(m_autil.mk_lt(result, m_autil.mk_int(0)),
+        result = m().mk_ite(str().mk_is_empty(result),
                             m_autil.mk_int(0),
-                            result);
+                            str().mk_stoi(result));
         return BR_REWRITE_FULL;
     }
 
@@ -4207,13 +4199,9 @@ br_status seq_rewriter::mk_re_star(expr* a, expr_ref& result) {
         result = re().mk_to_re(str().mk_empty(seq_sort));
         return BR_DONE;
     }
-    if (re().is_to_re(a, b) && str().is_string(b, zb)) {
-        if (zb.length() == 0) {
-            sort* seq_sort = nullptr;
-            VERIFY(m_util.is_re(a, seq_sort));
-            result = re().mk_to_re(str().mk_empty(seq_sort));
-            return BR_REWRITE_FULL;
-        }
+    if (re().is_to_re(a, b) && str().is_empty(b)) {
+        result = a;
+        return BR_DONE;
     }
     if (re().is_plus(a, b)) {
         result = re().mk_star(b);
@@ -4257,6 +4245,30 @@ br_status seq_rewriter::mk_re_star(expr* a, expr_ref& result) {
  * (re.range c_1 c_n) 
  */
 br_status seq_rewriter::mk_re_range(expr* lo, expr* hi, expr_ref& result) {
+    zstring s;
+    unsigned len = 0;
+    rational rlen;
+    bool is_empty = false;
+    if (str().is_string(lo, s) && s.length() != 1) 
+        is_empty = true;
+    if (str().is_string(hi, s) && s.length() != 1) 
+        is_empty = true;
+    min_length(lo, len);
+    if (len > 1)
+        is_empty = true;
+    min_length(hi, len);
+    if (len > 1)
+        is_empty = true;
+    if (max_length(lo, rlen) && rlen == 0)
+        is_empty = true;
+    if (max_length(hi, rlen) && rlen == 0)
+        is_empty = true;
+    if (is_empty) {
+        sort* srt = re().mk_re(lo->get_sort());
+        result = re().mk_empty(srt);
+        return BR_DONE;
+    }
+
     return BR_FAILED;
 }
 
@@ -4953,7 +4965,17 @@ bool seq_rewriter::reduce_itos(expr_ref_vector& ls, expr_ref_vector& rs,
 
 bool seq_rewriter::reduce_eq_empty(expr* l, expr* r, expr_ref& result) {
     if (str().is_empty(r))
-        std::swap(l,r);
+        std::swap(l, r);
+    if (str().is_length(r))
+        std::swap(l, r);
+#if 0
+    rational n;
+    if (str().is_length(l) && m_autil.is_numeral(r, n) && n.is_zero()) {
+        VERIFY(str().is_length(l, l));
+        result = m().mk_eq(l, str().mk_empty(l->get_sort()));
+        return true;
+    }
+#endif
     if (!str().is_empty(l))
         return false;
     expr* s = nullptr, *offset = nullptr, *len = nullptr;

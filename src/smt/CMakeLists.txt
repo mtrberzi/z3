@@ -2,7 +2,6 @@ z3_add_component(smt
   SOURCES
     arith_eq_adapter.cpp
     arith_eq_solver.cpp
-    asserted_formulas.cpp
     dyn_ack.cpp
     expr_context_simplifier.cpp
     fingerprints.cpp
@@ -78,6 +77,7 @@ z3_add_component(smt
     uses_theory.cpp
     watch_list.cpp
   COMPONENT_DEPENDENCIES
+    solver_assertions
     bit_blaster
     cmd_context
     fpa
