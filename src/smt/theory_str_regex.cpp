@@ -648,7 +648,6 @@ namespace smt {
                         expr_ref lhs(mk_and(lhs_terms), m);
                         expr_ref rhs(ctx.mk_eq_atom(str, mk_string("")), m);
                         assert_implication(lhs, rhs);
-                        regex_axiom_add = true;
                     } else {
                         TRACE("str", tout << "asserting conflict clause" << std::endl;);
                         // No common prefixes, and the empty string doesn't work. Conflict!
@@ -660,7 +659,6 @@ namespace smt {
                         expr_ref lhs(m.mk_not(mk_and(lhs_terms)), m);
                         assert_axiom(lhs);
                         add_persisted_axiom(lhs);
-                        regex_axiom_add = true;
                     }
                 }
             }
@@ -723,7 +721,6 @@ namespace smt {
                         expr_ref lhs(mk_and(lhs_terms), m);
                         expr_ref rhs(ctx.mk_eq_atom(str, mk_string("")), m);
                         assert_implication(lhs, rhs);
-                        regex_axiom_add = true;
                     } else {
                         TRACE("str", tout << "asserting conflict clause" << std::endl;);
                         // No common suffixes, and the empty string doesn't work. Conflict!
@@ -735,7 +732,6 @@ namespace smt {
                         expr_ref lhs(m.mk_not(mk_and(lhs_terms)), m);
                         assert_axiom(lhs);
                         add_persisted_axiom(lhs);
-                        regex_axiom_add = true;
                     }
                 }
             }
