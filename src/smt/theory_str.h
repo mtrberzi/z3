@@ -599,7 +599,6 @@ protected:
     void instantiate_axiom_suffixof(enode * e);
     void instantiate_axiom_Contains(enode * e);
     void instantiate_axiom_Indexof(enode * e);
-    void instantiate_axiom_Indexof_extended(enode * e);
     void instantiate_axiom_LastIndexof(enode * e);
     void instantiate_axiom_Substr(enode * e);
     void instantiate_axiom_Replace(enode * e);

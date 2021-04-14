@@ -1272,62 +1272,91 @@ namespace smt {
             }
         }
 
-        expr * exHaystack = nullptr;
-        expr * exNeedle = nullptr;
-        expr * exIndex = nullptr;
-        u.str.is_index(ex, exHaystack, exNeedle, exIndex);
+        expr* s = nullptr, *t = nullptr, *offset = nullptr;
+        rational r;
+        VERIFY(u.str.is_index(ex, t, s) ||
+               u.str.is_index(ex, t, s, offset));
+        expr_ref minus_one(m_autil.mk_int(-1), m);
+        expr_ref zero(m_autil.mk_int(0), m);
+        expr_ref xsy(m);
+        expr_ref cnt(mk_contains(t, s), m);
+        expr_ref i_eq_m1(ctx.mk_eq_atom(ex, minus_one), m);
+        expr_ref i_eq_0(ctx.mk_eq_atom(ex, zero), m);
+        expr_ref s_eq_empty(ctx.mk_eq_atom(s, mk_string("")), m);
+        expr_ref t_eq_empty(ctx.mk_eq_atom(t, mk_string("")), m);
 
-        // if the third argument is exactly the integer 0, we can use this "simple" indexof;
-        // otherwise, we call the "extended" version
-        rational startingInteger;
-        if (!m_autil.is_numeral(exIndex, startingInteger) || !startingInteger.is_zero()) {
-            // "extended" indexof term with prefix
-            instantiate_axiom_Indexof_extended(e);
-            return;
+        // |t| = 0 => |s| = 0 or indexof(t,s,offset) = -1
+        // ~contains(t,s) <=> indexof(t,s,offset) = -1
+
+        {
+            expr_ref clause1(m.mk_or(cnt,  i_eq_m1), m);
+            assert_axiom_rw(clause1);
+            expr_ref clause2(m.mk_or(~t_eq_empty, s_eq_empty, i_eq_m1), m);
+            assert_axiom_rw(clause2);
         }
-        axiomatized_terms.insert(ex);
+        if (!offset || (m_autil.is_numeral(offset, r) && r.is_zero())) {
+            // |s| = 0 => indexof(t,s,0) = 0
+            {
+                expr_ref clause(m.mk_or(~s_eq_empty, i_eq_0), m);
+                assert_axiom_rw(clause);
+            }
 
-        TRACE("str", tout << "instantiate str.indexof axiom for " << mk_pp(ex, m) << std::endl;);
+            expr_ref x(mk_str_var("indexofLeft"), m);
+            expr_ref y(mk_str_var("indexofRight"), m);
+            xsy = mk_concat(x, mk_concat(s, y));
+            expr_ref lenx(mk_strlen(x), m);
+            // contains(t,s) & |s| != 0 => t = xsy & indexof(t,s,0) = |x|
+            expr_ref clause1(m.mk_or(~cnt, s_eq_empty, ctx.mk_eq_atom(t, xsy)), m);
+            assert_axiom_rw(clause1);
+            expr_ref clause2(m.mk_or(~cnt, s_eq_empty, ctx.mk_eq_atom(ex, lenx)), m);
+            assert_axiom_rw(clause2);
+            expr_ref clause3(m.mk_or(~cnt, m_autil.mk_ge(ex, 0)), m);
+            assert_axiom_rw(clause3);
+            NOT_IMPLEMENTED_YET(); // tightest_prefix(s, x);
+        } else {
+            // offset >= len(t) => |s| = 0 or indexof(t, s, offset) = -1
+            // offset > len(t) => indexof(t, s, offset) = -1
+            // offset = len(t) & |s| = 0 => indexof(t, s, offset) = offset
+            expr_ref len_t(mk_strlen(t), m);
+            expr_ref offset_ge_len(m_autil.mk_ge(m_autil.mk_sub(offset, len_t), 0), m);
+            expr_ref offset_le_len(m_autil.mk_le(m_autil.mk_sub(offset, len_t), 0), m);
+            expr_ref i_eq_offset(ctx.mk_eq_atom(ex, offset), m);
+            {
+                expr_ref clause1(m.mk_or(~offset_ge_len, s_eq_empty, i_eq_m1), m);
+                assert_axiom_rw(clause1);
+                expr_ref clause2(m.mk_or(offset_le_len, i_eq_m1), m);
+                assert_axiom_rw(clause2);
+                expr_ref clause3(m.mk_or(~offset_ge_len, ~offset_le_len, ~s_eq_empty, i_eq_offset), m);
+                assert_axiom_rw(clause3);
+            }
 
-        expr_ref x1(mk_str_var("x1"), m);
-        expr_ref x2(mk_str_var("x2"), m);
+            expr_ref x(mk_str_var("indexofLeft"), m);
+            expr_ref y(mk_str_var("indexofRight"), m);
+            expr_ref indexof0(u.str.mk_index(y, s, zero), m);
+            expr_ref offset_p_indexof0(m_autil.mk_add(offset, indexof0), m);
+            expr_ref offset_ge_0(m_autil.mk_ge(offset, 0), m);
 
-        expr_ref condAst1(mk_contains(exHaystack, exNeedle), m);
-        expr_ref condAst2(m.mk_not(ctx.mk_eq_atom(exNeedle, mk_string(""))), m);
-        expr_ref condAst(m.mk_and(condAst1, condAst2), m);
-        SASSERT(condAst);
+            // 0 <= offset & offset < len(t) => t = xy
+            // 0 <= offset & offset < len(t) => len(x) = offset
+            // 0 <= offset & offset < len(t) & indexof(y,s,0) = -1 => -1 = i
+            // 0 <= offset & offset < len(t) & indexof(y,s,0) >= 0 =>
+            //                  -1 = indexof(y,s,0) + offset = indexof(t, s, offset)
 
-        // -----------------------
-        // true branch
-        expr_ref_vector thenItems(m);
-        //  args[0] = x1 . args[1] . x2
-        thenItems.push_back(ctx.mk_eq_atom(exHaystack, mk_concat(x1, mk_concat(exNeedle, x2))));
-        //  indexAst = |x1|
-        thenItems.push_back(ctx.mk_eq_atom(ex, mk_strlen(x1)));
-        //     args[0]  = x3 . x4
-        //  /\ |x3| = |x1| + |args[1]| - 1
-        //  /\ ! contains(x3, args[1])
-        expr_ref x3(mk_str_var("x3"), m);
-        expr_ref x4(mk_str_var("x4"), m);
-        expr_ref tmpLen(m_autil.mk_add(ex, mk_strlen(ex->get_arg(1)), mk_int(-1)), m);
-        SASSERT(tmpLen);
-        thenItems.push_back(ctx.mk_eq_atom(exHaystack, mk_concat(x3, x4)));
-        thenItems.push_back(ctx.mk_eq_atom(mk_strlen(x3), tmpLen));
-        thenItems.push_back(mk_not(m, mk_contains(x3, exNeedle)));
-        expr_ref thenBranch(mk_and(thenItems), m);
-        SASSERT(thenBranch);
+            expr_ref clause1(m.mk_or(~offset_ge_0, offset_ge_len, ctx.mk_eq_atom(t, mk_concat(x, y))), m);;
+            assert_axiom_rw(clause1);
+            expr_ref clause2(m.mk_or(~offset_ge_0, offset_ge_len, ctx.mk_eq_atom(mk_strlen(x), offset)), m);
+            assert_axiom_rw(clause2);
+            expr_ref clause3(m.mk_or(~offset_ge_0, offset_ge_len, m.mk_not(ctx.mk_eq_atom(indexof0, minus_one)), i_eq_m1), m);
+            assert_axiom_rw(clause3);
+            expr_ref clause4(m.mk_or(~offset_ge_0, offset_ge_len,
+                      m.mk_not(m_autil.mk_ge(indexof0, 0)),
+                      ctx.mk_eq_atom(offset_p_indexof0, ex)), m);
+            assert_axiom_rw(clause4);
 
-        // -----------------------
-        // false branch
-        expr_ref elseBranch(m.mk_ite(
-                ctx.mk_eq_atom(exNeedle, mk_string("")),
-                ctx.mk_eq_atom(ex, mk_int(0)),
-                ctx.mk_eq_atom(ex, mk_int(-1))
-                ), m);
-        SASSERT(elseBranch);
-
-        expr_ref breakdownAssert(m.mk_ite(condAst, thenBranch, elseBranch), m);
-        assert_axiom_rw(breakdownAssert);
+            // offset < 0 => -1 = i      
+            expr_ref clause5(m.mk_or(offset_ge_0, i_eq_m1), m);
+            assert_axiom_rw(clause5);
+        }
 
         {
             // heuristic: integrate with str.contains information
@@ -1343,151 +1372,6 @@ namespace smt {
 
             // we can't assert this during init_search as it breaks an invariant if the instance becomes inconsistent
             //m_delayed_axiom_setup_terms.push_back(containsAxiom);
-        }
-    }
-
-    void theory_str::instantiate_axiom_Indexof_extended(enode * _e) {
-        th_rewriter & rw = ctx.get_rewriter();
-        ast_manager & m = get_manager();
-
-        app * e = _e->get_expr();
-        if (axiomatized_terms.contains(e)) {
-            TRACE("str", tout << "already set up extended str.indexof axiom for " << mk_pp(e, m) << std::endl;);
-            return;
-        }
-        SASSERT(e->get_num_args() == 3);
-        axiomatized_terms.insert(e);
-
-        TRACE("str", tout << "instantiate extended str.indexof axiom for " << mk_pp(e, m) << std::endl;);
-
-        // str.indexof(H, N, i):
-        // i < 0 --> -1
-        // i == 0 --> str.indexof(H, N, 0)
-        // i >= len(H) --> -1
-        // 0 < i < len(H) -->
-        //     H = hd ++ tl
-        //     len(hd) = i
-        //     i + str.indexof(tl, N, 0)
-
-        expr * H = nullptr; // "haystack"
-        expr * N = nullptr; // "needle"
-        expr * i = nullptr; // start index
-        u.str.is_index(e, H, N, i);
-
-        expr_ref minus_one(m_autil.mk_numeral(rational::minus_one(), true), m);
-        expr_ref zero(m_autil.mk_numeral(rational::zero(), true), m);
-        expr_ref empty_string(mk_string(""), m);
-
-        // case split
-
-        // case 1: i < 0
-        {
-            expr_ref premise(m_autil.mk_le(i, minus_one), m);
-            expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
-            expr_ref ax(rewrite_implication(premise, conclusion), m);
-            assert_axiom_rw(ax);
-        }
-
-        // case 1.1: N == "" and i out of range
-        {
-            expr_ref premiseNEmpty(ctx.mk_eq_atom(N, empty_string), m);
-            // range check
-            expr_ref premiseRangeLower(m_autil.mk_ge(i, zero), m);
-            expr_ref premiseRangeUpper(m_autil.mk_le(i, mk_strlen(H)), m);
-            expr_ref premiseRange(m.mk_and(premiseRangeLower, premiseRangeUpper), m);
-            expr_ref premise(m.mk_and(premiseNEmpty, m.mk_not(premiseRange)), m);
-            expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
-            expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
-            assert_axiom_rw(finalAxiom);
-        }
-
-        // case 1.2: N == "" and i within range
-        {
-            expr_ref premiseNEmpty(ctx.mk_eq_atom(N, empty_string), m);
-            // range check
-            expr_ref premiseRangeLower(m_autil.mk_ge(i, zero), m);
-            expr_ref premiseRangeUpper(m_autil.mk_le(i, mk_strlen(H)), m);
-            expr_ref premiseRange(m.mk_and(premiseRangeLower, premiseRangeUpper), m);
-            expr_ref premise(m.mk_and(premiseNEmpty, premiseRange), m);
-            expr_ref conclusion(ctx.mk_eq_atom(e, i), m);
-            expr_ref finalAxiom(rewrite_implication(premise, conclusion), m);
-            assert_axiom_rw(finalAxiom);
-        }
-
-        // case 2: i = 0
-        {
-            expr_ref premise1(ctx.mk_eq_atom(i, zero), m);
-            expr_ref premise2(m.mk_not(ctx.mk_eq_atom(N, empty_string)), m);
-            expr_ref premise(m.mk_and(premise1, premise2), m);
-            // reduction to simpler case
-            expr_ref conclusion(ctx.mk_eq_atom(e, mk_indexof(H, N)), m);
-            expr_ref ax(rewrite_implication(premise, conclusion), m);
-            assert_axiom_rw(ax);
-        }
-        // case 3: i >= len(H)
-        {
-            expr_ref premise1(m_autil.mk_ge(m_autil.mk_add(i, m_autil.mk_mul(minus_one, mk_strlen(H))), zero), m);
-            expr_ref premise2(m.mk_not(ctx.mk_eq_atom(N, empty_string)), m);
-            expr_ref premise(m.mk_and(premise1, premise2), m);
-            expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
-            expr_ref ax(rewrite_implication(premise, conclusion), m);
-            assert_axiom_rw(ax);
-        }
-        // case 3.5: H doesn't contain N
-        {
-            expr_ref premise(m.mk_not(u.str.mk_contains(H, N)), m);
-            expr_ref conclusion(ctx.mk_eq_atom(e, minus_one), m);
-            expr_ref ax(rewrite_implication(premise, conclusion), m);
-            assert_axiom_rw(ax);
-        }
-        // case 4: 0 < i < len(H), N non-empty, and H contains N
-        {
-            expr_ref premise1(m_autil.mk_gt(i, zero), m);
-            //expr_ref premise2(m_autil.mk_lt(i, mk_strlen(H)), m);
-            expr_ref premise2(m.mk_not(m_autil.mk_ge(m_autil.mk_add(i, m_autil.mk_mul(minus_one, mk_strlen(H))), zero)), m);
-            expr_ref premise3(u.str.mk_contains(H, N), m);
-            expr_ref premise4(m.mk_not(ctx.mk_eq_atom(N, mk_string(""))), m);
-
-            expr_ref_vector premises(m);
-            premises.push_back(premise1);
-            premises.push_back(premise2);
-            premises.push_back(premise3);
-            premises.push_back(premise4);
-            expr_ref premise(mk_and(premises), m);
-
-            expr_ref hd(mk_str_var("hd"), m);
-            expr_ref tl(mk_str_var("tl"), m);
-
-            expr_ref_vector conclusion_terms(m);
-            conclusion_terms.push_back(ctx.mk_eq_atom(H, mk_concat(hd, tl)));
-            conclusion_terms.push_back(ctx.mk_eq_atom(mk_strlen(hd), i));
-            conclusion_terms.push_back(u.str.mk_contains(tl, N));
-            conclusion_terms.push_back(ctx.mk_eq_atom(e, m_autil.mk_add(i, mk_indexof(tl, N))));
-
-            expr_ref conclusion(mk_and(conclusion_terms), m);
-            expr_ref ax(rewrite_implication(premise, conclusion), m);
-            assert_axiom_rw(ax);
-        }
-
-        {
-            // heuristic: integrate with str.contains information
-            // (but don't introduce it if it isn't already in the instance)
-            // (0 <= i < len(H)) ==> (H contains N) <==> (H indexof N, i) >= 0
-            expr_ref precondition1(m_autil.mk_gt(i, minus_one), m);
-            //expr_ref precondition2(m_autil.mk_lt(i, mk_strlen(H)), m);
-            expr_ref precondition2(m.mk_not(m_autil.mk_ge(m_autil.mk_add(i, m_autil.mk_mul(minus_one, mk_strlen(H))), zero)), m);
-            expr_ref precondition3(m.mk_not(ctx.mk_eq_atom(N, mk_string(""))), m);
-            expr_ref precondition(m.mk_and(precondition1, precondition2, precondition3), m);
-            rw(precondition);
-
-            expr_ref premise(u.str.mk_contains(H, N), m);
-            ctx.internalize(premise, false);
-            expr_ref conclusion(m_autil.mk_ge(e, zero), m);
-            expr_ref containsAxiom(ctx.mk_eq_atom(premise, conclusion), m);
-            expr_ref finalAxiom(rewrite_implication(precondition, containsAxiom), m);
-            SASSERT(finalAxiom);
-            // we can't assert this during init_search as it breaks an invariant if the instance becomes inconsistent
-            m_delayed_assertions_todo.push_back(finalAxiom);
         }
     }
 
