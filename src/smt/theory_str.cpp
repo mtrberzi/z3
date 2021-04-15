@@ -1310,16 +1310,35 @@ namespace smt {
             assert_axiom_rw(clause1);
             expr_ref clause2(m.mk_or(~cnt, s_eq_empty, ctx.mk_eq_atom(ex, lenx)), m);
             assert_axiom_rw(clause2);
-            expr_ref clause3(m.mk_or(~cnt, m_autil.mk_ge(ex, 0)), m);
+            expr_ref clause3(m.mk_or(~cnt, m_autil.mk_ge(ex, zero)), m);
             assert_axiom_rw(clause3);
-            NOT_IMPLEMENTED_YET(); // tightest_prefix(s, x);
+            // tightest_prefix(s, x);
+        
+            {
+                expr_ref s_eq_emp(ctx.mk_eq_atom(s, mk_string("")), m);
+                if (u.str.max_length(s) <= 1) {
+                    expr_ref conflict(m.mk_or(s_eq_emp, ~expr_ref(u.str.mk_contains(x, s), m)), m);
+                    assert_axiom_rw(conflict);
+                    return;
+                }
+                expr_ref s1(mk_str_var("first"), m);
+                expr_ref c(mk_str_var("last"), m);
+                expr_ref c_is_unit(ctx.mk_eq_atom(mk_strlen(c), mk_int(1)), m);
+                assert_axiom_rw(c_is_unit);
+                expr_ref s1c(mk_concat(s1, c), m);
+                expr_ref tightest_prefix_1(m.mk_or(s_eq_emp, ctx.mk_eq_atom(s, s1c)), m);
+                assert_axiom_rw(tightest_prefix_1);
+                expr_ref tightest_prefix_2(m.mk_or(s_eq_emp, ~expr_ref(u.str.mk_contains(mk_concat(x, s1), s), m)), m);
+                assert_axiom_rw(tightest_prefix_2);
+            }
+            
         } else {
             // offset >= len(t) => |s| = 0 or indexof(t, s, offset) = -1
             // offset > len(t) => indexof(t, s, offset) = -1
             // offset = len(t) & |s| = 0 => indexof(t, s, offset) = offset
             expr_ref len_t(mk_strlen(t), m);
-            expr_ref offset_ge_len(m_autil.mk_ge(m_autil.mk_sub(offset, len_t), 0), m);
-            expr_ref offset_le_len(m_autil.mk_le(m_autil.mk_sub(offset, len_t), 0), m);
+            expr_ref offset_ge_len(m_autil.mk_ge(m_autil.mk_sub(offset, len_t), zero), m);
+            expr_ref offset_le_len(m_autil.mk_le(m_autil.mk_sub(offset, len_t), zero), m);
             expr_ref i_eq_offset(ctx.mk_eq_atom(ex, offset), m);
             {
                 expr_ref clause1(m.mk_or(~offset_ge_len, s_eq_empty, i_eq_m1), m);
@@ -1349,7 +1368,7 @@ namespace smt {
             expr_ref clause3(m.mk_or(~offset_ge_0, offset_ge_len, m.mk_not(ctx.mk_eq_atom(indexof0, minus_one)), i_eq_m1), m);
             assert_axiom_rw(clause3);
             expr_ref clause4(m.mk_or(~offset_ge_0, offset_ge_len,
-                      m.mk_not(m_autil.mk_ge(indexof0, 0)),
+                      m.mk_not(m_autil.mk_ge(indexof0, zero)),
                       ctx.mk_eq_atom(offset_p_indexof0, ex)), m);
             assert_axiom_rw(clause4);
 
