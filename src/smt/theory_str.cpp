@@ -1255,6 +1255,7 @@ namespace smt {
             return;
         }
         SASSERT(ex->get_num_args() == 3);
+        axiomatized_terms.insert(ex);
 
         {
             // Attempt to rewrite to an integer constant. If this succeeds,
@@ -1267,7 +1268,6 @@ namespace smt {
             if (m_autil.is_numeral(rwex)) {
                 TRACE("str", tout << "constant expression " << mk_pp(ex, m) << " simplifies to " << mk_pp(rwex, m) << std::endl;);
                 assert_axiom(ctx.mk_eq_atom(ex, rwex));
-                axiomatized_terms.insert(ex);
                 return;
             }
         }
@@ -1276,6 +1276,7 @@ namespace smt {
         rational r;
         VERIFY(u.str.is_index(ex, t, s) ||
                u.str.is_index(ex, t, s, offset));
+
         expr_ref minus_one(m_autil.mk_int(-1), m);
         expr_ref zero(m_autil.mk_int(0), m);
         expr_ref xsy(m);
@@ -1312,8 +1313,8 @@ namespace smt {
             assert_axiom_rw(clause2);
             expr_ref clause3(m.mk_or(~cnt, m_autil.mk_ge(ex, zero)), m);
             assert_axiom_rw(clause3);
+            
             // tightest_prefix(s, x);
-        
             {
                 expr_ref s_eq_emp(ctx.mk_eq_atom(s, mk_string("")), m);
                 if (u.str.max_length(s) <= 1) {
