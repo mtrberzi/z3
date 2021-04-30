@@ -51,7 +51,7 @@ static bool is_cf_helper(ast_manager &m, expr * f, bool sign)
         TRACE("str_fl", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
         return false;
     }
-    else if (u.str.is_contains(f) || u.str.is_in_re(f) || u.str.is_replace(f))
+    else if (u.str.is_contains(f) || u.str.is_in_re(f) || u.str.is_replace(f) || u.str.is_index(f))
     {
         TRACE("str_fl", tout << "Not conjunctive fragment! " << mk_pp(f, m) << std::endl;);
         return false;
@@ -127,17 +127,25 @@ static bool has_word_eq_helper(ast_manager &m, expr * f)
 
 static bool has_word_eq(goal const &g)
 {
+    unsigned n_word_equations = 0;
+    unsigned n_non_word_equations = 0;
     ast_manager &m = g.m();
     unsigned sz = g.size();
     for (unsigned i = 0; i < sz; i++)
     {
         expr *f = g.form(i);
         if (has_word_eq_helper(m, f)){
-            return true;
+            n_word_equations++;
+        } else {
+            n_non_word_equations++;
         }
     }
-    TRACE("str_fl", tout << "Does not have word equations!" << std::endl;);
-    return false;
+    TRACE("str_fl", tout << "Total formulas: " << sz << " Word equations: " << n_word_equations << " Non-word equations: " << n_non_word_equations << std::endl;);
+    if (sz <= 5) {
+        return (n_word_equations > 0);
+    } else {
+        return (n_word_equations > n_non_word_equations);
+    }
 }
 
 class has_word_eq_probe : public probe {
@@ -187,7 +195,7 @@ static bool has_regex(goal const &g)
             return true;
         }
     }
-    TRACE("str_fl", tout << "Does not have word equations!" << std::endl;);
+    TRACE("str_fl", tout << "Does not have regular expressions!" << std::endl;);
     return false;
 }
 
