@@ -142,7 +142,7 @@ static bool has_word_eq(goal const &g)
     }
     TRACE("str_fl", tout << "Total formulas: " << sz << " Word equations: " << n_word_equations << " Non-word equations: " << n_non_word_equations << std::endl;);
     if (sz <= 5) {
-        return (n_non_word_equations == 0);
+        return (n_word_equations > 0);
     } else {
         return (n_word_equations > n_non_word_equations);
     }
